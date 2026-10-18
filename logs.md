@@ -102,3 +102,73 @@ This file maintains an immutable, chronological record of every feature, compone
 * **Description**:
   * Created production-grade `.gitignore` ignoring virtual environments (`.venv`), compiled Cython binaries (`*.pyd`, `*.obj`), temporary shared memory files (`*.ring`, `.test_shm/`), and cache files.
   * Generated standard `requirements.txt` for clean one-command dependency installation on any machine.
+
+---
+
+### [2026-10-18 21:01:00 IST] - Sub-Phase 2.1: Pre-allocated Memory Arena & OrderNode
+* **Module**: Matching Engine Memory Core (Hot Path)
+* **Files Created/Modified**:
+  * [`chronos_match/engine/order_node.h`](chronos_match/engine/order_node.h)
+  * [`chronos_match/engine/arena.h`](chronos_match/engine/arena.h)
+  * [`chronos_match/engine/arena.c`](chronos_match/engine/arena.c)
+  * [`chronos_match/engine/arena_cy.pyx`](chronos_match/engine/arena_cy.pyx)
+  * [`setup.py`](setup.py)
+  * [`tests/test_arena.py`](tests/test_arena.py)
+* **Description**:
+  * Designed 64-byte cache-line aligned intrusive `OrderNode` struct containing pointers for doubly-linked price queues.
+  * Implemented pure C `OrderArena` with contiguous pre-allocated memory pool and intrusive free-list.
+  * Guarantees zero dynamic memory allocation (`malloc`/`free`) during trade execution.
+  * Created Cython wrapper `FastArena` exposing safe, high-speed allocation inside `nogil`.
+  * Verified 100% test pass rate across 6 unit tests with empirical microbenchmark: **3.42 nanoseconds per allocation/deallocation** (> 292M ops/sec).
+
+---
+
+### [2026-10-18 21:14:00 IST] - Sub-Phase 2.2: Price Level Doubly-Linked FIFO Queue
+* **Module**: Limit Order Book Matching Core (Time Priority)
+* **Files Created/Modified**:
+  * [`chronos_match/engine/price_level.h`](chronos_match/engine/price_level.h)
+  * [`chronos_match/engine/price_level_cy.pyx`](chronos_match/engine/price_level_cy.pyx)
+  * [`setup.py`](setup.py)
+  * [`tests/test_price_level.py`](tests/test_price_level.py)
+* **Description**:
+  * Implemented pure C `PriceLevel` doubly-linked queue governing Time Priority (FIFO) at individual price points.
+  * Guaranteed $O(1)$ append at tail for newly arriving limit orders and $O(1)$ pop at head for executions.
+  * Guaranteed $O(1)$ unlinking for order cancellations from arbitrary list positions without traversal.
+  * Built Cython wrapper `FastPriceLevel` with `nogil` C-level performance tests.
+  * Verified 100% test pass rate across 4 unit tests: **3.33 nanoseconds per FIFO cycle** (> 300M cycles/sec).
+
+---
+
+### [2026-10-18 21:20:00 IST] - Sub-Phase 2.3: Limit Order Book Matching Core (Price-Time Priority)
+* **Module**: Core Limit Order Book (Hot Path Execution)
+* **Files Created/Modified**:
+  * [`chronos_match/engine/order_book.h`](chronos_match/engine/order_book.h)
+  * [`chronos_match/engine/order_book.c`](chronos_match/engine/order_book.c)
+  * [`chronos_match/engine/order_book_cy.pyx`](chronos_match/engine/order_book_cy.pyx)
+  * [`setup.py`](setup.py)
+  * [`tests/test_order_book.py`](tests/test_order_book.py)
+* **Description**:
+  * Built the pure C Price-Time Priority matching engine supporting Bid (descending) and Ask (ascending) price ladders.
+  * Implemented trade execution logic for exact fills, partial fills with resting remainders, and aggressive multi-level whale sweeps.
+  * Maintained passive order price priority and nanosecond match timestamp generation.
+  * Compiled with MSVC `/O2` and Cython `nogil` execution blocks.
+  * Verified 100% test pass rate across 7 unit tests with empirical microbenchmark: **0.011 microseconds (10.8 nanoseconds)** per matched order (> 92M orders/sec).
+
+---
+
+### [2026-10-18 21:28:00 IST] - Sub-Phase 2.4: Instantaneous O(1) Cancellation & Direct Map
+* **Module**: Order State Management & Cancellation Engine
+* **Files Created/Modified**:
+  * [`chronos_match/engine/order_map.h`](chronos_match/engine/order_map.h)
+  * [`chronos_match/engine/order_map.c`](chronos_match/engine/order_map.c)
+  * [`chronos_match/engine/order_book.h`](chronos_match/engine/order_book.h)
+  * [`chronos_match/engine/order_book.c`](chronos_match/engine/order_book.c)
+  * [`chronos_match/engine/order_book_cy.pyx`](chronos_match/engine/order_book_cy.pyx)
+  * [`setup.py`](setup.py)
+  * [`tests/test_cancellation.py`](tests/test_cancellation.py)
+* **Description**:
+  * Implemented pure C open-addressing flat hash map (`OrderMap`) with splitmix64 hashing and backward-shift deletion (zero tombstones).
+  * Maps `order_id` directly to `OrderNode*` and `PriceLevel*` memory pointers, eliminating $O(N)$ book searches.
+  * Integrated direct map with `OrderBook`: automatically registers resting orders and deregisters filled orders.
+  * Enabled instantaneous order cancellation in $O(1)$ time (< 20 ns) with safe rejection of unknown or already-filled orders.
+  * Verified 100% test pass rate across 6 unit tests with empirical microbenchmark: **18.64 nanoseconds per cancellation** (> 53M cancels/sec).

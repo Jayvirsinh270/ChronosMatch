@@ -25,7 +25,7 @@ dist/
 
 # Generated C files from Cython (can be regenerated with setup.py)
 chronos_match/test_cy.c
-chronos_match/engine/*.c
+chronos_match/engine/*_cy.c
 
 # Shared Memory Ring Buffer & Test Files
 *.ring
