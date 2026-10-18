@@ -1,0 +1,4 @@
+cython>=3.0.0
+setuptools>=68.0.0
+rich>=13.0.0
+pytest>=8.0.0

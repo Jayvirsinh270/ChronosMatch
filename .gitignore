@@ -1,0 +1,46 @@
+# Python Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Cython & C Build Artifacts
+build/
+dist/
+*.egg-info/
+*.pyd
+*.so
+*.dll
+*.obj
+*.lib
+*.exp
+*.ilk
+*.pdb
+
+# Generated C files from Cython (can be regenerated with setup.py)
+chronos_match/test_cy.c
+chronos_match/engine/*.c
+
+# Shared Memory Ring Buffer & Test Files
+*.ring
+.test_shm/
+*.shm
+
+# Databases & Audit Logs
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
