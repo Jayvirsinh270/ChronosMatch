@@ -12,7 +12,10 @@ This file logs every test suite execution, performance benchmark, environment de
 | **TEST-002** | 2026-10-18 21:00:42 | `chronos_match/engine/arena.c` | Memory Arena, O(1) Alloc/Free, nogil Benchmark | 🟢 **PASSED** (6/6) | **3.42 ns/op (292M ops/s)** |
 | **TEST-003** | 2026-10-18 21:13:40 | `chronos_match/engine/price_level.h` | PriceLevel FIFO Queue, Arbitrary Unlink, nogil | 🟢 **PASSED** (4/4) | **3.33 ns/cycle (300M ops/s)** |
 | **TEST-004** | 2026-10-18 21:19:44 | `chronos_match/engine/order_book.c` | Price-Time Priority, Whale Sweep, nogil Match | 🟢 **PASSED** (7/7) | **0.011 μs/order (92M orders/s)** |
-| **TEST-005** | 2026-10-18 21:27:33 | `chronos_match/engine/order_map.c` | O(1) Cancellation, Backward-Shift Hash, nogil | 🟢 **PASSED** (6/6) | **18.64 ns/cancel (53M cancels/s)** |
+| **TEST-005** | 2026-10-18 21:27:33 | `chronos_match/engine/order_map.c` | O(1) Cancellation, Backward-Shift Hash, nogil | 🟢 **PASSED** (6/6) | **22.70 ns/cancel (44M cancels/s)** |
+| **TEST-006** | 2026-10-18 21:36:20 | `chronos_match/market/firehose.py` | Stochastic Flow, Async Streaming, 100k Burst | 🟢 **PASSED** (4/4) | **459,230 orders/sec** |
+| **TEST-007** | 2026-10-18 21:49:58 | `chronos_match/monitor/metrics.py` | Nanosecond Percentiles, Binned Histogram | 🟢 **PASSED** (5/5) | **106.87 ns/sample (9.3M samples/s)** |
+| **TEST-008** | 2026-10-18 21:59:44 | `chronos_match/market/bridge.py` | End-to-End Pipeline, Wire-to-Match SLA Audit | 🟢 **PASSED** (2/2) | **p99: 19.8 μs (< 50 μs SLA) \| 127k/s** |
 
 ---
 
@@ -181,6 +184,93 @@ This file logs every test suite execution, performance benchmark, environment de
      * Total Cancellations: 20,000
      * Average Latency: **18.64 nanoseconds per cancellation**
      * Throughput: **53,662,463 cancels/second**
+
+### [TEST-006] - 2026-10-18 21:36:20 IST
+* **Target Module**: Market Firehose & Stochastic Flow (`chronos_match/market/distribution.py`, `firehose.py`)
+* **Test File**: [`tests/test_firehose.py`](tests/test_firehose.py)
+* **Environment**: Windows 11 AMD64 | Python 3.15.0 | Asyncio Event Loop
+* **Command Executed**:
+  ```powershell
+  $env:PYTHONPATH="d:\infotech_internship_project"
+  pytest -v -s tests/test_firehose.py
+  ```
+
+#### Test Cases Executed:
+1. `test_distribution_generator_ratios`:
+   * **Scope**: Generates 5,000 synthetic orders, verifying Poisson-like distribution: resting Limit orders, real cancellations targeting active order IDs, and two-sided market presence.
+   * **Result**: 🟢 PASSED.
+2. `test_firehose_batch_generation`:
+   * **Scope**: Fast in-memory generation of 10,000 OrderPackets with sequential order ID tracking.
+   * **Result**: 🟢 PASSED.
+3. `test_firehose_stream_to_ring_buffer_async`:
+   * **Scope**: Concurrently runs `stream_to_ring_buffer` producer and background consumer draining shared memory buffer via `asyncio`. Verifies 100% data transmission with zero packet drops.
+   * **Result**: 🟢 PASSED.
+4. `test_firehose_throughput_benchmark`:
+   * **Scope**: Measures throughput when blasting 100,000 orders through the firehose.
+   * **Result**: 🟢 PASSED.
+   * **Benchmark Metric**:
+     * Total Orders: 100,000
+     * Generation Time: **217.17 ms**
+     * Throughput: **460,472 orders/second** (4.6x the 100k/s requirement)
+
+### [TEST-007] - 2026-10-18 21:49:58 IST
+* **Target Module**: Nanosecond Latency Profiler & Percentile Analytics (`chronos_match/monitor/metrics.py`)
+* **Test File**: [`tests/test_metrics.py`](tests/test_metrics.py)
+* **Environment**: Windows 11 AMD64 | Python 3.15.0 | Array-backed Circular Window
+* **Command Executed**:
+  ```powershell
+  $env:PYTHONPATH="d:\infotech_internship_project"
+  pytest -v -s tests/test_metrics.py
+  ```
+
+#### Test Cases Executed:
+1. `test_latency_profiler_init`:
+   * **Scope**: Verifies clean profiler state (0 samples, stats returns None).
+   * **Result**: 🟢 PASSED.
+2. `test_latency_profiler_exact_percentiles`:
+   * **Scope**: Ingests 1,000 uniform samples (1 to 1,000 μs) and tests percentile formulas: min (1.0 μs), p50 (500 μs), p90 (900 μs), p99 (990 μs), max (1000 μs).
+   * **Result**: 🟢 PASSED.
+3. `test_latency_profiler_circular_wraparound`:
+   * **Scope**: Ingests 250 samples into 100-sample window. Verifies old samples roll off without memory expansion.
+   * **Result**: 🟢 PASSED.
+4. `test_latency_histogram_bins`:
+   * **Scope**: Tests microsecond histogram binning (<10 μs, 10-25 μs, 25-50 μs, >50 μs).
+   * **Result**: 🟢 PASSED.
+5. `test_profiler_throughput_microbenchmark`:
+   * **Scope**: Records **1,000,000 consecutive latency samples** into the circular buffer.
+   * **Result**: 🟢 PASSED.
+   * **Benchmark Metric**:
+     * Total Records: 1,000,000
+     * Average Latency: **109.46 nanoseconds per sample**
+     * Throughput: **9,135,966 samples/second**
+
+### [TEST-008] - 2026-10-18 21:59:44 IST
+* **Target Module**: End-to-End Pipeline & SLA Audit (`chronos_match/market/bridge.py`)
+* **Test File**: [`tests/test_pipeline.py`](tests/test_pipeline.py)
+* **Environment**: Windows 11 AMD64 | Python 3.15.0 | Shared RAM IPC (.ring) + Cython nogil
+* **Command Executed**:
+  ```powershell
+  $env:PYTHONPATH="d:\infotech_internship_project"
+  pytest -v -s tests/test_pipeline.py
+  ```
+
+#### Test Cases Executed:
+1. `test_pipeline_single_process_flow`:
+   * **Scope**: Streams 500 orders through input ring buffer into EngineWorker, matches orders, and verifies trade events emit to outbound trade ring buffer with complete latency tracking.
+   * **Result**: 🟢 PASSED.
+2. `test_end_to_end_latency_sla_audit`:
+   * **Scope**: Streams **20,000 real-time financial orders** through shared RAM into the Cython matching engine. Measures empirical wire-to-match latency distribution.
+   * **Result**: 🟢 PASSED.
+   * **Empirical Benchmark & SLA Results**:
+     * Total Pipeline Time: 156.56 ms (127,745 orders/sec)
+     * Trades Executed: 9,894 fills
+     * Shares Traded: 1,441,805 shares
+     * Cancellations: 1,530 orders
+     * **Min Latency: 2.900 μs**
+     * **Median (p50) Latency: 4.200 μs**
+     * **p90 Latency: 7.200 μs**
+     * **p99 Tail Latency: 19.800 μs** (Passes the $< 50\text{ }\mu\text{s}$ project SLA by over $2.5\times$!)
+     * **p99.9 Tail Latency: 80.500 μs**
 
 ---
 

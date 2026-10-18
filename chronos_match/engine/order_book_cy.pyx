@@ -202,9 +202,9 @@ cdef class FastOrderBook:
         cdef MatchEvent match_buf[2]
         cdef int64_t base_price = 1000000 # $100.00
 
-        # Pre-place 'count' orders at different price levels so they rest
+        # Pre-place 'count' orders across 50 active price levels so they rest cleanly
         for i in range(count):
-            order_book_process_limit(book, i + 1, 1, base_price + (<int64_t>i * 100), 100, 1, 1, 0, match_buf, 2)
+            order_book_process_limit(book, i + 1, 1, base_price + (<int64_t>(i % 50) * 100), 100, 1, 1, 0, match_buf, 2)
 
         t0 = time.perf_counter_ns()
         with nogil:
