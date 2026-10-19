@@ -733,18 +733,53 @@
       }
     }
 
-    // WEBSOCKET TELEMETRY STREAM
+    // WEBSOCKET TELEMETRY STREAM WITH POLLING FALLBACK
+    let pollInterval = null;
+
+    function startPollingFallback() {
+      if (pollInterval) return;
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/snapshot');
+          const data = await res.json();
+          renderSnapshot(data);
+        } catch (e) {}
+      }, 300);
+    }
+
+    function stopPollingFallback() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+
     function connectStream() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      let ws;
+      try {
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      } catch (err) {
+        startPollingFallback();
+        return;
+      }
+
+      ws.onopen = () => {
+        stopPollingFallback();
+      };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         renderSnapshot(data);
       };
 
+      ws.onerror = () => {
+        startPollingFallback();
+      };
+
       ws.onclose = () => {
-        setTimeout(connectStream, 1500); // Reconnect
+        startPollingFallback();
+        setTimeout(connectStream, 2000); // Reconnect attempt
       };
     }
 
