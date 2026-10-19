@@ -36,6 +36,17 @@ def main():
     url = f"http://{args.host}:{args.port}"
     print_banner(url)
 
+    # Register instant shutdown handler for Windows Ctrl+C / Ctrl+Break
+    def _shutdown(sig=None, frame=None):
+        print("\n[+] Web server stopped cleanly.")
+        import os
+        os._exit(0)
+
+    import signal
+    signal.signal(signal.SIGINT, _shutdown)
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, _shutdown)
+
     if not args.no_browser:
         # Open default browser after a brief delay so server has started listening
         def _open():
@@ -45,12 +56,18 @@ def main():
         import threading
         threading.Thread(target=_open, daemon=True).start()
 
-    uvicorn.run(
-        "chronos_match.web.server:app",
-        host=args.host,
-        port=args.port,
-        log_level="warning",
-    )
+    try:
+        config = uvicorn.Config(
+            "chronos_match.web.server:app",
+            host=args.host,
+            port=args.port,
+            log_level="warning",
+            loop="asyncio",
+        )
+        server = uvicorn.Server(config)
+        server.run()
+    except (KeyboardInterrupt, SystemExit):
+        _shutdown()
 
 
 if __name__ == "__main__":
