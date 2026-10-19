@@ -50,6 +50,14 @@ cdef extern from "order_book.h" nogil:
     uint64_t order_book_best_ask_volume(const OrderBook* book)
     int64_t order_book_spread(const OrderBook* book)
 
+    ctypedef struct L2Level:
+        int64_t  price
+        uint64_t volume
+        uint32_t order_count
+
+    size_t order_book_get_l2_bids(const OrderBook* book, L2Level* out_levels, size_t max_depth)
+    size_t order_book_get_l2_asks(const OrderBook* book, L2Level* out_levels, size_t max_depth)
+
 cdef class FastOrderBook:
     """
     Cython wrapper around pure-C OrderBook matching engine.
@@ -106,6 +114,41 @@ cdef class FastOrderBook:
     @property
     def total_shares_traded(self) -> int:
         return self._book.total_shares_traded if self._book != NULL else 0
+
+    def get_l2_snapshot(self, size_t depth=10) -> dict:
+        """
+        Extract top N bids and asks for Level 2 market depth visualization.
+        Operates inside nogil with zero dynamic heap allocation.
+        """
+        cdef L2Level bid_buf[32]
+        cdef L2Level ask_buf[32]
+        cdef size_t max_d = depth if depth <= 32 else 32
+        cdef size_t n_bids = 0
+        cdef size_t n_asks = 0
+        cdef OrderBook* book = self._book
+
+        if book != NULL:
+            with nogil:
+                n_bids = order_book_get_l2_bids(book, bid_buf, max_d)
+                n_asks = order_book_get_l2_asks(book, ask_buf, max_d)
+
+        cdef list bids = []
+        cdef list asks = []
+        cdef size_t i
+        for i in range(n_bids):
+            bids.append({
+                "price": bid_buf[i].price,
+                "volume": bid_buf[i].volume,
+                "order_count": bid_buf[i].order_count,
+            })
+        for i in range(n_asks):
+            asks.append({
+                "price": ask_buf[i].price,
+                "volume": ask_buf[i].volume,
+                "order_count": ask_buf[i].order_count,
+            })
+
+        return {"bids": bids, "asks": asks}
 
     def add_limit_order(
         self,

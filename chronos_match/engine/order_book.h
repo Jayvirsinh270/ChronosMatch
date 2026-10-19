@@ -33,6 +33,12 @@ typedef struct {
 } MatchEvent;
 
 typedef struct {
+    int64_t  price;
+    uint64_t volume;
+    uint32_t order_count;
+} L2Level;
+
+typedef struct {
     OrderArena* arena;
     OrderMap    order_map;      /* O(1) order_id -> (OrderNode*, PriceLevel*) lookup */
 
@@ -110,5 +116,13 @@ static inline int64_t order_book_spread(const OrderBook* book) {
     if (book->best_ask == NULL || book->best_bid == NULL) return 0;
     return book->best_ask->price - book->best_bid->price;
 }
+
+/**
+ * Level 2 Market Depth Extraction (Zero Malloc)
+ * Copies top N active price levels into caller-supplied out_levels buffer.
+ * Returns the number of levels populated.
+ */
+size_t order_book_get_l2_bids(const OrderBook* book, L2Level* out_levels, size_t max_depth);
+size_t order_book_get_l2_asks(const OrderBook* book, L2Level* out_levels, size_t max_depth);
 
 #endif /* CHRONOS_ORDER_BOOK_H */

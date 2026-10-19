@@ -14,6 +14,8 @@ class OrderSide(IntEnum):
     BUY = 0
     SELL = 1
 
+Side = OrderSide
+
 class OrderType(IntEnum):
     LIMIT = 0
     MARKET = 1

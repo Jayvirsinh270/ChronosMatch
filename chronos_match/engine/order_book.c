@@ -302,3 +302,35 @@ bool order_book_cancel_order(OrderBook* book, uint64_t order_id) {
     order_map_remove(&book->order_map, order_id);
     return true;
 }
+
+size_t order_book_get_l2_bids(const OrderBook* book, L2Level* out_levels, size_t max_depth) {
+    if (!book || !out_levels || max_depth == 0) return 0;
+    size_t count = 0;
+    PriceLevel* curr = book->best_bid;
+    while (curr != NULL && count < max_depth) {
+        if (curr->total_volume > 0) {
+            out_levels[count].price = curr->price;
+            out_levels[count].volume = curr->total_volume;
+            out_levels[count].order_count = curr->order_count;
+            count++;
+        }
+        curr = curr->next_level;
+    }
+    return count;
+}
+
+size_t order_book_get_l2_asks(const OrderBook* book, L2Level* out_levels, size_t max_depth) {
+    if (!book || !out_levels || max_depth == 0) return 0;
+    size_t count = 0;
+    PriceLevel* curr = book->best_ask;
+    while (curr != NULL && count < max_depth) {
+        if (curr->total_volume > 0) {
+            out_levels[count].price = curr->price;
+            out_levels[count].volume = curr->total_volume;
+            out_levels[count].order_count = curr->order_count;
+            count++;
+        }
+        curr = curr->next_level;
+    }
+    return count;
+}
