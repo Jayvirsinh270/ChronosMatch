@@ -122,3 +122,5 @@ class OrderDistributionGenerator:
                 symbol_id=self.symbol_id,
                 timestamp_in_ns=ingress_timestamp_ns
             )
+
+MarketDistribution = OrderDistributionGenerator

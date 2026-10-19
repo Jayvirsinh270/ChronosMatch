@@ -134,14 +134,27 @@ pip install cython setuptools rich pytest
 python setup.py build_ext --inplace
 ```
 
-### 4. Run Verification Test Suite & IPC Benchmark
+### 4. Run Verification Test Suite (57/57 Tests Passing)
 ```powershell
-$env:PYTHONPATH="."
-pytest -v -s tests/test_ring_buffer.py
+pytest -v
+```
+
+### 5. Launch Live Multi-Process Production Cluster
+```powershell
+# Run with interactive Rich Terminal TUI
+python main.py --orders 100000 --rate 100000
+
+# Run in headless soak test mode
+python main.py --no-ui --orders 500000
+```
+
+### 6. Run Executive Showcase Demo (Market Scenarios)
+```powershell
+python demo.py
 ```
 
 ---
 
 ## 👥 Authors & Maintainers
-* **Project Owner / Lead Engineer**: Quantitative Engineering Intern
+* **Project Owner / Lead Engineer**: Jayvirsinh270 ([GitHub](https://github.com/Jayvirsinh270))
 * **Project Manager**: Antigravity PM Agent

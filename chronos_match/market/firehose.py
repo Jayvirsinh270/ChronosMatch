@@ -20,9 +20,11 @@ class AsyncMarketFirehose:
         self,
         symbol_id: int = 1,
         initial_price: float = 150.00,
-        distribution_generator: Optional[OrderDistributionGenerator] = None
+        distribution_generator: Optional[OrderDistributionGenerator] = None,
+        distribution: Optional[OrderDistributionGenerator] = None,
     ):
-        self.generator = distribution_generator or OrderDistributionGenerator(
+        gen = distribution or distribution_generator
+        self.generator = gen or OrderDistributionGenerator(
             symbol_id=symbol_id,
             initial_price=initial_price
         )
