@@ -3,649 +3,1142 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ChronosMatch ⚡ HFT Trading Terminal</title>
+  <title>ChronosMatch // Institutional HFT Trading Workstation</title>
   <style>
     :root {
-      --bg-dark: #0a0e14;
-      --card-bg: #121824;
-      --border-color: #1e293b;
-      --text-main: #f1f5f9;
-      --text-muted: #94a3b8;
+      --bg-root: #07090e;
+      --bg-panel: #0d1117;
+      --bg-card: #131923;
+      --bg-hover: #1c2433;
+      --border: #1f2937;
+      --border-bright: #374151;
+      --text: #f3f4f6;
+      --text-muted: #8b949e;
+      --text-dim: #64748b;
       --green: #10b981;
-      --green-glow: rgba(16, 185, 129, 0.2);
-      --red: #ef4444;
-      --red-glow: rgba(239, 68, 68, 0.2);
-      --yellow: #f59e0b;
+      --green-glow: rgba(16, 185, 129, 0.25);
+      --green-bg: rgba(16, 185, 129, 0.12);
+      --red: #f43f5e;
+      --red-glow: rgba(244, 63, 94, 0.25);
+      --red-bg: rgba(244, 63, 94, 0.12);
       --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.25);
+      --amber: #f59e0b;
       --blue: #3b82f6;
+      --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, Menlo, monospace;
     }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, monospace;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, var(--font-mono), sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
+
     body {
-      background-color: var(--bg-dark);
-      color: var(--text-main);
+      background-color: var(--bg-root);
+      color: var(--text);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow-x: hidden;
     }
-    /* TOP NAVBAR */
+
+    /* TOP INSTITUTIONAL NAVIGATION BAR */
     header {
-      background: var(--card-bg);
-      border-bottom: 1px solid var(--border-color);
-      padding: 12px 24px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 12px;
-    }
-    .logo-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .logo-badge {
-      background: linear-gradient(135deg, #06b6d4, #3b82f6);
-      color: white;
-      font-weight: 800;
-      font-size: 1.1rem;
-      padding: 4px 10px;
-      border-radius: 6px;
-      letter-spacing: 0.5px;
-    }
-    .subtitle {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
-    .status-group {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      font-size: 0.82rem;
-    }
-    .status-pill {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: #1e293b;
-      padding: 5px 12px;
-      border-radius: 20px;
-      border: 1px solid #334155;
-    }
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
-    }
-    .btn-bot {
-      background: #1e293b;
-      color: var(--cyan);
-      border: 1px solid var(--cyan);
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .btn-bot.active {
-      background: var(--cyan);
-      color: #000;
-      box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+      position: sticky;
+      top: 0;
+      z-index: 50;
     }
 
-    /* MAIN CONTAINER GRID */
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 1.05rem;
+      letter-spacing: 1px;
+      color: #fff;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, #06b6d4, #2563eb);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 3px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .chip {
+      background: #111827;
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .chip .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    /* MARKET TICKER BAR */
+    .market-ticker {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+    }
+
+    .ticker-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .ticker-stat .label {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .ticker-stat .val {
+      font-weight: 700;
+    }
+
+    /* BOT CONTROLS */
+    .bot-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #111827;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .btn-bot-toggle {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: var(--text);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+
+    .btn-bot-toggle.active {
+      background: var(--cyan);
+      border-color: var(--cyan);
+      color: #050b14;
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
+
+    .speed-btn-group {
+      display: flex;
+      gap: 2px;
+      background: #090d14;
+      padding: 2px;
+      border-radius: 4px;
+    }
+
+    .speed-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 0.68rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 3px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    .speed-btn.active {
+      background: #1f2937;
+      color: var(--cyan);
+      font-weight: 700;
+    }
+
+    /* MAIN TRADING GRID */
     main {
       flex: 1;
-      padding: 20px;
+      padding: 14px 16px;
       display: grid;
-      grid-template-columns: 320px 1fr 340px;
-      gap: 18px;
-      max-width: 1600px;
+      grid-template-columns: 310px 1fr 340px;
+      gap: 14px;
+      max-width: 1720px;
       margin: 0 auto;
       width: 100%;
     }
-    @media (max-width: 1080px) {
+
+    @media (max-width: 1200px) {
+      main {
+        grid-template-columns: 300px 1fr;
+      }
+      .right-column {
+        grid-column: span 2;
+      }
+    }
+
+    @media (max-width: 860px) {
       main {
         grid-template-columns: 1fr;
+      }
+      .right-column {
+        grid-column: span 1;
       }
     }
 
     /* CARD CONTAINERS */
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
-    .card-header {
-      padding: 12px 16px;
-      background: rgba(30, 41, 59, 0.4);
-      border-bottom: 1px solid var(--border-color);
-      font-size: 0.88rem;
+
+    .panel-header {
+      padding: 9px 14px;
+      background: rgba(17, 24, 39, 0.7);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
       font-weight: 700;
-      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .card-body {
-      padding: 16px;
+
+    .panel-header .title-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text);
+    }
+
+    .panel-body {
+      padding: 12px;
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* ORDER ENTRY COMPONENT */
+    .side-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: #090d14;
+      padding: 3px;
+      border-radius: 6px;
+    }
+
+    .side-tab {
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-dim);
+      transition: all 0.15s ease;
+    }
+
+    .side-tab.buy.active {
+      background: var(--green);
+      color: #021208;
+      box-shadow: 0 0 12px var(--green-glow);
+    }
+
+    .side-tab.sell.active {
+      background: var(--red);
+      color: #170206;
+      box-shadow: 0 0 12px var(--red-glow);
+    }
+
+    .type-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .type-tab {
+      background: #111827;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+
+    .type-tab.active {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(6, 182, 212, 0.08);
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .input-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .input-field-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .trading-input {
+      width: 100%;
+      background: #090d14;
+      border: 1px solid var(--border);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.92rem;
+      font-weight: 600;
+      padding: 8px 10px;
+      border-radius: 5px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .trading-input:focus {
+      border-color: var(--cyan);
+    }
+
+    .quick-adj-row {
+      display: flex;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .quick-btn {
+      flex: 1;
+      background: #111827;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 3px 2px;
+      border-radius: 3px;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .quick-btn:hover {
+      color: var(--text);
+      border-color: var(--border-bright);
+    }
+
+    .order-summary-box {
+      background: #090d14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+    }
+
+    .summary-row.total {
+      border-top: 1px dashed var(--border);
+      padding-top: 5px;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
+
+    .btn-submit-order {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-submit-order.buy {
+      background: var(--green);
+      color: #021208;
+      box-shadow: 0 0 14px var(--green-glow);
+    }
+
+    .btn-submit-order.buy:hover {
+      background: #34d399;
+    }
+
+    .btn-submit-order.sell {
+      background: var(--red);
+      color: #170206;
+      box-shadow: 0 0 14px var(--red-glow);
+    }
+
+    .btn-submit-order.sell:hover {
+      background: #fb7185;
+    }
+
+    /* USER RESTING ORDERS */
+    .resting-orders-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+    }
+
+    .resting-orders-table th {
+      color: var(--text-dim);
+      font-weight: 600;
+      text-align: left;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .resting-orders-table td {
+      padding: 6px;
+      border-bottom: 1px solid rgba(31, 41, 55, 0.4);
+    }
+
+    .btn-cancel {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid var(--red);
+      color: var(--red);
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-cancel:hover {
+      background: var(--red);
+      color: #fff;
+    }
+
+    /* CENTER COLUMN: LIVE CHART & ORDER BOOK */
+    .center-column {
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
 
-    /* ORDER ENTRY FORM */
-    .side-toggle {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      background: #0f172a;
-      padding: 4px;
+    /* CANVAS LIVE PRICE CHART */
+    .chart-container {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
       border-radius: 8px;
-    }
-    .side-btn {
-      padding: 10px;
-      font-size: 0.95rem;
-      font-weight: 700;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      background: transparent;
-      color: var(--text-muted);
-      transition: all 0.2s;
-    }
-    .side-btn.buy.active {
-      background: var(--green);
-      color: white;
-      box-shadow: 0 0 12px var(--green-glow);
-    }
-    .side-btn.sell.active {
-      background: var(--red);
-      color: white;
-      box-shadow: 0 0 12px var(--red-glow);
-    }
-
-    .form-group {
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-    }
-    .form-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .input-wrapper {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-    .input-field {
-      width: 100%;
-      background: #0f172a;
-      border: 1px solid var(--border-color);
-      color: var(--text-main);
-      padding: 10px 12px;
-      border-radius: 6px;
-      font-size: 1rem;
-      font-weight: 600;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    .input-field:focus {
-      border-color: var(--cyan);
-    }
-    .step-buttons {
-      position: absolute;
-      right: 6px;
-      display: flex;
-      gap: 4px;
-    }
-    .step-btn {
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: var(--text-main);
-      padding: 4px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.75rem;
-      font-weight: 700;
-    }
-    .step-btn:hover {
-      background: #334155;
     }
 
-    .pill-group {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .pill {
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: var(--text-muted);
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 0.72rem;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .pill:hover {
-      color: var(--text-main);
-      border-color: var(--cyan);
-    }
-
-    .notional-box {
-      background: #0f172a;
-      padding: 10px 12px;
-      border-radius: 6px;
+    .chart-header {
+      padding: 8px 14px;
+      background: rgba(17, 24, 39, 0.7);
+      border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
-      font-size: 0.82rem;
-      color: var(--text-muted);
-    }
-    .notional-val {
-      font-weight: 700;
-      color: var(--text-main);
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
     }
 
-    .btn-submit {
-      width: 100%;
-      padding: 14px;
-      border: none;
-      border-radius: 8px;
-      font-size: 1.05rem;
-      font-weight: 800;
-      cursor: pointer;
-      color: white;
-      transition: all 0.2s;
-      margin-top: 6px;
-    }
-    .btn-submit.buy {
-      background: var(--green);
-      box-shadow: 0 4px 14px var(--green-glow);
-    }
-    .btn-submit.buy:hover {
-      background: #059669;
-    }
-    .btn-submit.sell {
-      background: var(--red);
-      box-shadow: 0 4px 14px var(--red-glow);
-    }
-    .btn-submit.sell:hover {
-      background: #dc2626;
+    .chart-price-display {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
     }
 
-    .toast-box {
-      font-size: 0.78rem;
-      padding: 10px;
-      border-radius: 6px;
-      background: #0f172a;
-      border-left: 4px solid var(--cyan);
-      display: none;
-    }
-    .toast-box.show {
-      display: block;
-      animation: fadeIn 0.3s ease;
-    }
-
-    /* CENTER: LEVEL 2 ORDER BOOK */
-    .top-strip {
-      display: grid;
-      grid-template-columns: 1fr 1.2fr 1fr;
-      padding: 12px;
-      background: #0f172a;
-      border-radius: 8px;
-      text-align: center;
-      margin-bottom: 8px;
-    }
-    .strip-item h4 {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      text-transform: uppercase;
-    }
-    .strip-item p {
+    .chart-current-price {
       font-size: 1.15rem;
       font-weight: 800;
-      margin-top: 2px;
+      color: var(--cyan);
     }
-    .val-bid { color: var(--green); }
-    .val-ask { color: var(--red); }
-    .val-spread { color: var(--yellow); }
 
-    .book-table-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      font-size: 0.85rem;
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      height: 180px;
+      background: #080c14;
     }
-    .book-header {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr;
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ORDER BOOK IMBALANCE BAR */
+    .imbalance-strip {
+      background: #090d14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
       padding: 8px 12px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      border-bottom: 1px solid var(--border-color);
-    }
-    .book-rows {
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      padding: 4px 0;
+      gap: 5px;
+      font-family: var(--font-mono);
     }
-    .book-row {
+
+    .imbalance-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+
+    .imbalance-bar-track {
+      height: 7px;
+      width: 100%;
+      background: var(--red);
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .imbalance-bar-fill {
+      background: var(--green);
+      height: 100%;
+      width: 50%;
+      transition: width 0.2s ease;
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    /* LEVEL 2 ORDER BOOK LADDER */
+    .l2-container {
+      display: flex;
+      flex-direction: column;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    .l2-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      padding: 6px 10px;
+      color: var(--text-dim);
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      background: #090d14;
+    }
+
+    .l2-row {
       position: relative;
       display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr;
-      padding: 6px 12px;
+      grid-template-columns: 1fr 1fr 1fr;
+      padding: 4px 10px;
       cursor: pointer;
-      transition: background 0.15s;
+      user-select: none;
+      transition: background 0.1s;
     }
-    .book-row:hover {
-      background: rgba(255, 255, 255, 0.05);
+
+    .l2-row:hover {
+      background: rgba(255, 255, 255, 0.04);
     }
-    .book-depth-bar {
+
+    .l2-depth-bar {
       position: absolute;
       top: 0;
       bottom: 0;
       right: 0;
-      opacity: 0.18;
       pointer-events: none;
-      transition: width 0.2s ease;
+      opacity: 0.18;
+      transition: width 0.15s ease-out;
     }
-    .book-depth-bar.ask { background: var(--red); }
-    .book-depth-bar.bid { background: var(--green); }
 
-    .spread-bar {
-      padding: 8px 12px;
-      background: rgba(245, 158, 11, 0.08);
-      border-top: 1px dashed rgba(245, 158, 11, 0.3);
-      border-bottom: 1px dashed rgba(245, 158, 11, 0.3);
+    .l2-depth-bar.ask {
+      background: var(--red);
+    }
+
+    .l2-depth-bar.bid {
+      background: var(--green);
+    }
+
+    .spread-strip {
+      padding: 6px 12px;
+      background: #090d14;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
       text-align: center;
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       font-weight: 700;
-      color: var(--yellow);
-      margin: 4px 0;
+      color: var(--cyan);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
     }
 
-    /* RIGHT: EXECUTIONS & ALERTS */
-    .feed-container {
-      flex: 1;
-      overflow-y: auto;
-      max-height: 480px;
+    /* RIGHT COLUMN: RECENT TRADES, WHALE RADAR, KPIS */
+    .right-column {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 14px;
     }
-    .feed-item {
+
+    /* TELEMETRY METRICS GRID */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .metric-card {
+      background: #090d14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .metric-card .label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .metric-card .val {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .metric-card.highlight .val {
+      color: var(--cyan);
+    }
+
+    /* LIVE EXECUTION TAPE */
+    .tape-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 240px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+    }
+
+    .tape-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 10px;
-      background: #0f172a;
-      border-radius: 6px;
-      font-size: 0.78rem;
-      border-left: 3px solid var(--border-color);
-    }
-    .feed-item.buy { border-left-color: var(--green); }
-    .feed-item.sell { border-left-color: var(--red); }
-    .feed-item.whale {
-      border-left-color: var(--yellow);
-      background: rgba(245, 158, 11, 0.1);
-    }
-    .feed-lat {
-      font-size: 0.7rem;
-      color: var(--green);
-      background: rgba(16, 185, 129, 0.1);
-      padding: 2px 6px;
+      padding: 4px 8px;
       border-radius: 4px;
+      background: #090d14;
+      border-left: 3px solid transparent;
     }
 
-    /* FOOTER KPI BAR */
-    footer {
-      background: var(--card-bg);
-      border-top: 1px solid var(--border-color);
-      padding: 10px 24px;
+    .tape-item.buy {
+      border-left-color: var(--green);
+    }
+
+    .tape-item.sell {
+      border-left-color: var(--red);
+    }
+
+    /* WHALE RADAR */
+    .whale-list {
       display: flex;
-      justify-content: space-around;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    .kpi-item span {
-      color: var(--text-main);
-      font-weight: 700;
-      margin-left: 4px;
+      flex-direction: column;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-4px); }
-      to { opacity: 1; transform: translateY(0); }
+    .whale-item {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      padding: 6px 10px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .whale-tag {
+      color: var(--amber);
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* STATUS FOOTER */
+    footer {
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      padding: 6px 20px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
     }
   </style>
 </head>
 <body>
 
-  <!-- TOP NAVBAR -->
+  <!-- TOP INSTITUTIONAL HEADER -->
   <header>
-    <div class="logo-container">
-      <div class="logo-badge">⚡ CHRONOS MATCH</div>
-      <div>
-        <div style="font-weight: 700; font-size: 0.95rem;">HFT Live Trading Terminal</div>
-        <div class="subtitle">Zero-Copy Shared Memory • Cython Pure-C nogil • SQLite WAL</div>
+    <div class="brand-section">
+      <div class="brand-logo">
+        <span>⚡ CHRONOS MATCH</span>
+        <span class="brand-badge">LOB PRO</span>
+      </div>
+      <div class="chip">
+        <span class="status-dot"></span>
+        <span id="socket-status">CONNECTED (WS)</span>
+      </div>
+      <div class="chip">
+        <span>C-CORE NOGIL</span>
       </div>
     </div>
 
-    <div class="status-group">
-      <div class="status-pill">
-        <div class="dot"></div>
-        <span>Engine Active (nogil)</span>
+    <!-- REAL-TIME TICKER STRIP -->
+    <div class="market-ticker">
+      <div class="ticker-stat">
+        <span class="label">Last Price</span>
+        <span class="val" id="top-last-price" style="color: var(--cyan);">$150.00</span>
       </div>
-      <div class="status-pill">
-        <span style="color: var(--cyan); font-weight: 700;">p50 SLA:</span>
-        <span id="header-p50" style="color: var(--green); font-weight: 700;">-- μs</span>
+      <div class="ticker-stat">
+        <span class="label">24h High</span>
+        <span class="val" id="top-high">$150.25</span>
       </div>
-      <button id="bot-toggle-btn" class="btn-bot" onclick="toggleBot()">
-        🤖 Market Bot: OFF
+      <div class="ticker-stat">
+        <span class="label">24h Low</span>
+        <span class="val" id="top-low">$149.75</span>
+      </div>
+      <div class="ticker-stat">
+        <span class="label">VWAP</span>
+        <span class="val" id="top-vwap">$150.02</span>
+      </div>
+      <div class="ticker-stat">
+        <span class="label">Spread</span>
+        <span class="val" id="top-spread" style="color: var(--amber);">$0.02 (1.3 bps)</span>
+      </div>
+    </div>
+
+    <!-- BOT CONTROLS & SPEED PRESETS -->
+    <div class="bot-controls">
+      <button id="btn-bot-toggle" class="btn-bot-toggle" onclick="toggleBot()">
+        <span>▶</span> <span id="bot-status-text">START BOT</span>
       </button>
+      <div class="speed-btn-group">
+        <button class="speed-btn" onclick="setBotSpeed('slow')" id="speed-slow">5/s</button>
+        <button class="speed-btn active" onclick="setBotSpeed('medium')" id="speed-medium">25/s</button>
+        <button class="speed-btn" onclick="setBotSpeed('fast')" id="speed-fast">100/s</button>
+        <button class="speed-btn" onclick="setBotSpeed('hft')" id="speed-hft">500/s</button>
+      </div>
     </div>
   </header>
 
-  <!-- MAIN INTERFACE GRID -->
+  <!-- MAIN WORKSPACE -->
   <main>
-    <!-- LEFT: ORDER ENTRY FORM -->
-    <div class="card">
-      <div class="card-header">
-        <span>ORDER ENTRY FORM</span>
-        <span style="font-size: 0.75rem; color: var(--cyan);">LIVE MATCHING</span>
+
+    <!-- LEFT COLUMN: ORDER ENTRY & USER RESTING ORDERS -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="title-badge">
+          <span>Direct Order Router // ORDER ENTRY FORM</span>
+        </div>
+        <span style="font-size: 0.65rem; color: var(--text-dim);">CLIENT #001</span>
       </div>
-      <div class="card-body">
+
+      <div class="panel-body">
         <!-- BUY / SELL TOGGLE -->
-        <div class="side-toggle">
-          <button id="side-buy-btn" class="side-btn buy active" onclick="setSide('BUY')">BUY</button>
-          <button id="side-sell-btn" class="side-btn sell" onclick="setSide('SELL')">SELL</button>
+        <div class="side-tabs">
+          <button id="side-buy" class="side-tab buy active" onclick="setSide('BUY')">BUY / LONG</button>
+          <button id="side-sell" class="side-tab sell" onclick="setSide('SELL')">SELL / SHORT</button>
         </div>
 
         <!-- ORDER TYPE -->
-        <div class="form-group">
-          <label class="form-label">Order Type</label>
-          <select id="order-type" class="input-field" onchange="onTypeChange()">
-            <option value="LIMIT">Limit Order</option>
-            <option value="MARKET">Market Sweep Order</option>
-          </select>
+        <div class="type-tabs">
+          <button id="type-limit" class="type-tab active" onclick="setType('LIMIT')">LIMIT</button>
+          <button id="type-market" class="type-tab" onclick="setType('MARKET')">MARKET</button>
         </div>
 
-        <!-- PRICE FIELD -->
-        <div class="form-group" id="price-group">
-          <label class="form-label">Limit Price ($)</label>
-          <div class="input-wrapper">
-            <input type="number" id="order-price" class="input-field" step="0.05" value="150.00" oninput="updateNotional()">
-            <div class="step-buttons">
-              <button class="step-btn" onclick="stepPrice(-0.05)">-0.05</button>
-              <button class="step-btn" onclick="stepPrice(0.05)">+0.05</button>
+        <!-- PRICE INPUT -->
+        <div class="input-group" id="group-price">
+          <div class="input-label">
+            <span>Price (USD)</span>
+            <span id="label-tick-offset" style="color: var(--cyan);">TICK: $0.01</span>
+          </div>
+          <div class="input-field-wrapper">
+            <input type="number" id="order-price" class="trading-input" step="0.01" value="150.00" oninput="updateNotional()">
+          </div>
+          <div class="quick-adj-row">
+            <button class="quick-btn" onclick="adjustPrice(-0.05)">-0.05</button>
+            <button class="quick-btn" onclick="adjustPrice(-0.01)">-0.01</button>
+            <button class="quick-btn" onclick="copyBidPrice()">BID</button>
+            <button class="quick-btn" onclick="copyMidPrice()">MID</button>
+            <button class="quick-btn" onclick="copyAskPrice()">ASK</button>
+            <button class="quick-btn" onclick="adjustPrice(0.01)">+0.01</button>
+            <button class="quick-btn" onclick="adjustPrice(0.05)">+0.05</button>
+          </div>
+        </div>
+
+        <!-- QUANTITY INPUT -->
+        <div class="input-group">
+          <div class="input-label">
+            <span>Quantity (Shares)</span>
+            <span style="color: var(--text-dim);">LOT: 100</span>
+          </div>
+          <div class="input-field-wrapper">
+            <input type="number" id="order-qty" class="trading-input" step="50" min="1" value="100" oninput="updateNotional()">
+          </div>
+          <div class="quick-adj-row">
+            <button class="quick-btn" onclick="setQty(100)">100</button>
+            <button class="quick-btn" onclick="setQty(500)">500</button>
+            <button class="quick-btn" onclick="setQty(1000)">1K</button>
+            <button class="quick-btn" onclick="setQty(2500)">2.5K</button>
+            <button class="quick-btn" onclick="setQty(5000)">5K</button>
+          </div>
+        </div>
+
+        <!-- ORDER NOTIONAL & LATENCY ESTIMATE -->
+        <div class="order-summary-box">
+          <div class="summary-row">
+            <span>Estimated Notional</span>
+            <span id="summary-notional" style="color: #fff;">$15,000.00</span>
+          </div>
+          <div class="summary-row">
+            <span>Order Venue</span>
+            <span>SHM Ring 64K [Zero-Copy]</span>
+          </div>
+          <div class="summary-row total">
+            <span>Est. Wire-to-Match</span>
+            <span style="color: var(--green);">&lt; 1.50 μs</span>
+          </div>
+        </div>
+
+        <!-- SUBMIT ORDER BUTTON -->
+        <button id="btn-submit" class="btn-submit-order buy" onclick="submitOrder()">
+          PLACE BUY LIMIT
+        </button>
+
+        <!-- RESTING USER ORDERS SECTION -->
+        <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Active Resting Orders</span>
+            <span id="open-orders-count" class="chip" style="font-size: 0.62rem; padding: 1px 5px;">0</span>
+          </div>
+          <div style="max-height: 180px; overflow-y: auto; background: #090d14; border: 1px solid var(--border); border-radius: 6px;">
+            <table class="resting-orders-table">
+              <thead>
+                <tr>
+                  <th>Side</th>
+                  <th>Price</th>
+                  <th>Qty</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="open-orders-body">
+                <tr>
+                  <td colspan="4" style="text-align: center; color: var(--text-dim); padding: 10px;">No resting orders</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER COLUMN: LIVE CHART & LEVEL 2 BOOK -->
+    <div class="center-column">
+
+      <!-- LIVE CANVAS PRICE CHART -->
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-price-display">
+            <span style="color: var(--text-muted); font-size: 0.7rem;">CHRONOS/USD</span>
+            <span class="chart-current-price" id="chart-price-head">$150.00</span>
+          </div>
+          <span style="color: var(--text-dim); font-size: 0.68rem;">TICK STREAM (50 TICKS)</span>
+        </div>
+        <div class="canvas-wrapper">
+          <canvas id="priceCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- ORDER BOOK IMBALANCE -->
+      <div class="imbalance-strip">
+        <div class="imbalance-labels">
+          <span style="color: var(--green);">BID LIQUIDITY: <span id="lbl-bid-depth">50%</span></span>
+          <span style="color: var(--cyan);">IMBALANCE: <span id="lbl-imbalance">0.00</span></span>
+          <span style="color: var(--red);">ASK LIQUIDITY: <span id="lbl-ask-depth">50%</span></span>
+        </div>
+        <div class="imbalance-bar-track">
+          <div id="imbalance-fill" class="imbalance-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- LEVEL 2 ORDER BOOK LADDER -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="title-badge">
+            <span>LEVEL 2 MARKET DEPTH LADDER</span>
+          </div>
+          <span style="font-size: 0.65rem; color: var(--cyan);">PURE C ARENA MEMORY</span>
+        </div>
+
+        <div class="l2-container">
+          <div class="l2-header">
+            <span style="text-align: left;">PRICE (USD)</span>
+            <span style="text-align: right;">SIZE (SHARES)</span>
+            <span style="text-align: right;">ORDERS</span>
+          </div>
+
+          <!-- ASKS (DESCENDING ORDER, RED) -->
+          <div id="ask-ladder"></div>
+
+          <!-- SPREAD STRIP -->
+          <div class="spread-strip" id="spread-strip">
+            <span>SPREAD: $0.02</span>
+            <span>MID: $150.00</span>
+          </div>
+
+          <!-- BIDS (DESCENDING ORDER, GREEN) -->
+          <div id="bid-ladder"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: TRADE TAPE, WHALE RADAR & TELEMETRY -->
+    <div class="right-column">
+
+      <!-- TELEMETRY METRICS -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="title-badge">
+            <span>Hardware Telemetry</span>
+          </div>
+          <span class="chip" style="font-size: 0.6rem; color: var(--green);">ONLINE</span>
+        </div>
+        <div class="panel-body">
+          <div class="metrics-grid">
+            <div class="metric-card highlight">
+              <span class="label">Ingestion Rate</span>
+              <span class="val" id="metric-rate">0 ord/s</span>
+            </div>
+            <div class="metric-card highlight">
+              <span class="label">Latency p50</span>
+              <span class="val" id="metric-p50">0.00 μs</span>
+            </div>
+            <div class="metric-card">
+              <span class="label">Total Ingested</span>
+              <span class="val" id="metric-orders">0</span>
+            </div>
+            <div class="metric-card">
+              <span class="label">Latency p99</span>
+              <span class="val" id="metric-p99">0.00 μs</span>
+            </div>
+            <div class="metric-card">
+              <span class="label">Matched Trades</span>
+              <span class="val" id="metric-trades">0</span>
+            </div>
+            <div class="metric-card">
+              <span class="label">Transacted Vol</span>
+              <span class="val" id="metric-vol">0</span>
             </div>
           </div>
         </div>
-
-        <!-- QUANTITY FIELD -->
-        <div class="form-group">
-          <label class="form-label">Quantity (Shares)</label>
-          <div class="input-wrapper">
-            <input type="number" id="order-qty" class="input-field" step="10" value="100" oninput="updateNotional()">
-          </div>
-          <div class="pill-group">
-            <span class="pill" onclick="setQty(100)">100</span>
-            <span class="pill" onclick="setQty(500)">500</span>
-            <span class="pill" onclick="setQty(1000)">1,000</span>
-            <span class="pill" onclick="setQty(5000)">5,000 (Whale)</span>
-          </div>
-        </div>
-
-        <!-- NOTIONAL VALUE -->
-        <div class="notional-box">
-          <span>Est. Notional USD:</span>
-          <span class="notional-val" id="order-notional">$15,000.00</span>
-        </div>
-
-        <!-- SUBMIT BUTTON -->
-        <button id="submit-btn" class="btn-submit buy" onclick="submitOrder()">
-          PLACE BUY ORDER
-        </button>
-
-        <!-- FEEDBACK TOAST -->
-        <div id="order-toast" class="toast-box">
-          <div id="toast-title" style="font-weight: 700; margin-bottom: 2px;"></div>
-          <div id="toast-desc" style="color: var(--text-muted);"></div>
-        </div>
       </div>
-    </div>
 
-    <!-- CENTER: LEVEL 2 ORDER BOOK -->
-    <div class="card">
-      <div class="card-header">
-        <span>LEVEL 2 MARKET DEPTH LADDER</span>
-        <span style="font-size: 0.72rem; color: var(--text-muted);">CLICK PRICE TO COPY</span>
-      </div>
-      <div class="card-body" style="padding: 12px;">
-        <!-- TOP OF BOOK STRIP -->
-        <div class="top-strip">
-          <div class="strip-item">
-            <h4>Best Bid</h4>
-            <p class="val-bid" id="strip-bid">$0.00</p>
+      <!-- WHALE RADAR -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="title-badge">
+            <span style="color: var(--amber);">⚡ Whale Order Radar</span>
           </div>
-          <div class="strip-item">
-            <h4>Spread (Mid)</h4>
-            <p class="val-spread" id="strip-spread">$0.00 (0.0 bps)</p>
-          </div>
-          <div class="strip-item">
-            <h4>Best Ask</h4>
-            <p class="val-ask" id="strip-ask">$0.00</p>
-          </div>
+          <span style="font-size: 0.65rem; color: var(--text-dim);">&gt; 5,000 SHARES</span>
         </div>
-
-        <!-- ORDER BOOK TABLE -->
-        <div class="book-table-container">
-          <div class="book-header">
-            <span>Price ($)</span>
-            <span style="text-align: right;">Size</span>
-            <span style="text-align: right;">Orders</span>
-          </div>
-
-          <!-- ASKS (RED) -->
-          <div class="book-rows" id="ask-rows">
-            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Awaiting Asks...</div>
-          </div>
-
-          <!-- MID MARKET SPREAD BAR -->
-          <div class="spread-bar" id="spread-bar">── SPREAD: $0.00 ──</div>
-
-          <!-- BIDS (GREEN) -->
-          <div class="book-rows" id="bid-rows">
-            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Awaiting Bids...</div>
+        <div class="panel-body">
+          <div class="whale-list" id="whale-list">
+            <div style="text-align: center; color: var(--text-dim); font-size: 0.72rem; padding: 6px;">
+              Listening for institutional block orders...
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- RIGHT: RECENT TRADES & WHALE ALERTS -->
-    <div class="card">
-      <div class="card-header">
-        <span>LIVE TRADES & WHALES</span>
-        <span id="trade-count-badge" style="font-size: 0.75rem; color: var(--yellow);">0 Trades</span>
-      </div>
-      <div class="card-body" style="padding: 12px;">
-        <div class="feed-container" id="trade-feed">
-          <div style="text-align: center; color: var(--text-muted); padding: 20px;">No trades matched yet</div>
+      <!-- EXECUTION STREAM TAPE -->
+      <div class="panel" style="flex: 1;">
+        <div class="panel-header">
+          <div class="title-badge">
+            <span>LIVE TRADES & WHALES // Execution Tape</span>
+          </div>
+          <span id="tape-count" style="font-size: 0.65rem; color: var(--text-dim);">0 TRADES</span>
+        </div>
+        <div class="panel-body">
+          <div class="tape-list" id="trade-tape"></div>
         </div>
       </div>
+
     </div>
   </main>
 
-  <!-- BOTTOM KPI BAR -->
+  <!-- BOTTOM STATUS BAR -->
   <footer>
-    <div class="kpi-item">Orders Ingested: <span id="kpi-orders">0</span></div>
-    <div class="kpi-item">Total Trades: <span id="kpi-trades">0</span></div>
-    <div class="kpi-item">Volume Traded: <span id="kpi-volume">0</span> shares</div>
-    <div class="kpi-item">Throughput: <span id="kpi-rate" style="color: var(--green);">0 ord/s</span></div>
-    <div class="kpi-item">Median Latency: <span id="kpi-p50" style="color: var(--cyan);">-- μs</span></div>
-    <div class="kpi-item">p99 Tail Latency: <span id="kpi-p99" style="color: var(--green);">-- μs</span></div>
+    <div>CHRONOS // ZERO-COPY HIGH-FREQUENCY MATCHING ENGINE • PURE-C ARENA • LOCK-FREE SHM SPSC • SQLITE WAL</div>
+    <div id="footer-clock">00:00:00 UTC</div>
   </footer>
 
   <script>
-    let activeSide = 'BUY';
-    let botRunning = false;
+    // State management
+    let currentSide = 'BUY';
+    let currentType = 'LIMIT';
+    let cachedBestBid = 149.99;
+    let cachedBestAsk = 150.01;
+    let priceHistoryTicks = [];
+    let pollInterval = null;
+
+    // Clock
+    setInterval(() => {
+      document.getElementById('footer-clock').innerText = new Date().toUTCString().slice(17, 25) + ' UTC';
+    }, 1000);
 
     function setSide(side) {
-      activeSide = side;
-      const buyBtn = document.getElementById('side-buy-btn');
-      const sellBtn = document.getElementById('side-sell-btn');
-      const submitBtn = document.getElementById('submit-btn');
+      currentSide = side;
+      const buyBtn = document.getElementById('side-buy');
+      const sellBtn = document.getElementById('side-sell');
+      const submitBtn = document.getElementById('btn-submit');
 
       if (side === 'BUY') {
         buyBtn.classList.add('active');
         sellBtn.classList.remove('active');
-        submitBtn.className = 'btn-submit buy';
-        submitBtn.innerText = 'PLACE BUY ORDER';
+        submitBtn.className = 'btn-submit-order buy';
+        submitBtn.innerText = currentType === 'LIMIT' ? 'PLACE BUY LIMIT' : 'SUBMIT BUY MARKET';
       } else {
         sellBtn.classList.add('active');
         buyBtn.classList.remove('active');
-        submitBtn.className = 'btn-submit sell';
-        submitBtn.innerText = 'PLACE SELL ORDER';
+        submitBtn.className = 'btn-submit-order sell';
+        submitBtn.innerText = currentType === 'LIMIT' ? 'PLACE SELL LIMIT' : 'SUBMIT SELL MARKET';
       }
     }
 
-    function onTypeChange() {
-      const type = document.getElementById('order-type').value;
-      const priceGroup = document.getElementById('price-group');
-      if (type === 'MARKET') {
-        priceGroup.style.display = 'none';
+    function setType(type) {
+      currentType = type;
+      const limitBtn = document.getElementById('type-limit');
+      const marketBtn = document.getElementById('type-market');
+      const priceGroup = document.getElementById('group-price');
+      const submitBtn = document.getElementById('btn-submit');
+
+      if (type === 'LIMIT') {
+        limitBtn.classList.add('active');
+        marketBtn.classList.remove('active');
+        priceGroup.style.opacity = '1';
+        priceGroup.style.pointerEvents = 'auto';
+        submitBtn.innerText = `PLACE ${currentSide} LIMIT`;
       } else {
-        priceGroup.style.display = 'flex';
+        marketBtn.classList.add('active');
+        limitBtn.classList.remove('active');
+        priceGroup.style.opacity = '0.4';
+        priceGroup.style.pointerEvents = 'none';
+        submitBtn.innerText = `SUBMIT ${currentSide} MARKET`;
       }
       updateNotional();
     }
 
-    function stepPrice(delta) {
-      const priceEl = document.getElementById('order-price');
-      let p = parseFloat(priceEl.value) || 150.00;
-      p = Math.max(0.01, p + delta);
-      priceEl.value = p.toFixed(2);
+    function adjustPrice(delta) {
+      const el = document.getElementById('order-price');
+      let val = parseFloat(el.value) || 150.00;
+      val = Math.max(0.01, val + delta);
+      el.value = val.toFixed(2);
+      updateNotional();
+    }
+
+    function copyBidPrice() {
+      document.getElementById('order-price').value = cachedBestBid.toFixed(2);
+      updateNotional();
+    }
+
+    function copyAskPrice() {
+      document.getElementById('order-price').value = cachedBestAsk.toFixed(2);
+      updateNotional();
+    }
+
+    function copyMidPrice() {
+      const mid = (cachedBestBid + cachedBestAsk) / 2;
+      document.getElementById('order-price').value = mid.toFixed(2);
+      updateNotional();
+    }
+
+    function setPrice(p) {
+      document.getElementById('order-price').value = p.toFixed(2);
       updateNotional();
     }
 
@@ -655,96 +1148,382 @@
     }
 
     function updateNotional() {
-      const p = parseFloat(document.getElementById('order-price').value) || 0;
-      const q = parseInt(document.getElementById('order-qty').value) || 0;
-      const notional = p * q;
-      document.getElementById('order-notional').innerText = `$${notional.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const price = parseFloat(document.getElementById('order-price').value) || 0;
+      const qty = parseInt(document.getElementById('order-qty').value) || 0;
+      const notional = price * qty;
+      document.getElementById('summary-notional').innerText = `$${notional.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
-    function copyPrice(price) {
-      document.getElementById('order-price').value = price.toFixed(2);
-      updateNotional();
-    }
-
-    // ORDER SUBMISSION
     async function submitOrder() {
-      const side = activeSide;
-      const type = document.getElementById('order-type').value;
-      const price = parseFloat(document.getElementById('order-price').value);
-      const qty = parseInt(document.getElementById('order-qty').value);
+      const price = parseFloat(document.getElementById('order-price').value) || 150.00;
+      const qty = parseInt(document.getElementById('order-qty').value) || 100;
 
-      if (isNaN(qty) || qty <= 0) {
-        alert('Please enter a valid positive quantity.');
-        return;
-      }
-      if (type === 'LIMIT' && (isNaN(price) || price <= 0)) {
-        alert('Please enter a valid positive price.');
-        return;
-      }
+      const payload = {
+        side: currentSide,
+        order_type: currentType,
+        price: price,
+        quantity: qty,
+      };
 
       try {
-        const res = await fetch('/api/order', {
+        const resp = await fetch('/api/order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ side, type, price, quantity: qty })
+          body: JSON.stringify(payload),
         });
-        const data = await res.json();
-
-        const toast = document.getElementById('order-toast');
-        const tTitle = document.getElementById('toast-title');
-        const tDesc = document.getElementById('toast-desc');
-
-        if (data.success) {
-          if (data.matched_trades && data.matched_trades.length > 0) {
-            tTitle.style.color = '#10b981';
-            tTitle.innerText = `✓ FILLED ${data.total_filled.toLocaleString()} SHARES`;
-            tDesc.innerText = `Executed ${data.matched_trades.length} fills | Latency: ${data.latency_us.toFixed(2)} μs`;
-          } else {
-            tTitle.style.color = '#06b6d4';
-            tTitle.innerText = `✓ RESTING LIMIT ORDER PLACED`;
-            tDesc.innerText = `Order #${data.order_id}: ${side} ${qty.toLocaleString()} @ $${price.toFixed(2)}`;
-          }
-          toast.className = 'toast-box show';
-          setTimeout(() => { toast.className = 'toast-box'; }, 4000);
-        } else {
-          alert('Error: ' + data.error);
+        const res = await resp.json();
+        if (res.success) {
+          fetchSnapshot();
         }
       } catch (err) {
-        console.error('Submit error:', err);
+        console.error('Submit order failed', err);
       }
     }
 
-    // TOGGLE BOT FLOW
+    async function cancelOrder(orderId) {
+      try {
+        const resp = await fetch('/api/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId }),
+        });
+        const res = await resp.json();
+        fetchSnapshot();
+      } catch (err) {
+        console.error('Cancel order error', err);
+      }
+    }
+
     async function toggleBot() {
       try {
-        const res = await fetch('/api/bot/toggle', { method: 'POST' });
-        const data = await res.json();
-        botRunning = data.bot_active;
-        const btn = document.getElementById('bot-toggle-btn');
-        if (botRunning) {
-          btn.className = 'btn-bot active';
-          btn.innerText = '🤖 Market Bot: ON (50 ord/s)';
-        } else {
-          btn.className = 'btn-bot';
-          btn.innerText = '🤖 Market Bot: OFF';
-        }
+        const resp = await fetch('/api/bot/toggle', { method: 'POST' });
+        const res = await resp.json();
+        updateBotUI(res.bot_active, res.speed);
       } catch (err) {
-        console.error('Bot toggle error:', err);
+        console.error('Toggle bot failed', err);
       }
     }
 
-    // WEBSOCKET TELEMETRY STREAM WITH POLLING FALLBACK
-    let pollInterval = null;
+    async function setBotSpeed(speed) {
+      try {
+        const resp = await fetch('/api/bot/speed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ speed: speed }),
+        });
+        const res = await resp.json();
+        highlightSpeedBtn(res.speed);
+      } catch (err) {
+        console.error('Bot speed failed', err);
+      }
+    }
+
+    function highlightSpeedBtn(speed) {
+      ['slow', 'medium', 'fast', 'hft'].forEach(s => {
+        const b = document.getElementById(`speed-${s}`);
+        if (b) {
+          if (s === speed) b.classList.add('active');
+          else b.classList.remove('active');
+        }
+      });
+    }
+
+    function updateBotUI(active, speed) {
+      const btn = document.getElementById('btn-bot-toggle');
+      const text = document.getElementById('bot-status-text');
+      if (active) {
+        btn.classList.add('active');
+        text.innerText = 'BOT RUNNING';
+      } else {
+        btn.classList.remove('active');
+        text.innerText = 'START BOT';
+      }
+      if (speed) highlightSpeedBtn(speed);
+    }
+
+    // CANVAS PRICE TICK CHART
+    function renderCanvasChart(ticks) {
+      const canvas = document.getElementById('priceCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.parentElement.clientWidth;
+      const h = canvas.parentElement.clientHeight;
+
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+
+      ctx.clearRect(0, 0, w, h);
+
+      if (!ticks || ticks.length < 2) {
+        ctx.strokeStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.moveTo(0, h / 2);
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+        return;
+      }
+
+      const prices = ticks.map(t => t.price);
+      let minP = Math.min(...prices);
+      let maxP = Math.max(...prices);
+      if (maxP === minP) {
+        maxP += 0.10;
+        minP -= 0.10;
+      }
+      const pad = (maxP - minP) * 0.15;
+      minP -= pad;
+      maxP += pad;
+
+      // Subtle gridlines
+      ctx.strokeStyle = 'rgba(31, 41, 55, 0.4)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i <= 3; i++) {
+        const y = (h / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Coordinates
+      const step = w / (ticks.length - 1);
+      const points = ticks.map((t, idx) => {
+        const x = idx * step;
+        const norm = (t.price - minP) / (maxP - minP);
+        const y = h - (norm * h);
+        return { x, y };
+      });
+
+      // Fill Gradient Area
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, 'rgba(6, 182, 212, 0.25)');
+      grad.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.lineTo(points[points.length - 1].x, h);
+      ctx.lineTo(points[0].x, h);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Stroke Line
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#06b6d4';
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Latest price dot
+      const lastPt = points[points.length - 1];
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(lastPt.x, lastPt.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // SNAPSHOT RENDER ENGINE
+    function renderSnapshot(data) {
+      if (!data) return;
+
+      const bid = data.best_bid || 0;
+      const ask = data.best_ask || 0;
+      cachedBestBid = bid > 0 ? bid : 149.99;
+      cachedBestAsk = ask > 0 ? ask : 150.01;
+      const spread = data.spread || (cachedBestAsk - cachedBestBid);
+      const mid = (cachedBestBid + cachedBestAsk) / 2;
+      const bps = cachedBestBid > 0 ? (spread / cachedBestBid) * 10000 : 0;
+      const lastP = data.last_price || mid;
+
+      // 1. Ticker Bar
+      document.getElementById('top-last-price').innerText = `$${lastP.toFixed(2)}`;
+      document.getElementById('chart-price-head').innerText = `$${lastP.toFixed(2)}`;
+      document.getElementById('top-high').innerText = `$${(data.high_24h || lastP).toFixed(2)}`;
+      document.getElementById('top-low').innerText = `$${(data.low_24h || lastP).toFixed(2)}`;
+      document.getElementById('top-vwap').innerText = `$${(data.vwap || lastP).toFixed(2)}`;
+      document.getElementById('top-spread').innerText = `$${spread.toFixed(2)} (${bps.toFixed(1)} bps)`;
+
+      // 2. Imbalance Bar
+      const bidVol = data.total_bid_vol || 0;
+      const askVol = data.total_ask_vol || 0;
+      const totalVol = bidVol + askVol;
+      const bidPct = totalVol > 0 ? Math.round((bidVol / totalVol) * 100) : 50;
+      const askPct = 100 - bidPct;
+      document.getElementById('lbl-bid-depth').innerText = `${bidPct}% (${bidVol.toLocaleString()})`;
+      document.getElementById('lbl-ask-depth').innerText = `${askPct}% (${askVol.toLocaleString()})`;
+      document.getElementById('imbalance-fill').style.width = `${bidPct}%`;
+      const imbVal = data.imbalance !== undefined ? data.imbalance : 0;
+      const imbEl = document.getElementById('lbl-imbalance');
+      imbEl.innerText = `${imbVal > 0 ? '+' : ''}${imbVal.toFixed(2)}`;
+      imbEl.style.color = imbVal > 0 ? 'var(--green)' : (imbVal < 0 ? 'var(--red)' : 'var(--cyan)');
+
+      // 3. Level 2 Ladder (Asks - Top, Bids - Bottom)
+      const asks = data.l2 && data.l2.asks ? data.l2.asks : [];
+      const bids = data.l2 && data.l2.bids ? data.l2.bids : [];
+
+      let maxVol = 1;
+      asks.forEach(a => { if (a.volume > maxVol) maxVol = a.volume; });
+      bids.forEach(b => { if (b.volume > maxVol) maxVol = b.volume; });
+
+      // Render Asks
+      const askLadder = document.getElementById('ask-ladder');
+      if (asks.length === 0) {
+        askLadder.innerHTML = '<div style="padding: 10px; text-align: center; color: var(--text-dim);">No Resting Asks</div>';
+      } else {
+        const displayAsks = [...asks].slice(0, 7).reverse();
+        askLadder.innerHTML = displayAsks.map(a => {
+          const pct = Math.min(100, Math.round((a.volume / maxVol) * 100));
+          return `
+            <div class="l2-row" onclick="setPrice(${a.price})">
+              <div class="l2-depth-bar ask" style="width: ${pct}%"></div>
+              <span style="color: var(--red); font-weight: 700;">$${a.price.toFixed(2)}</span>
+              <span style="text-align: right; font-weight: 600;">${a.volume.toLocaleString()}</span>
+              <span style="text-align: right; color: var(--text-dim);">${a.order_count || 1}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Spread row
+      document.getElementById('spread-strip').innerHTML = `
+        <span>SPREAD: $${spread.toFixed(2)} (${bps.toFixed(1)} bps)</span>
+        <span>MID: $${mid.toFixed(2)}</span>
+      `;
+
+      // Render Bids
+      const bidLadder = document.getElementById('bid-ladder');
+      if (bids.length === 0) {
+        bidLadder.innerHTML = '<div style="padding: 10px; text-align: center; color: var(--text-dim);">No Resting Bids</div>';
+      } else {
+        const displayBids = bids.slice(0, 7);
+        bidLadder.innerHTML = displayBids.map(b => {
+          const pct = Math.min(100, Math.round((b.volume / maxVol) * 100));
+          return `
+            <div class="l2-row" onclick="setPrice(${b.price})">
+              <div class="l2-depth-bar bid" style="width: ${pct}%"></div>
+              <span style="color: var(--green); font-weight: 700;">$${b.price.toFixed(2)}</span>
+              <span style="text-align: right; font-weight: 600;">${b.volume.toLocaleString()}</span>
+              <span style="text-align: right; color: var(--text-dim);">${b.order_count || 1}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 4. Live Chart
+      if (data.price_history && data.price_history.length > 0) {
+        priceHistoryTicks = data.price_history;
+      } else {
+        priceHistoryTicks.push({ time: '', price: lastP });
+        if (priceHistoryTicks.length > 50) priceHistoryTicks.shift();
+      }
+      renderCanvasChart(priceHistoryTicks);
+
+      // 5. Open User Orders
+      const openOrders = data.open_orders || [];
+      document.getElementById('open-orders-count').innerText = openOrders.length;
+      const tbody = document.getElementById('open-orders-body');
+      if (openOrders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-dim); padding: 10px;">No resting orders</td></tr>';
+      } else {
+        tbody.innerHTML = openOrders.map(o => {
+          const color = o.side === 'BUY' ? 'var(--green)' : 'var(--red)';
+          return `
+            <tr>
+              <td style="color: ${color}; font-weight: 700;">${o.side}</td>
+              <td style="font-weight: 600;">$${o.price.toFixed(2)}</td>
+              <td>${o.remaining}</td>
+              <td>
+                <button class="btn-cancel" onclick="cancelOrder(${o.order_id})">✕ CANCEL</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // 6. Execution Tape
+      const trades = data.recent_trades || [];
+      document.getElementById('tape-count').innerText = `${data.total_trades || 0} TRADES`;
+      const tape = document.getElementById('trade-tape');
+      if (trades.length === 0) {
+        tape.innerHTML = '<div style="text-align: center; color: var(--text-dim); padding: 8px;">Waiting for executions...</div>';
+      } else {
+        tape.innerHTML = trades.slice(0, 16).map(t => {
+          const sideClass = t.side === 'BUY' ? 'buy' : 'sell';
+          const sideColor = t.side === 'BUY' ? 'var(--green)' : 'var(--red)';
+          return `
+            <div class="tape-item ${sideClass}">
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <span style="color: ${sideColor}; font-weight: 800;">${t.side}</span>
+                <span style="font-weight: 700;">$${t.price.toFixed(2)}</span>
+                <span style="color: var(--text-muted);">× ${t.quantity.toLocaleString()}</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="color: var(--text-dim); font-size: 0.65rem;">${t.time || ''}</span>
+                <span style="color: var(--cyan); font-weight: 600; font-size: 0.65rem;">${t.latency_us.toFixed(2)}μs</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 7. Whale Alerts Radar
+      const whales = data.whale_alerts || [];
+      const whaleList = document.getElementById('whale-list');
+      if (whales.length > 0) {
+        whaleList.innerHTML = whales.slice(0, 3).map(w => {
+          return `
+            <div class="whale-item">
+              <span class="whale-tag">⚡ WHALE BLOCK #${w.order_id}</span>
+              <span style="font-weight: 700;">${w.quantity.toLocaleString()} shs @ $${w.price.toFixed(2)}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 8. Hardware Telemetry Metrics
+      const stats = data.stats || {};
+      const p50 = stats.p50_us || 0;
+      const p99 = stats.p99_us || 0;
+
+      document.getElementById('metric-orders').innerText = (data.total_orders || 0).toLocaleString();
+      document.getElementById('metric-trades').innerText = (data.total_trades || 0).toLocaleString();
+      document.getElementById('metric-vol').innerText = (data.total_volume || 0).toLocaleString();
+      document.getElementById('metric-rate').innerText = `${Math.round(data.orders_per_sec || 0).toLocaleString()} ord/s`;
+      document.getElementById('metric-p50').innerText = p50 > 0 ? `${p50.toFixed(2)} μs` : '< 1.50 μs';
+      document.getElementById('metric-p99').innerText = p99 > 0 ? `${p99.toFixed(2)} μs` : '< 3.00 μs';
+
+      // Bot button state
+      updateBotUI(data.bot_active, data.bot_speed);
+    }
+
+    // STREAM CONNECTION: WEBSOCKET WITH POLLING FALLBACK
+    async function fetchSnapshot() {
+      try {
+        const resp = await fetch('/api/snapshot');
+        const data = await resp.json();
+        renderSnapshot(data);
+      } catch (err) {
+        console.error('Snapshot fetch error', err);
+      }
+    }
 
     function startPollingFallback() {
-      if (pollInterval) return;
-      pollInterval = setInterval(async () => {
-        try {
-          const res = await fetch('/api/snapshot');
-          const data = await res.json();
-          renderSnapshot(data);
-        } catch (e) {}
-      }, 300);
+      if (!pollInterval) {
+        document.getElementById('socket-status').innerText = 'POLLING (HTTP)';
+        fetchSnapshot();
+        pollInterval = setInterval(fetchSnapshot, 250);
+      }
     }
 
     function stopPollingFallback() {
@@ -766,11 +1545,16 @@
 
       ws.onopen = () => {
         stopPollingFallback();
+        document.getElementById('socket-status').innerText = 'CONNECTED (WS)';
       };
 
       ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        renderSnapshot(data);
+        try {
+          const data = JSON.parse(event.data);
+          renderSnapshot(data);
+        } catch (e) {
+          console.error('WS parse error', e);
+        }
       };
 
       ws.onerror = () => {
@@ -779,110 +1563,15 @@
 
       ws.onclose = () => {
         startPollingFallback();
-        setTimeout(connectStream, 2000); // Reconnect attempt
+        setTimeout(connectStream, 2000);
       };
     }
 
-    function renderSnapshot(data) {
-      // 1. Top of Book Strip
-      const bid = data.best_bid || 0;
-      const ask = data.best_ask || 0;
-      const spread = data.spread || 0;
-      const mid = bid > 0 && ask > 0 ? (bid + ask) / 2 : 0;
-      const bps = bid > 0 ? (spread / bid) * 10000 : 0;
+    window.addEventListener('resize', () => {
+      renderCanvasChart(priceHistoryTicks);
+    });
 
-      document.getElementById('strip-bid').innerText = `$${bid.toFixed(2)}`;
-      document.getElementById('strip-ask').innerText = `$${ask.toFixed(2)}`;
-      document.getElementById('strip-spread').innerText = `$${spread.toFixed(2)} (${bps.toFixed(1)} bps)`;
-      document.getElementById('spread-bar').innerText = `── SPREAD: $${spread.toFixed(2)} (Mid: $${mid.toFixed(2)}) ──`;
-
-      // 2. Level 2 Asks Table (Red)
-      const askRowsEl = document.getElementById('ask-rows');
-      const asks = data.l2 ? data.l2.asks || [] : [];
-      let maxVol = 1;
-      asks.forEach(a => { if (a.volume > maxVol) maxVol = a.volume; });
-      if (data.l2 && data.l2.bids) {
-        data.l2.bids.forEach(b => { if (b.volume > maxVol) maxVol = b.volume; });
-      }
-
-      if (asks.length === 0) {
-        askRowsEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 12px;">-- No Resting Asks --</div>';
-      } else {
-        // Show lowest ask nearest to spread (reverse)
-        const reversedAsks = [...asks].slice(0, 8).reverse();
-        askRowsEl.innerHTML = reversedAsks.map(a => {
-          const pct = Math.min(100, (a.volume / maxVol) * 100);
-          return `
-            <div class="book-row" onclick="copyPrice(${a.price})">
-              <div class="book-depth-bar ask" style="width: ${pct}%"></div>
-              <span style="color: var(--red); font-weight: 700;">$${a.price.toFixed(2)}</span>
-              <span style="text-align: right; font-weight: 600;">${a.volume.toLocaleString()}</span>
-              <span style="text-align: right; color: var(--text-muted);">${a.order_count || 1}</span>
-            </div>
-          `;
-        }).join('');
-      }
-
-      // 3. Level 2 Bids Table (Green)
-      const bidRowsEl = document.getElementById('bid-rows');
-      const bids = data.l2 ? data.l2.bids || [] : [];
-      if (bids.length === 0) {
-        bidRowsEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 12px;">-- No Resting Bids --</div>';
-      } else {
-        bidRowsEl.innerHTML = bids.slice(0, 8).map(b => {
-          const pct = Math.min(100, (b.volume / maxVol) * 100);
-          return `
-            <div class="book-row" onclick="copyPrice(${b.price})">
-              <div class="book-depth-bar bid" style="width: ${pct}%"></div>
-              <span style="color: var(--green); font-weight: 700;">$${b.price.toFixed(2)}</span>
-              <span style="text-align: right; font-weight: 600;">${b.volume.toLocaleString()}</span>
-              <span style="text-align: right; color: var(--text-muted);">${b.order_count || 1}</span>
-            </div>
-          `;
-        }).join('');
-      }
-
-      // 4. Executions & Whale Alerts Feed
-      const tradeFeedEl = document.getElementById('trade-feed');
-      const trades = data.recent_trades || [];
-      document.getElementById('trade-count-badge').innerText = `${data.total_trades || 0} Trades`;
-
-      if (trades.length > 0) {
-        tradeFeedEl.innerHTML = trades.slice(0, 15).map(t => {
-          const sideClass = t.side === 'BUY' ? 'buy' : 'sell';
-          const sideColor = t.side === 'BUY' ? 'var(--green)' : 'var(--red)';
-          const notional = (t.price * t.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          return `
-            <div class="feed-item ${sideClass}">
-              <div>
-                <span style="color: ${sideColor}; font-weight: 800; margin-right: 6px;">${t.side}</span>
-                <span style="font-weight: 700;">$${t.price.toFixed(2)}</span>
-                <span style="color: var(--text-muted); margin-left: 6px;">× ${t.quantity.toLocaleString()}</span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="color: var(--text-muted); font-size: 0.72rem;">$${notional}</span>
-                <span class="feed-lat">${t.latency_us.toFixed(2)} μs</span>
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
-
-      // 5. KPIs & Header
-      const stats = data.stats || {};
-      const p50 = stats.p50_us || 0;
-      const p99 = stats.p99_us || 0;
-
-      document.getElementById('header-p50').innerText = p50 > 0 ? `${p50.toFixed(2)} μs` : '-- μs';
-      document.getElementById('kpi-orders').innerText = (data.total_orders || 0).toLocaleString();
-      document.getElementById('kpi-trades').innerText = (data.total_trades || 0).toLocaleString();
-      document.getElementById('kpi-volume').innerText = (data.total_volume || 0).toLocaleString();
-      document.getElementById('kpi-rate').innerText = `${Math.round(data.orders_per_sec || 0).toLocaleString()} ord/s`;
-      document.getElementById('kpi-p50').innerText = p50 > 0 ? `${p50.toFixed(2)} μs` : '-- μs';
-      document.getElementById('kpi-p99').innerText = p99 > 0 ? `${p99.toFixed(2)} μs` : '-- μs';
-    }
-
-    // Initialize
+    // Init
     updateNotional();
     connectStream();
   </script>

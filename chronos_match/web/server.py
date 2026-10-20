@@ -36,6 +36,14 @@ class OrderRequest(BaseModel):
     quantity: int = 100
 
 
+class CancelRequest(BaseModel):
+    order_id: int
+
+
+class BotSpeedRequest(BaseModel):
+    speed: str  # "slow", "medium", "fast", "hft"
+
+
 class WebTradingServer:
     def __init__(self, db_path: str = "chronos_audit.db"):
         self.book = FastOrderBook(arena_capacity=100_000)
@@ -51,8 +59,18 @@ class WebTradingServer:
         self.recent_trades: List[Dict[str, Any]] = []
 
         self.bot_active = False
+        self.bot_speed = "medium"
+        self.bot_delay = 0.04  # ~25 ord/s
         self._bot_task: Optional[asyncio.Task] = None
         self.connected_clients: List[WebSocket] = []
+
+        # User tracking & quantitative market metrics
+        self.user_open_orders: Dict[int, Dict[str, Any]] = {}
+        self.price_history: List[Dict[str, Any]] = []
+        self.last_trade_price = 150.00
+        self.high_price = 150.10
+        self.low_price = 149.90
+        self.cumulative_notional = 0.0
 
         # Pre-seed realistic two-sided liquidity on startup
         self.seed_initial_liquidity()
@@ -133,6 +151,11 @@ class WebTradingServer:
                 filled_shares += qty
                 self.total_trades += 1
                 self.total_volume += qty
+                trade_p = from_fixed_price(m["execution_price"])
+                self.last_trade_price = trade_p
+                self.high_price = max(self.high_price, trade_p)
+                self.low_price = min(self.low_price, trade_p)
+                self.cumulative_notional += trade_p * qty
 
                 tp = TradePacket(
                     trade_id=m["trade_id"],
@@ -151,7 +174,7 @@ class WebTradingServer:
                 trade_data = {
                     "trade_id": tp.trade_id,
                     "side": "BUY" if m["aggressor_side"] == int(OrderSide.BUY) else "SELL",
-                    "price": from_fixed_price(m["execution_price"]),
+                    "price": trade_p,
                     "quantity": qty,
                     "latency_us": lat_ns / 1000.0,
                     "time": time.strftime("%H:%M:%S"),
@@ -159,8 +182,31 @@ class WebTradingServer:
                 matched_info.append(trade_data)
                 self.recent_trades.insert(0, trade_data)
 
+            # Record price tick for live chart
+            self.price_history.append({
+                "time": time.strftime("%H:%M:%S"),
+                "price": self.last_trade_price,
+                "volume": filled_shares,
+            })
+            if len(self.price_history) > 100:
+                self.price_history = self.price_history[-100:]
+
             if len(self.recent_trades) > 30:
                 self.recent_trades = self.recent_trades[:30]
+
+        # Track user resting orders for cancellation
+        if client_id == 1 and type_str.upper() == "LIMIT":
+            rem = quantity - filled_shares
+            if rem > 0:
+                self.user_open_orders[order_id] = {
+                    "order_id": order_id,
+                    "side": side_str.upper(),
+                    "price": price_float,
+                    "quantity": quantity,
+                    "filled": filled_shares,
+                    "remaining": rem,
+                    "time": time.strftime("%H:%M:%S"),
+                }
 
         return {
             "success": True,
@@ -171,6 +217,23 @@ class WebTradingServer:
             "quantity": quantity,
             "total_filled": filled_shares,
             "matched_trades": matched_info,
+            "latency_us": lat_ns / 1000.0,
+        }
+
+    def cancel_user_order(self, order_id: int) -> Dict[str, Any]:
+        """Instant O(1) order cancellation by order_id."""
+        t0 = time.perf_counter_ns()
+        cancelled = self.book.cancel_order(order_id)
+        t1 = time.perf_counter_ns()
+        lat_ns = t1 - t0
+        self.profiler.record_delta(t0, t1)
+
+        if order_id in self.user_open_orders:
+            del self.user_open_orders[order_id]
+
+        return {
+            "success": cancelled,
+            "order_id": order_id,
             "latency_us": lat_ns / 1000.0,
         }
 
@@ -193,18 +256,39 @@ class WebTradingServer:
         best_ask = from_fixed_price(self.book.best_ask_price)
         spread = from_fixed_price(self.book.spread)
 
+        total_bid_vol = sum(b["volume"] for b in bids)
+        total_ask_vol = sum(a["volume"] for a in asks)
+        denom = total_bid_vol + total_ask_vol
+        imbalance = ((total_bid_vol - total_ask_vol) / denom) if denom > 0 else 0.0
+        vwap = (self.cumulative_notional / max(1, self.total_volume)) if self.total_volume > 0 else self.last_trade_price
+
+        recent_whales = [
+            a.to_dict() for a in self.whale_detector.get_recent_alerts(limit=5)
+        ]
+
         return {
             "best_bid": best_bid,
             "best_ask": best_ask,
             "spread": spread,
+            "last_price": self.last_trade_price,
+            "high_24h": round(self.high_price, 2),
+            "low_24h": round(self.low_price, 2),
+            "vwap": round(vwap, 2),
+            "imbalance": round(imbalance, 3),
+            "total_bid_vol": total_bid_vol,
+            "total_ask_vol": total_ask_vol,
             "l2": {"bids": bids, "asks": asks},
-            "recent_trades": self.recent_trades[:15],
+            "recent_trades": self.recent_trades[:20],
+            "price_history": self.price_history[-50:],
+            "open_orders": list(self.user_open_orders.values()),
+            "whale_alerts": recent_whales,
             "total_orders": self.total_orders,
             "total_trades": self.total_trades,
             "total_volume": self.total_volume,
-            "orders_per_sec": 50 if self.bot_active else 0,
+            "orders_per_sec": int(1.0 / max(0.001, self.bot_delay)) if self.bot_active else 0,
             "stats": stats._asdict() if stats else None,
             "bot_active": self.bot_active,
+            "bot_speed": self.bot_speed,
         }
 
 
@@ -240,6 +324,27 @@ async def api_snapshot():
     return server.get_snapshot()
 
 
+@app.post("/api/cancel")
+async def api_cancel(req: CancelRequest):
+    """Cancel a resting order by order_id."""
+    return server.cancel_user_order(req.order_id)
+
+
+@app.post("/api/bot/speed")
+async def api_bot_speed(req: BotSpeedRequest):
+    """Set market simulation bot speed."""
+    server.bot_speed = req.speed
+    if req.speed == "slow":
+        server.bot_delay = 0.20   # 5 ord/s
+    elif req.speed == "fast":
+        server.bot_delay = 0.01   # 100 ord/s
+    elif req.speed == "hft":
+        server.bot_delay = 0.002  # 500 ord/s
+    else:
+        server.bot_delay = 0.04   # 25 ord/s (medium)
+    return {"speed": req.speed, "delay": server.bot_delay}
+
+
 @app.post("/api/bot/toggle")
 async def api_toggle_bot():
     """Toggle background liquidity simulation."""
@@ -247,7 +352,7 @@ async def api_toggle_bot():
     if server.bot_active:
         if server._bot_task is None or server._bot_task.done():
             server._bot_task = asyncio.create_task(_bot_simulation_loop())
-    return {"bot_active": server.bot_active}
+    return {"bot_active": server.bot_active, "speed": server.bot_speed}
 
 
 async def _bot_simulation_loop():
@@ -269,7 +374,7 @@ async def _bot_simulation_loop():
                     quantity=pkt.quantity,
                     client_id=pkt.client_id,
                 )
-            await asyncio.sleep(0.02)  # ~50 orders per second
+            await asyncio.sleep(server.bot_delay)
         except Exception:
             await asyncio.sleep(0.05)
 

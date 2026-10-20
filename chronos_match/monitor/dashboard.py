@@ -2,7 +2,7 @@
 ChronosMatch: Real-Time High-Frequency Trading Terminal Dashboard.
 Cross-platform Terminal UI built with Rich. Displays:
 1. System Status & Header Banner (Zero-Copy IPC, Cython nogil, WAL Ledger).
-2. KPI Cards: Throughput, Trade Count, Current Spread, Nanosecond Latency SLA.
+2. KPI Cards: Throughput, Order Book Imbalance, Latency SLA, Matched Liquidity.
 3. Level 2 Depth Ladder: Top 10 Bids and Asks with visual volume depth bars.
 4. Live Trade Execution Ticker with microsecond latency metrics.
 5. Real-time Whale Sweep & SLA Breach Alert Log.
@@ -28,6 +28,7 @@ from chronos_match.monitor.whale_detector import WhaleAlert
 class TerminalDashboard:
     """
     Real-Time Terminal User Interface (TUI) Dashboard for ChronosMatch.
+    Styled for high-density, institutional-grade electronic trading desks.
     """
 
     def __init__(self, console: Optional[Console] = None):
@@ -63,7 +64,7 @@ class TerminalDashboard:
         layout["header"].update(self._build_header())
 
         # 2. KPI Cards Panel
-        layout["kpis"].update(self._build_kpi_cards(throughput_info, latency_stats))
+        layout["kpis"].update(self._build_kpi_cards(throughput_info, latency_stats, l2_snapshot))
 
         # 3. L2 Order Book Depth Table
         layout["order_book"].update(self._build_order_book_panel(l2_snapshot))
@@ -78,9 +79,9 @@ class TerminalDashboard:
 
     def _build_header(self) -> Panel:
         """Generate high-contrast header banner."""
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         title_text = Text()
-        title_text.append("⚡ CHRONOS MATCH ", style="bold cyan")
+        title_text.append("⚡ CHRONOS MATCH ", style="bold bright_cyan")
         title_text.append("│ ZERO-COPY HFT MATCHING ENGINE │ ", style="bold white")
         title_text.append("PURE-C NOGIL • SHM SPSC IPC • SQLITE WAL ", style="dim green")
         title_text.append(f"│ {now_str} ", style="yellow")
@@ -88,7 +89,7 @@ class TerminalDashboard:
 
         return Panel(
             title_text,
-            style="bold white on blue",
+            style="bold white on black",
             border_style="bright_blue",
         )
 
@@ -96,8 +97,9 @@ class TerminalDashboard:
         self,
         throughput_info: Optional[Dict[str, Any]],
         latency_stats: Optional[LatencyStats],
+        l2_snapshot: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> Table:
-        """Generate top-row metric cards table."""
+        """Generate top-row metric cards table with microstructure indicators."""
         info = throughput_info or {}
         orders_proc = info.get("orders_processed", 0)
         cancels_proc = info.get("cancellations_processed", 0)
@@ -109,6 +111,13 @@ class TerminalDashboard:
         best_ask = from_fixed_price(info.get("best_ask", 0))
         spread = from_fixed_price(info.get("spread", 0))
 
+        # Calculate imbalance from snapshot if available
+        bids = (l2_snapshot or {}).get("bids", [])
+        asks = (l2_snapshot or {}).get("asks", [])
+        tot_bid_vol = sum(b.get("volume", 0) for b in bids)
+        tot_ask_vol = sum(a.get("volume", 0) for a in asks)
+        tot_vol = tot_bid_vol + tot_ask_vol
+
         grid = Table.grid(expand=True)
         grid.add_column(ratio=1)
         grid.add_column(ratio=1)
@@ -117,24 +126,31 @@ class TerminalDashboard:
 
         # Card 1: Throughput
         c1 = Text()
-        c1.append("Throughput & Ingestion\n", style="bold cyan")
+        c1.append("Throughput & Ingestion\n", style="bold bright_cyan")
         c1.append(f"Orders: {orders_proc:,} ", style="white")
         c1.append(f"({cancels_proc:,} can)\n", style="dim")
         c1.append(f"Rate: {rate:,.0f} ord/s", style="bold green" if rate > 0 else "dim")
 
-        # Card 2: Market Spread
+        # Card 2: Market Spread & Imbalance
         c2 = Text()
-        c2.append("Market Top-of-Book\n", style="bold cyan")
+        c2.append("Market Top-of-Book\n", style="bold bright_cyan")
         if best_bid > 0 and best_ask > 0:
+            bps = (spread / best_bid) * 10000 if best_bid > 0 else 0
             c2.append(f"Bid: ${best_bid:,.2f}  ", style="bold green")
             c2.append(f"Ask: ${best_ask:,.2f}\n", style="bold red")
-            c2.append(f"Spread: ${spread:,.2f} ({(spread/best_bid)*10000:.1f} bps)", style="bold yellow")
+            c2.append(f"Spread: ${spread:,.2f} ({bps:.1f} bps)", style="bold yellow")
+            if tot_vol > 0:
+                bid_pct = int((tot_bid_vol / tot_vol) * 100)
+                ask_pct = 100 - bid_pct
+                bar_bid_len = int((bid_pct / 100) * 12)
+                bar_ask_len = 12 - bar_bid_len
+                c2.append(f"\n[green]{'█'*bar_bid_len}[/][red]{'█'*bar_ask_len}[/] {bid_pct}%B / {ask_pct}%A", style="dim")
         else:
             c2.append("Book Empty\nWaiting for Orders", style="dim")
 
         # Card 3: Execution Latency SLA
         c3 = Text()
-        c3.append("Wire-to-Match Latency\n", style="bold cyan")
+        c3.append("Wire-to-Match Latency\n", style="bold bright_cyan")
         if latency_stats and latency_stats.sample_count > 0:
             p50_us = getattr(latency_stats, "p50_us", getattr(latency_stats, "p50_ns", 0) / 1000.0)
             p99_us = getattr(latency_stats, "p99_us", getattr(latency_stats, "p99_ns", 0) / 1000.0)
@@ -146,9 +162,9 @@ class TerminalDashboard:
         else:
             c3.append("Awaiting Latency Samples\n--", style="dim")
 
-        # Card 4: Matched Volume
+        # Card 4: Matched Liquidity
         c4 = Text()
-        c4.append("Matched Liquidity\n", style="bold cyan")
+        c4.append("Matched Liquidity\n", style="bold bright_cyan")
         c4.append(f"Trades: {trades_gen:,}\n", style="bold white")
         c4.append(f"Volume: {shares_traded:,} shares", style="bold yellow")
 
@@ -166,10 +182,10 @@ class TerminalDashboard:
         """Render Level 2 Order Book Depth Ladder with visual volume bars."""
         table = Table(
             title="LEVEL 2 MARKET DEPTH LADDER",
-            title_style="bold magenta",
+            title_style="bold bright_cyan",
             expand=True,
             show_header=True,
-            header_style="bold white on navy_blue",
+            header_style="bold white on #0d1117",
             box=None,
         )
         table.add_column("Orders", justify="right", style="dim", width=7)
@@ -199,7 +215,7 @@ class TerminalDashboard:
             p_float = from_fixed_price(ask["price"])
             vol = ask["volume"]
             cnt = ask.get("order_count", 1)
-            bar_len = int((vol / max_vol) * 10) if max_vol > 0 else 0
+            bar_len = int((vol / max_vol) * 12) if max_vol > 0 else 0
             bar = "█" * max(1, bar_len)
             table.add_row(
                 "",
@@ -207,7 +223,7 @@ class TerminalDashboard:
                 "",
                 f"${p_float:,.2f}",
                 f"{vol:,}",
-                f"[red]{bar}[/]",
+                f"[bold red]{bar}[/]",
                 str(cnt),
             )
 
@@ -216,7 +232,8 @@ class TerminalDashboard:
             best_bid_p = from_fixed_price(bids[0]["price"])
             best_ask_p = from_fixed_price(asks[0]["price"])
             spread_p = best_ask_p - best_bid_p
-            spread_str = f"── SPREAD: ${spread_p:,.2f} ──"
+            bps = (spread_p / best_bid_p) * 10000 if best_bid_p > 0 else 0
+            spread_str = f"── SPREAD: ${spread_p:,.2f} ({bps:.1f} bps) ──"
             table.add_row(
                 "", "", "", f"[bold yellow]{spread_str}[/]", "", "", ""
             )
@@ -230,11 +247,11 @@ class TerminalDashboard:
             p_float = from_fixed_price(bid["price"])
             vol = bid["volume"]
             cnt = bid.get("order_count", 1)
-            bar_len = int((vol / max_vol) * 10) if max_vol > 0 else 0
+            bar_len = int((vol / max_vol) * 12) if max_vol > 0 else 0
             bar = "█" * max(1, bar_len)
             table.add_row(
                 str(cnt),
-                f"[green]{bar:>10}[/]",
+                f"[bold green]{bar:>12}[/]",
                 f"{vol:,}",
                 f"${p_float:,.2f}",
                 "",
@@ -250,10 +267,10 @@ class TerminalDashboard:
         """Render recent executed trade executions stream."""
         table = Table(
             title="LIVE TRADE EXECUTION STREAM",
-            title_style="bold magenta",
+            title_style="bold bright_cyan",
             expand=True,
             show_header=True,
-            header_style="bold white on navy_blue",
+            header_style="bold white on #0d1117",
             box=None,
         )
         table.add_column("Trade ID", justify="right", style="dim", width=9)
@@ -301,7 +318,7 @@ class TerminalDashboard:
         table = Table(
             expand=True,
             show_header=True,
-            header_style="bold yellow on navy_blue",
+            header_style="bold yellow on #0d1117",
             box=None,
         )
         table.add_column("Alert #", justify="right", width=7)
@@ -314,7 +331,7 @@ class TerminalDashboard:
         table.add_column("Event Details", justify="left")
 
         alerts = whale_alerts or []
-        for a in alerts[-4:]:  # Show latest 4 alerts
+        for a in alerts[-4:]:
             type_style = (
                 "bold yellow"
                 if a.alert_type == "WHALE_SWEEP"
