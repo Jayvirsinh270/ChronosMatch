@@ -831,6 +831,37 @@
           <button id="type-market" class="type-tab" onclick="setType('MARKET')">MARKET</button>
         </div>
 
+        <!-- PHASE 1: TIF + POST-ONLY + STP CONTROLS -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div class="input-label">
+            <span>Execution Policy</span>
+            <span style="color: var(--text-dim); font-size: 0.6rem;">Phase 1 Advanced</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Time-In-Force</span>
+              <div style="background: #090d14; border: 1px solid var(--border); border-radius: 4px; padding: 2px; display: flex; gap: 2px;">
+                <button id="tif-GTC" class="speed-btn active" onclick="setTIF('GTC')" title="Good-Till-Cancelled: rests on book until filled or cancelled">GTC</button>
+                <button id="tif-IOC" class="speed-btn" onclick="setTIF('IOC')" title="Immediate-or-Cancel: fill what is available, cancel remainder">IOC</button>
+                <button id="tif-FOK" class="speed-btn" onclick="setTIF('FOK')" title="Fill-or-Kill: entire quantity must fill or order is fully rejected">FOK</button>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Self-Trade Prevention</span>
+              <div style="background: #090d14; border: 1px solid var(--border); border-radius: 4px; padding: 2px; display: flex; gap: 2px;">
+                <button id="stp-CA" class="speed-btn active" onclick="setSTP('CANCEL_AGGRESSOR')" title="Cancel Aggressor (industry default — prevents wash trades)">CA</button>
+                <button id="stp-CR" class="speed-btn" onclick="setSTP('CANCEL_RESTING')" title="Cancel Resting order, allow aggressor to proceed to next level">CR</button>
+                <button id="stp-OFF" class="speed-btn" onclick="setSTP('ALLOW')" title="Allow self-trade (testing only)">OFF</button>
+              </div>
+            </div>
+          </div>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">
+            <input type="checkbox" id="post-only-toggle" style="accent-color: var(--cyan); width: 14px; height: 14px;">
+            <span>Post-Only / Maker-Only</span>
+            <span style="color: var(--text-dim); font-size: 0.62rem;">(reject if would cross spread)</span>
+          </label>
+        </div>
+
         <!-- PRICE INPUT -->
         <div class="input-group" id="group-price">
           <div class="input-label">
@@ -1065,11 +1096,43 @@
     let cachedBestAsk = 150.01;
     let priceHistoryTicks = [];
     let pollInterval = null;
+    // Phase 1 order state
+    let currentTIF = 'GTC';
+    let currentSTP = 'CANCEL_AGGRESSOR';
 
     // Clock
     setInterval(() => {
       document.getElementById('footer-clock').innerText = new Date().toUTCString().slice(17, 25) + ' UTC';
     }, 1000);
+
+    function setTIF(tif) {
+      currentTIF = tif;
+      ['GTC', 'IOC', 'FOK'].forEach(t => {
+        const b = document.getElementById(`tif-${t}`);
+        if (b) {
+          if (t === tif) b.classList.add('active');
+          else b.classList.remove('active');
+        }
+      });
+    }
+
+    function setSTP(stp) {
+      currentSTP = stp;
+      const btnMap = {
+        'CANCEL_AGGRESSOR': 'stp-CA',
+        'CANCEL_RESTING':   'stp-CR',
+        'ALLOW':            'stp-OFF',
+      };
+      Object.values(btnMap).forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.classList.remove('active');
+      });
+      const activeId = btnMap[stp];
+      if (activeId) {
+        const b = document.getElementById(activeId);
+        if (b) b.classList.add('active');
+      }
+    }
 
     function setSide(side) {
       currentSide = side;
@@ -1157,12 +1220,16 @@
     async function submitOrder() {
       const price = parseFloat(document.getElementById('order-price').value) || 150.00;
       const qty = parseInt(document.getElementById('order-qty').value) || 100;
+      const postOnly = document.getElementById('post-only-toggle') ? document.getElementById('post-only-toggle').checked : false;
 
       const payload = {
         side: currentSide,
         order_type: currentType,
         price: price,
         quantity: qty,
+        tif: currentTIF,
+        post_only: postOnly,
+        stp: currentSTP,
       };
 
       try {
@@ -1174,10 +1241,26 @@
         const res = await resp.json();
         if (res.success) {
           fetchSnapshot();
+        } else if (res.reject_reason) {
+          // Show rejection toast / notification
+          showOrderFeedback(false, res.reject_reason);
         }
       } catch (err) {
         console.error('Submit order failed', err);
       }
+    }
+
+    function showOrderFeedback(success, message) {
+      // Simple non-blocking feedback: flash the submit button red briefly
+      const btn = document.getElementById('btn-submit');
+      const origText = btn.innerText;
+      const origClass = btn.className;
+      btn.style.background = success ? 'var(--green)' : 'var(--red)';
+      btn.innerText = success ? '✓ FILLED' : `✗ ${message.split(':')[0]}`;
+      setTimeout(() => {
+        btn.style.background = '';
+        btn.innerText = origText;
+      }, 2500);
     }
 
     async function cancelOrder(orderId) {

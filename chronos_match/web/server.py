@@ -23,6 +23,11 @@ from chronos_match.protocol import (
     TradePacket,
 )
 from chronos_match.engine.order_book_cy import FastOrderBook
+from chronos_match.engine.order_policies import (
+    OrderPolicyEngine,
+    TimeInForce,
+    SelfTradeAction,
+)
 from chronos_match.monitor.metrics import LatencyProfiler
 from chronos_match.monitor.whale_detector import WhaleDetector
 from chronos_match.market.distribution import OrderDistributionGenerator
@@ -30,10 +35,14 @@ from chronos_match.ledger.audit_logger import AuditLedger
 
 
 class OrderRequest(BaseModel):
-    side: str            # "BUY" or "SELL"
-    type: str = "LIMIT"  # "LIMIT" or "MARKET"
+    side: str               # "BUY" or "SELL"
+    order_type: str = "LIMIT"  # "LIMIT" or "MARKET"
     price: float = 150.00
     quantity: int = 100
+    # Phase 1: Advanced Order Type fields
+    tif: str = "GTC"        # "GTC" | "IOC" | "FOK"
+    post_only: bool = False  # Maker-only: reject if would cross spread
+    stp: str = "CANCEL_AGGRESSOR"  # "ALLOW" | "CANCEL_AGGRESSOR" | "CANCEL_RESTING" | "CANCEL_BOTH"
 
 
 class CancelRequest(BaseModel):
@@ -51,6 +60,13 @@ class WebTradingServer:
         self.whale_detector = WhaleDetector()
         self.ledger = AuditLedger(db_path=db_path)
         self.generator = OrderDistributionGenerator(initial_price=150.00)
+
+        # STP client registry: order_id -> client_id
+        self._client_order_registry: Dict[int, int] = {}
+        self.policy_engine = OrderPolicyEngine(
+            book=self.book,
+            client_order_registry=self._client_order_registry,
+        )
 
         self.order_id_counter = 1
         self.total_orders = 0
@@ -80,31 +96,35 @@ class WebTradingServer:
         base_bid = 150.00
         base_ask = 150.05
 
-        # 8 Bids
+        # 8 Bids (client_id=99 so they don't STP against user client_id=1)
         for i in range(8):
             p = base_bid - (i * 0.05)
+            oid = self.order_id_counter
             self.book.add_limit_order(
-                order_id=self.order_id_counter,
-                client_id=1,
+                order_id=oid,
+                client_id=99,
                 price=to_fixed_price(p),
                 quantity=random.choice([200, 500, 1000, 1500]),
                 side=int(OrderSide.BUY),
                 timestamp_ns=time.perf_counter_ns(),
             )
+            self._client_order_registry[oid] = 99
             self.order_id_counter += 1
             self.total_orders += 1
 
-        # 8 Asks
+        # 8 Asks (client_id=99)
         for i in range(8):
             p = base_ask + (i * 0.05)
+            oid = self.order_id_counter
             self.book.add_limit_order(
-                order_id=self.order_id_counter,
-                client_id=2,
+                order_id=oid,
+                client_id=99,
                 price=to_fixed_price(p),
                 quantity=random.choice([200, 500, 1000, 1500]),
                 side=int(OrderSide.SELL),
                 timestamp_ns=time.perf_counter_ns(),
             )
+            self._client_order_registry[oid] = 99
             self.order_id_counter += 1
             self.total_orders += 1
 
@@ -115,8 +135,11 @@ class WebTradingServer:
         price_float: float,
         quantity: int,
         client_id: int = 1,
+        tif_str: str = "GTC",
+        post_only: bool = False,
+        stp_str: str = "CANCEL_AGGRESSOR",
     ) -> Dict[str, Any]:
-        """Execute an order directly inside pure-C Cython matching engine."""
+        """Execute an order through the policy engine and into the pure-C matching core."""
         side = OrderSide.BUY if side_str.upper() == "BUY" else OrderSide.SELL
         order_id = self.order_id_counter
         self.order_id_counter += 1
@@ -128,61 +151,103 @@ class WebTradingServer:
         else:
             exec_price = to_fixed_price(price_float)
 
+        # Resolve TIF enum
+        tif_map = {"GTC": TimeInForce.GTC, "IOC": TimeInForce.IOC, "FOK": TimeInForce.FOK}
+        tif = tif_map.get(tif_str.upper(), TimeInForce.GTC)
+
+        # Resolve STP enum
+        stp_map = {
+            "ALLOW":             SelfTradeAction.ALLOW,
+            "CANCEL_AGGRESSOR":  SelfTradeAction.CANCEL_AGGRESSOR,
+            "CANCEL_RESTING":    SelfTradeAction.CANCEL_RESTING,
+            "CANCEL_BOTH":       SelfTradeAction.CANCEL_BOTH,
+        }
+        stp_action = stp_map.get(stp_str.upper(), SelfTradeAction.CANCEL_AGGRESSOR)
+
         t0_ns = time.perf_counter_ns()
-        matches = self.book.add_limit_order(
+
+        # Market orders are IOC by convention — fill what's available, cancel rest
+        if type_str.upper() == "MARKET" and tif == TimeInForce.GTC:
+            tif = TimeInForce.IOC
+
+        policy_result = self.policy_engine.apply(
             order_id=order_id,
             client_id=client_id,
-            price=exec_price,
+            price_fixed=exec_price,
             quantity=quantity,
             side=int(side),
             symbol_id=1,
             timestamp_ns=t0_ns,
+            tif=tif,
+            post_only=post_only,
+            stp_action=stp_action,
         )
+
         t1_ns = time.perf_counter_ns()
         lat_ns = t1_ns - t0_ns
         self.profiler.record_delta(t0_ns, t1_ns)
 
-        filled_shares = 0
+        # If rejected by policy (FOK/POST_ONLY), return early with rejection info
+        if not policy_result.accepted:
+            return {
+                "success": False,
+                "order_id": order_id,
+                "side": side_str.upper(),
+                "type": type_str.upper(),
+                "tif": tif.name,
+                "post_only": post_only,
+                "stp": stp_action.name,
+                "price": price_float,
+                "quantity": quantity,
+                "total_filled": 0,
+                "matched_trades": [],
+                "cancelled_remainder": 0,
+                "stp_cancelled_qty": 0,
+                "reject_reason": policy_result.reject_reason,
+                "latency_us": lat_ns / 1000.0,
+            }
+
+        matches = policy_result.matches
+        filled_shares = policy_result.total_filled
         matched_info = []
 
+        for m in matches:
+            qty = m["quantity"]
+            self.total_trades += 1
+            self.total_volume += qty
+            trade_p = from_fixed_price(m["execution_price"])
+            self.last_trade_price = trade_p
+            self.high_price = max(self.high_price, trade_p)
+            self.low_price = min(self.low_price, trade_p)
+            self.cumulative_notional += trade_p * qty
+
+            tp = TradePacket(
+                trade_id=m["trade_id"],
+                buy_order_id=m["buy_order_id"],
+                sell_order_id=m["sell_order_id"],
+                price=m["execution_price"],
+                quantity=qty,
+                symbol_id=1,
+                aggressor_side=m["aggressor_side"],
+                match_timestamp_ns=t1_ns,
+                latency_ns=lat_ns,
+            )
+            self.whale_detector.inspect_trade(tp)
+            self.ledger.insert_trade(tp)
+
+            trade_data = {
+                "trade_id": tp.trade_id,
+                "side": "BUY" if m["aggressor_side"] == int(OrderSide.BUY) else "SELL",
+                "price": trade_p,
+                "quantity": qty,
+                "latency_us": lat_ns / 1000.0,
+                "time": time.strftime("%H:%M:%S"),
+            }
+            matched_info.append(trade_data)
+            self.recent_trades.insert(0, trade_data)
+
+        # Record price tick for live chart
         if matches:
-            for m in matches:
-                qty = m["quantity"]
-                filled_shares += qty
-                self.total_trades += 1
-                self.total_volume += qty
-                trade_p = from_fixed_price(m["execution_price"])
-                self.last_trade_price = trade_p
-                self.high_price = max(self.high_price, trade_p)
-                self.low_price = min(self.low_price, trade_p)
-                self.cumulative_notional += trade_p * qty
-
-                tp = TradePacket(
-                    trade_id=m["trade_id"],
-                    buy_order_id=m["buy_order_id"],
-                    sell_order_id=m["sell_order_id"],
-                    price=m["execution_price"],
-                    quantity=qty,
-                    symbol_id=1,
-                    aggressor_side=m["aggressor_side"],
-                    match_timestamp_ns=t1_ns,
-                    latency_ns=lat_ns,
-                )
-                self.whale_detector.inspect_trade(tp)
-                self.ledger.insert_trade(tp)
-
-                trade_data = {
-                    "trade_id": tp.trade_id,
-                    "side": "BUY" if m["aggressor_side"] == int(OrderSide.BUY) else "SELL",
-                    "price": trade_p,
-                    "quantity": qty,
-                    "latency_us": lat_ns / 1000.0,
-                    "time": time.strftime("%H:%M:%S"),
-                }
-                matched_info.append(trade_data)
-                self.recent_trades.insert(0, trade_data)
-
-            # Record price tick for live chart
             self.price_history.append({
                 "time": time.strftime("%H:%M:%S"),
                 "price": self.last_trade_price,
@@ -191,11 +256,12 @@ class WebTradingServer:
             if len(self.price_history) > 100:
                 self.price_history = self.price_history[-100:]
 
-            if len(self.recent_trades) > 30:
-                self.recent_trades = self.recent_trades[:30]
+        if len(self.recent_trades) > 30:
+            self.recent_trades = self.recent_trades[:30]
 
         # Track user resting orders for cancellation
-        if client_id == 1 and type_str.upper() == "LIMIT":
+        # (GTC/POST_ONLY limits that didn't fully fill rest on the book)
+        if client_id == 1 and type_str.upper() == "LIMIT" and tif == TimeInForce.GTC:
             rem = quantity - filled_shares
             if rem > 0:
                 self.user_open_orders[order_id] = {
@@ -205,6 +271,8 @@ class WebTradingServer:
                     "quantity": quantity,
                     "filled": filled_shares,
                     "remaining": rem,
+                    "tif": tif.name,
+                    "post_only": post_only,
                     "time": time.strftime("%H:%M:%S"),
                 }
 
@@ -213,10 +281,16 @@ class WebTradingServer:
             "order_id": order_id,
             "side": side_str.upper(),
             "type": type_str.upper(),
+            "tif": tif.name,
+            "post_only": post_only,
+            "stp": stp_action.name,
             "price": price_float,
             "quantity": quantity,
             "total_filled": filled_shares,
             "matched_trades": matched_info,
+            "cancelled_remainder": policy_result.cancelled_remainder,
+            "stp_cancelled_qty": policy_result.stp_cancelled_qty,
+            "reject_reason": None,
             "latency_us": lat_ns / 1000.0,
         }
 
@@ -308,12 +382,15 @@ async def serve_index():
 
 @app.post("/api/order")
 async def api_order(req: OrderRequest):
-    """Place a new interactive Buy/Sell order."""
+    """Place a new interactive Buy/Sell order with TIF, Post-Only, and STP modifiers."""
     res = server.place_order(
         side_str=req.side,
-        type_str=req.type,
+        type_str=req.order_type,
         price_float=req.price,
         quantity=req.quantity,
+        tif_str=req.tif,
+        post_only=req.post_only,
+        stp_str=req.stp,
     )
     return res
 
