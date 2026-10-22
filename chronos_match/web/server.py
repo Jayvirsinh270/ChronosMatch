@@ -28,6 +28,10 @@ from chronos_match.engine.order_policies import (
     TimeInForce,
     SelfTradeAction,
 )
+from chronos_match.risk.risk_engine import (
+    PreTradeRiskEngine,
+    RiskLimits,
+)
 from chronos_match.monitor.metrics import LatencyProfiler
 from chronos_match.monitor.whale_detector import WhaleDetector
 from chronos_match.market.distribution import OrderDistributionGenerator
@@ -67,6 +71,12 @@ class WebTradingServer:
             book=self.book,
             client_order_registry=self._client_order_registry,
         )
+
+        # Pre-Trade Risk Gatekeeper
+        self.risk_engine = PreTradeRiskEngine()
+        self.risk_engine.get_or_create_account(1, initial_cash=10_000_000.0, initial_shares=100_000)
+        self.risk_engine.get_or_create_account(2, initial_cash=10_000_000.0, initial_shares=100_000)
+        self.risk_engine.get_or_create_account(99, initial_cash=100_000_000.0, initial_shares=1_000_000)
 
         self.order_id_counter = 1
         self.total_orders = 0
@@ -166,6 +176,44 @@ class WebTradingServer:
 
         t0_ns = time.perf_counter_ns()
 
+        # [Pre-Trade Risk Gatekeeping Check]
+        best_bid_p = from_fixed_price(self.book.best_bid_price)
+        best_ask_p = from_fixed_price(self.book.best_ask_price)
+        risk_decision = self.risk_engine.validate_order(
+            order_id=order_id,
+            client_id=client_id,
+            side=int(side),
+            price_float=price_float,
+            quantity=quantity,
+            symbol_id=1,
+            best_bid_float=best_bid_p,
+            best_ask_float=best_ask_p,
+            is_market=(type_str.upper() == "MARKET"),
+            timestamp_ns=t0_ns,
+        )
+
+        if not risk_decision.passed:
+            t1_ns = time.perf_counter_ns()
+            lat_ns = t1_ns - t0_ns
+            self.profiler.record_delta(t0_ns, t1_ns)
+            return {
+                "success": False,
+                "order_id": order_id,
+                "side": side_str.upper(),
+                "type": type_str.upper(),
+                "tif": tif.name,
+                "post_only": post_only,
+                "stp": stp_action.name,
+                "price": price_float,
+                "quantity": quantity,
+                "total_filled": 0,
+                "matched_trades": [],
+                "cancelled_remainder": 0,
+                "stp_cancelled_qty": 0,
+                "reject_reason": risk_decision.reject_reason,
+                "latency_us": lat_ns / 1000.0,
+            }
+
         # Market orders are IOC by convention — fill what's available, cancel rest
         if type_str.upper() == "MARKET" and tif == TimeInForce.GTC:
             tif = TimeInForce.IOC
@@ -246,6 +294,19 @@ class WebTradingServer:
             matched_info.append(trade_data)
             self.recent_trades.insert(0, trade_data)
 
+            # Settle trade in Risk Engine
+            buy_c = self._client_order_registry.get(m["buy_order_id"], 1)
+            sell_c = self._client_order_registry.get(m["sell_order_id"], 2)
+            self.risk_engine.on_trade_executed(
+                buy_client_id=buy_c,
+                sell_client_id=sell_c,
+                price_float=trade_p,
+                quantity=qty,
+                symbol_id=1,
+                buy_order_id=m["buy_order_id"],
+                sell_order_id=m["sell_order_id"],
+            )
+
         # Record price tick for live chart
         if matches:
             self.price_history.append({
@@ -264,6 +325,14 @@ class WebTradingServer:
         if client_id == 1 and type_str.upper() == "LIMIT" and tif == TimeInForce.GTC:
             rem = quantity - filled_shares
             if rem > 0:
+                self.risk_engine.on_order_accepted(
+                    order_id=order_id,
+                    client_id=client_id,
+                    side=int(side),
+                    price_float=price_float,
+                    quantity=rem,
+                    symbol_id=1,
+                )
                 self.user_open_orders[order_id] = {
                     "order_id": order_id,
                     "side": side_str.upper(),
@@ -304,6 +373,8 @@ class WebTradingServer:
 
         if order_id in self.user_open_orders:
             del self.user_open_orders[order_id]
+
+        self.risk_engine.on_order_cancelled(order_id=order_id, client_id=1)
 
         return {
             "success": cancelled,
@@ -363,6 +434,8 @@ class WebTradingServer:
             "stats": stats._asdict() if stats else None,
             "bot_active": self.bot_active,
             "bot_speed": self.bot_speed,
+            "risk": self.risk_engine.get_risk_metrics(),
+            "account": self.risk_engine.get_or_create_account(1).to_dict(),
         }
 
 
@@ -454,6 +527,28 @@ async def _bot_simulation_loop():
             await asyncio.sleep(server.bot_delay)
         except Exception:
             await asyncio.sleep(0.05)
+
+
+@app.get("/api/account")
+async def api_account():
+    """Retrieve Client #1 clearinghouse margin and position inventory."""
+    return server.risk_engine.get_or_create_account(1).to_dict()
+
+
+@app.get("/api/risk/metrics")
+async def api_risk_metrics():
+    """Retrieve pre-trade risk telemetry and blocked order statistics."""
+    return server.risk_engine.get_risk_metrics()
+
+
+@app.post("/api/risk/circuit-breaker/toggle")
+async def api_toggle_circuit_breaker():
+    """Emergency administrative circuit breaker toggle."""
+    if server.risk_engine.limits.circuit_breaker_active:
+        server.risk_engine.reset_circuit_breaker()
+    else:
+        server.risk_engine.trip_circuit_breaker()
+    return {"circuit_breaker_active": server.risk_engine.limits.circuit_breaker_active}
 
 
 @app.websocket("/ws")
