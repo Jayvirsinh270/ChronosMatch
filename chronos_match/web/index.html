@@ -768,6 +768,14 @@
       </div>
     </div>
 
+    <!-- PHASE 3: MULTI-ASSET PAIR SELECTOR -->
+    <div style="display: flex; gap: 4px; background: #090d14; border: 1px solid var(--border); padding: 3px; border-radius: 6px; font-family: var(--font-mono);">
+      <button id="pair-SOL-USD" class="speed-btn active" onclick="selectPair('SOL-USD', 150.00)" style="padding: 4px 8px; font-weight: 700;">SOL/USD</button>
+      <button id="pair-BTC-USD" class="speed-btn" onclick="selectPair('BTC-USD', 65000.00)" style="padding: 4px 8px; font-weight: 700;">BTC/USD</button>
+      <button id="pair-ETH-USD" class="speed-btn" onclick="selectPair('ETH-USD', 3500.00)" style="padding: 4px 8px; font-weight: 700;">ETH/USD</button>
+      <button id="pair-NVDA-USD" class="speed-btn" onclick="selectPair('NVDA-USD', 130.00)" style="padding: 4px 8px; font-weight: 700;">NVDA/USD</button>
+    </div>
+
     <!-- REAL-TIME TICKER STRIP -->
     <div class="market-ticker">
       <div class="ticker-stat">
@@ -966,8 +974,11 @@
               <span id="acc-cash-reserved" style="color: var(--amber); font-weight: 600;">$0.00</span>
             </div>
             <div class="summary-row total">
-              <span>Share Inventory</span>
+              <span>Share Inventory (<span id="acc-curr-symbol">SOL</span>)</span>
               <span id="acc-shares" style="color: var(--cyan); font-weight: 700;">100,000 shs</span>
+            </div>
+            <div id="acc-cross-positions" style="display: flex; justify-content: space-between; font-size: 0.63rem; color: var(--text-dim); margin-top: 3px; font-family: var(--font-mono);">
+              <span>BTC: 50</span><span>ETH: 500</span><span>NVDA: 10K</span>
             </div>
           </div>
         </div>
@@ -981,7 +992,7 @@
       <div class="chart-container">
         <div class="chart-header">
           <div class="chart-price-display">
-            <span style="color: var(--text-muted); font-size: 0.7rem;">CHRONOS/USD</span>
+            <span id="chart-symbol-badge" style="color: var(--cyan); font-weight: 700; font-size: 0.72rem;">SOL/USD</span>
             <span class="chart-current-price" id="chart-price-head">$150.00</span>
           </div>
           <span style="color: var(--text-dim); font-size: 0.68rem;">TICK STREAM (50 TICKS)</span>
@@ -1154,6 +1165,33 @@
     // Phase 1 order state
     let currentTIF = 'GTC';
     let currentSTP = 'CANCEL_AGGRESSOR';
+    // Phase 3 multi-symbol state
+    let currentSymbol = 'SOL-USD';
+
+    async function selectPair(symbol, defaultPrice) {
+      currentSymbol = symbol;
+      ['SOL-USD', 'BTC-USD', 'ETH-USD', 'NVDA-USD'].forEach(s => {
+        const btn = document.getElementById(`pair-${s}`);
+        if (btn) {
+          if (s === symbol) btn.classList.add('active');
+          else btn.classList.remove('active');
+        }
+      });
+      if (defaultPrice) {
+        document.getElementById('order-price').value = defaultPrice.toFixed(2);
+        updateNotional();
+      }
+      try {
+        await fetch('/api/symbol/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: symbol }),
+        });
+        fetchSnapshot();
+      } catch (err) {
+        console.error('Failed to select symbol', err);
+      }
+    }
 
     // Clock
     setInterval(() => {
@@ -1282,6 +1320,7 @@
         order_type: currentType,
         price: price,
         quantity: qty,
+        symbol: currentSymbol,
         tif: currentTIF,
         post_only: postOnly,
         stp: currentSTP,
@@ -1641,12 +1680,26 @@
       document.getElementById('metric-p50').innerText = p50 > 0 ? `${p50.toFixed(2)} μs` : '< 1.50 μs';
       document.getElementById('metric-p99').innerText = p99 > 0 ? `${p99.toFixed(2)} μs` : '< 3.00 μs';
 
-      // 9. Phase 2 Account & Risk Telemetry
+      // 9. Phase 2 & Phase 3 Account & Risk Telemetry
+      if (data.symbol && document.getElementById('chart-symbol-badge')) {
+        document.getElementById('chart-symbol-badge').innerText = data.symbol;
+      }
+      if (document.getElementById('acc-curr-symbol')) {
+        document.getElementById('acc-curr-symbol').innerText = data.base_asset || currentSymbol.split('-')[0];
+      }
+
       if (data.account) {
         document.getElementById('acc-cash-balance').innerText = `$${(data.account.cash_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         document.getElementById('acc-cash-avail').innerText = `$${(data.account.available_cash || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         document.getElementById('acc-cash-reserved').innerText = `$${(data.account.cash_reserved || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         document.getElementById('acc-shares').innerText = `${(data.account.available_shares || 0).toLocaleString()} shs`;
+
+        // Render cross-positions if container exists
+        const posEl = document.getElementById('acc-cross-positions');
+        if (posEl && data.account.positions) {
+          const p = data.account.positions;
+          posEl.innerHTML = `<span>BTC: ${(p[2] || 0).toLocaleString()}</span><span>ETH: ${(p[3] || 0).toLocaleString()}</span><span>NVDA: ${(p[4] || 0).toLocaleString()}</span>`;
+        }
       }
 
       if (data.risk) {
@@ -1689,7 +1742,7 @@
     // STREAM CONNECTION: WEBSOCKET WITH POLLING FALLBACK
     async function fetchSnapshot() {
       try {
-        const resp = await fetch('/api/snapshot');
+        const resp = await fetch(`/api/snapshot?symbol=${encodeURIComponent(currentSymbol)}`);
         const data = await resp.json();
         renderSnapshot(data);
       } catch (err) {
