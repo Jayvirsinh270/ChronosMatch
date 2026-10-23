@@ -202,7 +202,7 @@ class MultiBookRouter:
         self.client_order_registry: Dict[int, int] = {}
         self.order_id_counter = 1
 
-    def register_symbol(self, info: SymbolInfo, arena_capacity: int = 100_000) -> SingleSymbolVenue:
+    def register_symbol(self, info: SymbolInfo, arena_capacity: int = 100_000, seed: bool = True) -> SingleSymbolVenue:
         """Register a new instrument and spin up its isolated matching core."""
         venue = SingleSymbolVenue(
             info=info,
@@ -214,11 +214,11 @@ class MultiBookRouter:
         # Also map base_asset alias (e.g. 'SOL' -> 'SOL-USD')
         self.venues_by_ticker[info.base_asset.upper()] = venue
 
-        # Seed realistic starting liquidity
-        self.order_id_counter = venue.seed_liquidity(
-            order_id_start=self.order_id_counter,
-            client_order_registry=self.client_order_registry,
-        )
+        if seed:
+            self.order_id_counter = venue.seed_liquidity(
+                order_id_start=self.order_id_counter,
+                client_order_registry=self.client_order_registry,
+            )
         return venue
 
     def get_venue(self, symbol: Union[int, str]) -> SingleSymbolVenue:

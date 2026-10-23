@@ -41,6 +41,9 @@ from chronos_match.monitor.metrics import LatencyProfiler
 from chronos_match.monitor.whale_detector import WhaleDetector
 from chronos_match.market.distribution import OrderDistributionGenerator
 from chronos_match.ledger.audit_logger import AuditLedger
+from chronos_match.persistence.wal import WriteAheadLog
+from chronos_match.persistence.snapshot import SnapshotManager
+from chronos_match.persistence.recovery import DeterministicRecoveryEngine
 
 
 class OrderRequest(BaseModel):
@@ -69,11 +72,20 @@ class SymbolSelectRequest(BaseModel):
 
 
 class WebTradingServer:
-    def __init__(self, db_path: str = "chronos_audit.db"):
+    def __init__(
+        self,
+        db_path: str = "chronos_audit.db",
+        wal_path: str = "chronos_journal.wal",
+        snapshot_dir: str = "chronos_snapshots",
+        enable_wal: bool = False,
+    ):
         self.router = MultiBookRouter()
         self.ledger = AuditLedger(db_path=db_path)
         self.risk_engine = PreTradeRiskEngine()
         self.active_symbol = "SOL-USD"
+        self.enable_wal = enable_wal
+        self.wal = WriteAheadLog(filepath=wal_path, sync_mode="batched") if enable_wal else None
+        self.snapshot_mgr = SnapshotManager(snapshot_dir=snapshot_dir)
 
         # Register standard multi-asset instruments
         self.router.register_symbol(SymbolInfo(1, "SOL-USD", "SOL", "USD", 0.01, 1, 150.00))
@@ -253,6 +265,21 @@ class WebTradingServer:
         if type_str.upper() == "MARKET" and tif == TimeInForce.GTC:
             tif = TimeInForce.IOC
 
+        # Append to Write-Ahead Log before engine matching
+        if self.enable_wal and self.wal:
+            self.wal.append_order_submit(
+                order_id=order_id,
+                client_id=client_id,
+                symbol_id=sym_id,
+                side=int(side),
+                price=exec_price,
+                quantity=quantity,
+                tif=int(tif),
+                post_only=int(post_only),
+                stp_action=int(stp_action),
+                timestamp_ns=t0_ns,
+            )
+
         policy_result = venue.policy_engine.apply(
             order_id=order_id,
             client_id=client_id,
@@ -420,6 +447,27 @@ class WebTradingServer:
         if order_id in venue.user_open_orders:
             del venue.user_open_orders[order_id]
 
+        if cancelled and self.enable_wal and self.wal:
+
+
+            self.wal.append_order_cancel(
+
+
+                order_id=order_id,
+
+
+                client_id=self.router.client_order_registry.get(order_id, 1),
+
+
+                symbol_id=venue.info.symbol_id,
+
+
+                timestamp_ns=time.perf_counter_ns(),
+
+
+            )
+
+
         self.risk_engine.on_order_cancelled(order_id=order_id, client_id=1)
 
         return {
@@ -579,6 +627,33 @@ async def api_toggle_circuit_breaker():
     else:
         server.risk_engine.trip_circuit_breaker()
     return {"circuit_breaker_active": server.risk_engine.limits.circuit_breaker_active}
+
+
+@app.post("/api/snapshot/create")
+async def api_create_snapshot():
+    """Checkpoint matching engine state to disk."""
+    seq = server.wal.next_seq - 1 if server.wal else 0
+    snap_path = server.snapshot_mgr.create_snapshot(
+        router=server.router,
+        last_seq=seq,
+        risk_engine=server.risk_engine,
+    )
+    if server.enable_wal and server.wal:
+        server.wal.append_snapshot_marker(seq, snap_path)
+    return {"success": True, "snapshot_path": snap_path, "seq": seq}
+
+
+@app.get("/api/wal/status")
+async def api_wal_status():
+    """Retrieve Write-Ahead Log status and sequence telemetry."""
+    seq = server.wal.next_seq if server.wal else 0
+    size_bytes = os.path.getsize(server.wal.filepath) if server.wal and os.path.exists(server.wal.filepath) else 0
+    return {
+        "enabled": server.enable_wal,
+        "next_seq": seq,
+        "wal_file": server.wal.filepath if server.wal else None,
+        "file_size_bytes": size_bytes,
+    }
 
 
 @app.websocket("/ws")
