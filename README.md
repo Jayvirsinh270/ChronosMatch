@@ -157,4 +157,4 @@ python demo.py
 
 ## 👥 Authors & Maintainers
 * **Project Owner / Lead Engineer**: Jayvirsinh270 ([GitHub](https://github.com/Jayvirsinh270))
-* **Project Manager**: Antigravity PM Agent
+* 
