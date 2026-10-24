@@ -44,6 +44,10 @@ from chronos_match.ledger.audit_logger import AuditLedger
 from chronos_match.persistence.wal import WriteAheadLog
 from chronos_match.persistence.snapshot import SnapshotManager
 from chronos_match.persistence.recovery import DeterministicRecoveryEngine
+from chronos_match.market.data_loader import MarketDataLoader
+from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
+from chronos_match.market.replayer import HistoricalMarketReplayer
+from chronos_match.algo import AlgoTradingManager
 
 
 class OrderRequest(BaseModel):
@@ -107,6 +111,10 @@ class WebTradingServer:
         self.bot_delay = 0.04  # ~25 ord/s
         self._bot_task: Optional[asyncio.Task] = None
         self.connected_clients: List[WebSocket] = []
+
+        # Real-Market Data Replayer & ML Impact Engine
+        self.replayer = HistoricalMarketReplayer(router=self.router, default_ticker="NVDA")
+        self.replayer.bind_stock("SOL-USD")
 
     # ── Backward-compatible venue delegations ──────────────────────────────
 
@@ -371,6 +379,17 @@ class WebTradingServer:
                 sell_order_id=m["sell_order_id"],
             )
 
+            # ML Market Impact feedback: dynamic price & spread reaction to buy/sell pressure
+            impact = self.replayer.impact_engines.get(venue.info.ticker)
+            if impact:
+                impact.record_execution(int(side), qty, trade_p)
+
+            # Algorithmic Trading fill notification
+            algo_mgr = self.replayer.algo_managers.get(venue.info.ticker)
+            if algo_mgr:
+                algo_mgr.on_trade_executed(buy_c, int(OrderSide.BUY), trade_p, qty)
+                algo_mgr.on_trade_executed(sell_c, int(OrderSide.SELL), trade_p, qty)
+
         # Record price tick for live chart
         if matches:
             venue.price_history.append({
@@ -490,6 +509,10 @@ class WebTradingServer:
         snap["active_symbol"] = self.active_symbol
         snap["symbols"] = self.router.list_symbols()
         snap["tickers"] = self.router.get_all_tickers()
+        impact = self.replayer.impact_engines.get(venue.info.ticker)
+        snap["ml_impact"] = impact.to_dict() if impact else None
+        algo_mgr = self.replayer.algo_managers.get(venue.info.ticker)
+        snap["algo_stats"] = algo_mgr.get_summary(venue.last_trade_price) if algo_mgr else None
         return snap
 
 
@@ -591,6 +614,9 @@ async def _bot_simulation_loop():
             side_str = "BUY" if pkt.side == OrderSide.BUY else "SELL"
             type_str = "CANCEL" if pkt.order_type == OrderType.CANCEL else "LIMIT"
 
+            # Step real-market replay & ML impact tick
+            server.replayer.step_market_tick(venue.info.ticker)
+
             if type_str == "CANCEL":
                 venue.book.cancel_order(pkt.order_id)
             else:
@@ -654,6 +680,63 @@ async def api_wal_status():
         "wal_file": server.wal.filepath if server.wal else None,
         "file_size_bytes": size_bytes,
     }
+
+
+@app.get("/api/market/companies")
+async def api_get_companies():
+    """List popular global companies with real historical data available."""
+    return server.replayer.data_loader.get_popular_companies()
+
+
+@app.post("/api/market/select-company")
+async def api_select_company(req: SymbolSelectRequest):
+    """Load and bind real company stock data into the active venue."""
+    ticker = req.symbol.strip().upper()
+    venue = server.replayer.bind_stock(ticker)
+    server.active_symbol = venue.info.ticker
+    return {
+        "success": True,
+        "symbol": venue.info.ticker,
+        "initial_price": venue.info.initial_price,
+        "tick_size": venue.info.tick_size,
+    }
+
+
+@app.get("/api/market/candles")
+async def api_get_candles(symbol: Optional[str] = None, limit: int = 100):
+    """Retrieve real historical candlestick bars for charting."""
+    sym = symbol or server.active_symbol
+    return server.replayer.get_candlesticks(sym, limit=limit)
+
+
+@app.get("/api/market/ml-impact")
+async def api_get_ml_impact(symbol: Optional[str] = None):
+    """Retrieve real-time ML market impact state."""
+    sym = symbol or server.active_symbol
+    impact = server.replayer.impact_engines.get(sym)
+    return impact.to_dict() if impact else {}
+
+
+@app.post("/api/algo/toggle")
+async def api_toggle_algo(bot_type: str = Query("mm")):
+    """Toggle auto-trading algorithm (mm for Market Maker, momentum for Breakout)."""
+    sym = server.active_symbol
+    algo_mgr = server.replayer.algo_managers.get(sym)
+    if not algo_mgr:
+        server.replayer.bind_stock(sym)
+        algo_mgr = server.replayer.algo_managers.get(sym)
+    active = algo_mgr.toggle_bot(bot_type)
+    return {"bot_type": bot_type, "active": active}
+
+
+@app.get("/api/algo/status")
+async def api_algo_status(symbol: Optional[str] = None):
+    """Retrieve live PnL and telemetry for auto-trading algorithms."""
+    sym = symbol or server.active_symbol
+    algo_mgr = server.replayer.algo_managers.get(sym)
+    venue = server.router.get_venue(sym)
+    mid = venue.last_trade_price or venue.info.initial_price
+    return algo_mgr.get_summary(mid) if algo_mgr else {}
 
 
 @app.websocket("/ws")

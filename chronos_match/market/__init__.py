@@ -1,4 +1,4 @@
-"""ChronosMatch Market Ingestion, Simulation & Multi-Asset Routing Module"""
+"""ChronosMatch Market Ingestion, Simulation, Historical Replay & Multi-Asset Routing Module"""
 
 from chronos_match.market.router import (
     SymbolInfo,
@@ -6,10 +6,26 @@ from chronos_match.market.router import (
     MultiBookRouter,
 )
 from chronos_match.market.distribution import OrderDistributionGenerator
+from chronos_match.market.data_loader import (
+    MarketDataLoader,
+    StockCandle,
+    StockMetadata,
+)
+from chronos_match.market.ml_impact_engine import (
+    MLMarketImpactEngine,
+    MarketImpactState,
+)
+from chronos_match.market.replayer import HistoricalMarketReplayer
 
 __all__ = [
     "SymbolInfo",
     "SingleSymbolVenue",
     "MultiBookRouter",
     "OrderDistributionGenerator",
+    "MarketDataLoader",
+    "StockCandle",
+    "StockMetadata",
+    "MLMarketImpactEngine",
+    "MarketImpactState",
+    "HistoricalMarketReplayer",
 ]

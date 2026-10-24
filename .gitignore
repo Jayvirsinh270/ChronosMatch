@@ -27,6 +27,9 @@ dist/
 chronos_match/test_cy.c
 chronos_match/engine/*_cy.c
 
+# Large Market Datasets
+data/
+
 # Shared Memory Ring Buffer & Test Files
 *.ring
 .test_shm/

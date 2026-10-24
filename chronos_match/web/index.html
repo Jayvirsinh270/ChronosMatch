@@ -776,6 +776,24 @@
       <button id="pair-NVDA-USD" class="speed-btn" onclick="selectPair('NVDA-USD', 130.00)" style="padding: 4px 8px; font-weight: 700;">NVDA/USD</button>
     </div>
 
+    <!-- PHASE 6: REAL HISTORICAL COMPANY SELECTOR -->
+    <div style="display: flex; align-items: center; gap: 6px; background: #090d14; border: 1px solid var(--border); padding: 3px 8px; border-radius: 6px; font-family: var(--font-mono);">
+      <span style="font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase;">Stock:</span>
+      <select id="company-selector" onchange="loadCompanyStock(this.value)" style="background: transparent; border: none; color: var(--cyan); font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; outline: none; cursor: pointer;">
+        <option value="NVDA">⚡ NVDA (Nvidia Corp)</option>
+        <option value="AAPL">🍎 AAPL (Apple Inc)</option>
+        <option value="MSFT">💻 MSFT (Microsoft)</option>
+        <option value="AMZN">📦 AMZN (Amazon)</option>
+        <option value="TSLA">🚗 TSLA (Tesla)</option>
+        <option value="SPY">📊 SPY (S&P 500)</option>
+        <option value="QQQ">📈 QQQ (Nasdaq 100)</option>
+        <option value="RELIANCE">🇮🇳 RELIANCE (Reliance Ind)</option>
+        <option value="TCS">🇮🇳 TCS (Tata Consult)</option>
+        <option value="HDFCBANK">🇮🇳 HDFCBANK (HDFC Bank)</option>
+        <option value="INFY">🇮🇳 INFY (Infosys)</option>
+      </select>
+    </div>
+
     <!-- REAL-TIME TICKER STRIP -->
     <div class="market-ticker">
       <div class="ticker-stat">
@@ -1110,6 +1128,68 @@
             <div class="metric-card">
               <span class="label">Blocked Orders</span>
               <span class="val" id="risk-total-blocked" style="color: var(--amber);">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 6: ML MARKET IMPACT & MICROSTRUCTURE ENGINE -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="title-badge">
+            <span style="color: var(--cyan);">🧠 ML Market Impact Engine</span>
+          </div>
+          <span id="ml-status-pill" class="chip" style="font-size: 0.6rem; color: var(--green);">ADAPTIVE KYLE-λ</span>
+        </div>
+        <div class="panel-body" style="gap: 6px; font-family: var(--font-mono); font-size: 0.72rem;">
+          <div style="display: flex; justify-content: space-between; background: #090d14; padding: 5px 8px; border-radius: 4px; border: 1px solid var(--border);">
+            <span style="color: var(--text-dim);">Order Flow Imbalance</span>
+            <span id="ml-ofi-val" style="color: var(--cyan); font-weight: 700;">+0.00</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+            <div class="metric-card">
+              <span class="label">Net Flow (Shs)</span>
+              <span class="val" id="ml-net-flow" style="font-size: 0.82rem;">0</span>
+            </div>
+            <div class="metric-card">
+              <span class="label">Price Impact</span>
+              <span class="val" id="ml-impact-pct" style="font-size: 0.82rem; color: var(--green);">0.00%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 6: QUANTITATIVE AUTO-TRADING DESK -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="title-badge">
+            <span style="color: var(--green);">🤖 Quantitative Algo Desk</span>
+          </div>
+          <span id="algo-total-pnl" style="font-family: var(--font-mono); font-size: 0.72rem; font-weight: 800; color: var(--green);">$0.00</span>
+        </div>
+        <div class="panel-body" style="gap: 8px; font-family: var(--font-mono); font-size: 0.72rem;">
+          <!-- Avellaneda-Stoikov Market Maker -->
+          <div style="background: #090d14; border: 1px solid var(--border); padding: 8px; border-radius: 5px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 700; color: #fff;">Avellaneda-Stoikov MM</span>
+              <button id="btn-algo-mm" onclick="toggleAlgo('mm')" style="background: #1e293b; border: 1px solid var(--border); color: var(--text-muted); font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; cursor: pointer;">OFF</button>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-dim);">
+              <span>Inv: <span id="mm-inventory" style="color: var(--cyan);">0</span></span>
+              <span>PnL: <span id="mm-pnl" style="color: var(--green); font-weight: 700;">$0.00</span></span>
+              <span>Win: <span id="mm-win">0%</span></span>
+            </div>
+          </div>
+          <!-- Order Flow Momentum Breakout Bot -->
+          <div style="background: #090d14; border: 1px solid var(--border); padding: 8px; border-radius: 5px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 700; color: #fff;">Order Flow Momentum</span>
+              <button id="btn-algo-mom" onclick="toggleAlgo('momentum')" style="background: #1e293b; border: 1px solid var(--border); color: var(--text-muted); font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; cursor: pointer;">OFF</button>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-dim);">
+              <span>Sig: <span id="mom-signal" style="color: var(--amber);">NEUTRAL</span></span>
+              <span>PnL: <span id="mom-pnl" style="color: var(--green); font-weight: 700;">$0.00</span></span>
+              <span>Trades: <span id="mom-trades">0</span></span>
             </div>
           </div>
         </div>
@@ -1725,6 +1805,55 @@
         }
       }
 
+      // PHASE 6: ML Market Impact Telemetry
+      if (data.ml_impact) {
+        const imp = data.ml_impact;
+        const ofiEl = document.getElementById('ml-ofi-val');
+        if (ofiEl) {
+          ofiEl.innerText = `${imp.order_flow_imbalance > 0 ? '+' : ''}${imp.order_flow_imbalance.toFixed(2)}`;
+          ofiEl.style.color = imp.order_flow_imbalance > 0 ? 'var(--green)' : (imp.order_flow_imbalance < 0 ? 'var(--red)' : 'var(--cyan)');
+        }
+        const netFlowEl = document.getElementById('ml-net-flow');
+        if (netFlowEl) netFlowEl.innerText = `${imp.net_order_flow > 0 ? '+' : ''}${imp.net_order_flow.toLocaleString()}`;
+        const impPctEl = document.getElementById('ml-impact-pct');
+        if (impPctEl) {
+          impPctEl.innerText = `${imp.cumulative_impact_pct > 0 ? '+' : ''}${imp.cumulative_impact_pct.toFixed(2)}%`;
+          impPctEl.style.color = imp.cumulative_impact_pct >= 0 ? 'var(--green)' : 'var(--red)';
+        }
+      }
+
+      // PHASE 6: Quantitative Algo Desk Telemetry
+      if (data.algo_stats) {
+        const st = data.algo_stats;
+        const totPnlEl = document.getElementById('algo-total-pnl');
+        if (totPnlEl) {
+          const tp = st.total_algorithmic_pnl || 0;
+          totPnlEl.innerText = `${tp >= 0 ? '+$' : '-$'}${Math.abs(tp).toFixed(2)}`;
+          totPnlEl.style.color = tp >= 0 ? 'var(--green)' : 'var(--red)';
+        }
+        if (st.market_maker) {
+          const mm = st.market_maker;
+          const invEl = document.getElementById('mm-inventory');
+          if (invEl) invEl.innerText = `${mm.inventory > 0 ? '+' : ''}${mm.inventory}`;
+          const mmPnlEl = document.getElementById('mm-pnl');
+          if (mmPnlEl) mmPnlEl.innerText = `${mm.total_pnl >= 0 ? '+$' : '-$'}${Math.abs(mm.total_pnl).toFixed(2)}`;
+          const mmWinEl = document.getElementById('mm-win');
+          if (mmWinEl) mmWinEl.innerText = `${mm.win_rate}%`;
+        }
+        if (st.momentum_bot) {
+          const mom = st.momentum_bot;
+          const sigEl = document.getElementById('mom-signal');
+          if (sigEl) {
+            sigEl.innerText = mom.signal;
+            sigEl.style.color = mom.signal === 'LONG' ? 'var(--green)' : (mom.signal === 'SHORT' ? 'var(--red)' : 'var(--amber)');
+          }
+          const momPnlEl = document.getElementById('mom-pnl');
+          if (momPnlEl) momPnlEl.innerText = `${mom.total_pnl >= 0 ? '+$' : '-$'}${Math.abs(mom.total_pnl).toFixed(2)}`;
+          const momTradesEl = document.getElementById('mom-trades');
+          if (momTradesEl) momTradesEl.innerText = mom.total_trades;
+        }
+      }
+
       // Bot button state
       updateBotUI(data.bot_active, data.bot_speed);
     }
@@ -1802,6 +1931,43 @@
     window.addEventListener('resize', () => {
       renderCanvasChart(priceHistoryTicks);
     });
+
+    // PHASE 6: REAL COMPANY & ALGO HANDLERS
+    async function loadCompanyStock(ticker) {
+      try {
+        const resp = await fetch('/api/market/select-company', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: ticker }),
+        });
+        const res = await resp.json();
+        if (res.success) {
+          currentSymbol = res.symbol;
+          document.getElementById('chart-symbol-badge').innerText = res.symbol;
+          document.getElementById('order-price').value = res.initial_price.toFixed(2);
+          updateNotional();
+          fetchSnapshot();
+        }
+      } catch (err) {
+        console.error('Failed to load company stock', err);
+      }
+    }
+
+    async function toggleAlgo(botType) {
+      try {
+        const resp = await fetch(`/api/algo/toggle?bot_type=${botType}`, { method: 'POST' });
+        const res = await resp.json();
+        const btn = document.getElementById(botType === 'mm' ? 'btn-algo-mm' : 'btn-algo-mom');
+        if (btn) {
+          btn.style.background = res.active ? 'var(--green-bg)' : '#1e293b';
+          btn.style.color = res.active ? 'var(--green)' : 'var(--text-muted)';
+          btn.style.borderColor = res.active ? 'var(--green)' : 'var(--border)';
+          btn.innerText = res.active ? 'RUNNING' : 'OFF';
+        }
+      } catch (err) {
+        console.error('Failed to toggle algo', err);
+      }
+    }
 
     // Init
     updateNotional();
