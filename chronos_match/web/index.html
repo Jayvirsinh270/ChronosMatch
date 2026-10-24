@@ -1133,6 +1133,41 @@
         </div>
       </div>
 
+      <!-- LIGHTWEIGHT ML MARKET PATTERN MODEL -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="title-badge">
+            <span style="color: #a855f7;">🔮 ML Market Pattern Engine</span>
+          </div>
+          <span id="ml-pattern-regime-pill" class="chip" style="font-size: 0.6rem; color: #a855f7; border-color: #a855f7;">ANALYZING...</span>
+        </div>
+        <div class="panel-body" style="gap: 6px; font-family: var(--font-mono); font-size: 0.72rem;">
+          <div style="background: #090d14; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+              <span style="color: var(--text-dim);">Regime Confidence</span>
+              <span id="ml-pattern-conf-val" style="color: #a855f7; font-weight: 700;">85.0%</span>
+            </div>
+            <div style="width: 100%; height: 4px; background: #1e293b; border-radius: 2px; overflow: hidden;">
+              <div id="ml-pattern-conf-bar" style="width: 85%; height: 100%; background: linear-gradient(90deg, #a855f7, #38bdf8); transition: width 0.2s;"></div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+            <div class="metric-card">
+              <span class="label">Forecast Next Drift</span>
+              <span class="val" id="ml-pattern-drift" style="font-size: 0.82rem; color: var(--green);">+0.00%</span>
+            </div>
+            <div class="metric-card">
+              <span class="label">Spread Multiplier</span>
+              <span class="val" id="ml-pattern-spread" style="font-size: 0.82rem; color: var(--cyan);">1.00x</span>
+            </div>
+          </div>
+          <div style="background: #090d14; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 0.65rem; color: var(--text-dim); display: flex; justify-content: space-between;">
+            <span>Persisted History:</span>
+            <span id="ml-pattern-storage-stats" style="color: var(--text-main);">0 Ticks | 0 Candles</span>
+          </div>
+        </div>
+      </div>
+
       <!-- PHASE 6: ML MARKET IMPACT & MICROSTRUCTURE ENGINE -->
       <div class="panel">
         <div class="panel-header">
@@ -1246,7 +1281,7 @@
     let currentTIF = 'GTC';
     let currentSTP = 'CANCEL_AGGRESSOR';
     // Phase 3 multi-symbol state
-    let currentSymbol = 'SOL-USD';
+    let currentSymbol = 'NVDA-USD';
 
     async function selectPair(symbol, defaultPrice) {
       currentSymbol = symbol;
@@ -1802,6 +1837,55 @@
           cbBtn.style.background = 'rgba(239, 68, 68, 0.15)';
           cbBtn.style.color = 'var(--red)';
           cbBtn.style.borderColor = 'var(--red)';
+        }
+      }
+
+      // LIGHTWEIGHT ML MARKET PATTERN TELEMETRY
+      if (data.ml_pattern) {
+        const pat = data.ml_pattern;
+        const pill = document.getElementById('ml-pattern-regime-pill');
+        if (pill) {
+          const reg = pat.regime || 'BALANCED_CONSOLIDATION';
+          pill.innerText = reg.replace(/_/g, ' ');
+          if (reg === 'MOMENTUM_BREAKOUT_BULL') {
+            pill.style.color = '#10b981';
+            pill.style.borderColor = '#10b981';
+          } else if (reg === 'MOMENTUM_BREAKOUT_BEAR') {
+            pill.style.color = '#f43f5e';
+            pill.style.borderColor = '#f43f5e';
+          } else if (reg === 'VOLATILITY_EXPANSION_CHOP') {
+            pill.style.color = '#f59e0b';
+            pill.style.borderColor = '#f59e0b';
+          } else {
+            pill.style.color = '#38bdf8';
+            pill.style.borderColor = '#38bdf8';
+          }
+        }
+        const confVal = document.getElementById('ml-pattern-conf-val');
+        const confBar = document.getElementById('ml-pattern-conf-bar');
+        if (confVal) {
+          const pct = Math.round((pat.confidence || 0.85) * 100);
+          confVal.innerText = `${pct}%`;
+          if (confBar) confBar.style.width = `${pct}%`;
+        }
+        const driftEl = document.getElementById('ml-pattern-drift');
+        if (driftEl) {
+          const dPct = (pat.predicted_drift || 0) * 100;
+          driftEl.innerText = `${dPct >= 0 ? '+' : ''}${dPct.toFixed(3)}%`;
+          driftEl.style.color = dPct > 0 ? 'var(--green)' : (dPct < 0 ? 'var(--red)' : 'var(--text-main)');
+        }
+        const spreadEl = document.getElementById('ml-pattern-spread');
+        if (spreadEl) {
+          spreadEl.innerText = `${(pat.spread_multiplier || 1.0).toFixed(2)}x`;
+        }
+      }
+
+      // PERSISTED MARKET DATA STATS
+      if (data.market_stats) {
+        const ms = data.market_stats;
+        const statsEl = document.getElementById('ml-pattern-storage-stats');
+        if (statsEl) {
+          statsEl.innerText = `${(ms.persisted_ticks || 0).toLocaleString()} Ticks | ${(ms.persisted_candles || 0).toLocaleString()} Candles`;
         }
       }
 

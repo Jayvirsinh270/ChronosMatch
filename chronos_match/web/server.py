@@ -5,6 +5,7 @@ live order placement, multi-asset matching router, risk checks, and automated si
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 import random
@@ -106,14 +107,15 @@ class WebTradingServer:
         self.risk_engine.get_or_create_account(2, initial_cash=10_000_000.0, initial_shares=100_000, symbol_id=1)
         self.risk_engine.get_or_create_account(99, initial_cash=100_000_000.0, initial_shares=1_000_000, symbol_id=1)
 
-        self.bot_active = False
+        self.bot_active = True
         self.bot_speed = "medium"
         self.bot_delay = 0.04  # ~25 ord/s
         self._bot_task: Optional[asyncio.Task] = None
         self.connected_clients: List[WebSocket] = []
 
-        # Real-Market Data Replayer & ML Impact Engine
+        # Real-Market Data Replayer & ML Pattern Impact Engine
         self.replayer = HistoricalMarketReplayer(router=self.router, default_ticker="NVDA")
+        self.replayer.bind_stock("NVDA-USD")
         self.replayer.bind_stock("SOL-USD")
 
     # ── Backward-compatible venue delegations ──────────────────────────────
@@ -379,10 +381,30 @@ class WebTradingServer:
                 sell_order_id=m["sell_order_id"],
             )
 
-            # ML Market Impact feedback: dynamic price & spread reaction to buy/sell pressure
+            # ML Market Impact & Pattern feedback: dynamic price & spread reaction to buy/sell pressure
             impact = self.replayer.impact_engines.get(venue.info.ticker)
             if impact:
                 impact.record_execution(int(side), qty, trade_p)
+
+            pattern_model = self.replayer.pattern_models.get(venue.info.ticker)
+            if pattern_model:
+                pattern_model.record_trade(trade_p, qty, int(side))
+
+            # Persist tick into MarketDataStore
+            best_bid_p = from_fixed_price(venue.book.best_bid_price)
+            best_ask_p = from_fixed_price(venue.book.best_ask_price)
+            self.replayer.data_store.record_tick(
+                symbol=venue.info.ticker,
+                timestamp_ns=time.perf_counter_ns(),
+                price=trade_p,
+                quantity=qty,
+                side=int(side),
+                best_bid=best_bid_p,
+                best_ask=best_ask_p,
+                ofi=impact.ofi if impact else 0.0,
+                regime=pattern_model.current_regime.value if pattern_model else "BALANCED_CONSOLIDATION",
+            )
+            self.replayer._update_live_candle(venue.info.ticker, trade_p, qty)
 
             # Algorithmic Trading fill notification
             algo_mgr = self.replayer.algo_managers.get(venue.info.ticker)
@@ -511,14 +533,26 @@ class WebTradingServer:
         snap["tickers"] = self.router.get_all_tickers()
         impact = self.replayer.impact_engines.get(venue.info.ticker)
         snap["ml_impact"] = impact.to_dict() if impact else None
+        pattern_model = self.replayer.pattern_models.get(venue.info.ticker)
+        snap["ml_pattern"] = pattern_model.to_dict() if pattern_model else None
+        snap["market_stats"] = self.replayer.data_store.get_market_statistics(venue.info.ticker)
         algo_mgr = self.replayer.algo_managers.get(venue.info.ticker)
         snap["algo_stats"] = algo_mgr.get_summary(venue.last_trade_price) if algo_mgr else None
         return snap
 
 
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    """Auto-start background living market simulation loop on server startup."""
+    if server.bot_active:
+        if server._bot_task is None or server._bot_task.done():
+            server._bot_task = asyncio.create_task(_bot_simulation_loop())
+    yield
+
+
 # Initialize App & Server instance
-app = FastAPI(title="ChronosMatch Multi-Asset Trading Terminal")
 server = WebTradingServer()
+app = FastAPI(title="ChronosMatch Multi-Asset Trading Terminal", lifespan=lifespan)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -739,10 +773,27 @@ async def api_algo_status(symbol: Optional[str] = None):
     return algo_mgr.get_summary(mid) if algo_mgr else {}
 
 
+@app.get("/api/market/ml-pattern")
+async def api_get_ml_pattern(symbol: Optional[str] = None):
+    """Retrieve real-time Lightweight ML Market Pattern telemetry."""
+    sym = symbol or server.active_symbol
+    pattern = server.replayer.pattern_models.get(sym)
+    return pattern.to_dict() if pattern else {}
+
+
+@app.get("/api/market/stats")
+async def api_get_market_stats(symbol: Optional[str] = None):
+    """Retrieve stored session market data statistics."""
+    sym = symbol or server.active_symbol
+    return server.replayer.data_store.get_market_statistics(sym)
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     """High-frequency WebSocket broadcasting live snapshots for the active symbol at ~16 FPS."""
     await ws.accept()
+    if server.bot_active and (server._bot_task is None or server._bot_task.done()):
+        server._bot_task = asyncio.create_task(_bot_simulation_loop())
     server.connected_clients.append(ws)
     try:
         while True:
