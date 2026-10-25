@@ -266,12 +266,11 @@ def test_candlestick_pattern_and_feature_store_persistence():
             os.remove(db_path)
 
 
-@pytest.mark.anyio
-async def test_api_get_ml_metrics():
+def test_api_get_ml_metrics():
     """Verify that /api/market/ml-metrics returns institutional evaluation metrics."""
     from chronos_match.web.server import api_get_ml_metrics
 
-    data = await api_get_ml_metrics()
+    data = api_get_ml_metrics()
     assert "version" in data
     assert "evaluation_metrics" in data
     metrics = data["evaluation_metrics"]

@@ -825,7 +825,7 @@ async def api_get_feature_samples(symbol: Optional[str] = None, limit: int = 200
 
 
 @app.get("/api/market/ml-metrics")
-async def api_get_ml_metrics():
+def api_get_ml_metrics():
     """Retrieve institutional multi-metric offline evaluation scorecard."""
     weights_path = Path(__file__).parent.parent / "market" / "ml_weights.json"
     if not weights_path.exists():

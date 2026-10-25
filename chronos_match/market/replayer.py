@@ -193,26 +193,40 @@ class HistoricalMarketReplayer:
         if not impact or not pattern_model:
             return []
 
-        # 1. Update Macro Anchor & Stochastic Microstructure Motion (Ornstein-Uhlenbeck)
+        # 1. Continuous Walk-Forward Stochastic Microstructure with ML Regime Guidance
         pred = pattern_model.predict()
         regime = pred.regime
         tick = venue.info.tick_size
-        daily_vol = impact.daily_volatility
-        anchor = self.anchor_price.get(sym, venue.info.initial_price or 100.0)
+        daily_vol = max(0.008, impact.daily_volatility)
+        cur_mid = self.current_mid.get(sym, venue.info.initial_price or 100.0)
 
-        # OU Process: smooth continuous oscillations within +/- 2.5% of anchor
-        theta = 0.04
-        sigma = max(0.0004, min(0.0022, daily_vol * 0.05))
-        m_drift = self.macro_drift.get(sym, 0.0)
-        ml_nudge = pred.predicted_drift * 0.10
-        m_drift += -theta * m_drift + sigma * random.gauss(0, 1) + ml_nudge
-        m_drift = max(-0.025, min(0.025, m_drift))
-        self.macro_drift[sym] = m_drift
-        self.macro_drift[venue.info.ticker] = m_drift
+        # Dynamic drift guided by ML regime prediction
+        if regime == MarketRegime.MOMENTUM_BREAKOUT_BULL:
+            drift = max(0.00025, pred.predicted_drift * 1.6)
+            vol_mult = 1.4
+        elif regime == MarketRegime.MOMENTUM_BREAKOUT_BEAR:
+            drift = min(-0.00025, pred.predicted_drift * 1.6)
+            vol_mult = 1.4
+        elif regime == MarketRegime.VOLATILITY_EXPANSION_CHOP:
+            drift = 0.0004 if random.random() < 0.5 else -0.0004
+            vol_mult = 2.2
+        else:  # BALANCED_CONSOLIDATION
+            # Mild mean reversion around session midpoint
+            anchor = self.anchor_price.get(sym, cur_mid)
+            deviation = (cur_mid - anchor) / max(1.0, anchor)
+            drift = -0.0004 * deviation + pred.predicted_drift * 0.4
+            vol_mult = 1.0
 
-        # Micro-tick jitter
-        micro = random.gauss(0, 1) * 0.0002
-        new_mid = max(tick * 5, round(anchor * (1.0 + m_drift + micro), 2))
+        # Authentic tick volatility shock
+        step_sigma = (daily_vol * 0.006) * vol_mult
+        shock = random.gauss(0, 1) * max(0.0001, step_sigma)
+        ofi_push = (impact.ofi / max(1000.0, impact.avg_daily_volume * 0.005)) * 0.00015
+
+        new_mid = round(cur_mid * (1.0 + drift + shock + ofi_push), 2)
+        min_p = max(tick * 5, round((venue.info.initial_price or 100.0) * 0.70, 2))
+        max_p = round((venue.info.initial_price or 100.0) * 1.40, 2)
+        new_mid = max(min_p, min(max_p, new_mid))
+
         self.current_mid[sym] = new_mid
         self.current_mid[venue.info.ticker] = new_mid
         impact.set_baseline_price(new_mid)
@@ -500,12 +514,31 @@ class HistoricalMarketReplayer:
         if (now - last_t) >= self.candle_interval_sec:
             bar = self.live_candle.get(sym)
             if bar:
-                # Ensure every candle has authentic body and wicks (never a 0-pixel flat line)
-                if bar["high"] <= bar["low"] + 0.001:
-                    w_span = max(tick * 4, round(bar["close"] * daily_vol * 0.003, 2))
-                    bar["high"] = round(max(bar["open"], bar["close"]) + w_span * 0.6, 2)
-                    bar["low"] = round(max(0.01, min(bar["open"], bar["close"]) - w_span * 0.4), 2)
-                    bar["volume"] = max(bar["volume"], random.randint(500, 2500))
+                pattern_model = self.pattern_models.get(sym)
+                pred = pattern_model.predict() if pattern_model else None
+                regime_bias = pred.predicted_drift if pred else 0.0
+
+                # Ensure every candle has authentic natural body and distinct wicks
+                if bar["trades"] == 0 or abs(bar["close"] - bar["open"]) < tick:
+                    # Synthesize authentic price progression driven by ML regime
+                    direction = 1 if (regime_bias > 0 or (regime_bias == 0 and random.random() < 0.52)) else -1
+                    move = max(tick, round(daily_vol * bar["close"] * random.uniform(0.0006, 0.0025), 2))
+                    bar["close"] = round(bar["open"] + direction * move, 2)
+                    wick_u = round(max(tick, daily_vol * bar["close"] * random.uniform(0.0004, 0.0020)), 2)
+                    wick_l = round(max(tick, daily_vol * bar["close"] * random.uniform(0.0004, 0.0020)), 2)
+                    bar["high"] = round(max(bar["open"], bar["close"]) + wick_u, 2)
+                    bar["low"] = round(max(0.01, min(bar["open"], bar["close"]) - wick_l), 2)
+                    bar["volume"] = random.randint(1200, 8500)
+                else:
+                    # Dynamic wick expansion for active traded bars
+                    wick_u = round(max(tick * 2, daily_vol * bar["close"] * random.uniform(0.0005, 0.0025)), 2)
+                    wick_l = round(max(tick * 2, daily_vol * bar["close"] * random.uniform(0.0005, 0.0025)), 2)
+                    bar["high"] = round(max(bar["high"], max(bar["open"], bar["close"]) + wick_u), 2)
+                    bar["low"] = round(max(0.01, min(bar["low"], min(bar["open"], bar["close"]) - wick_l)), 2)
+                    bar["volume"] = max(bar["volume"], random.randint(1500, 10000))
+
+                self.current_mid[sym] = bar["close"]
+                self.current_mid[sym.split("-")[0]] = bar["close"]
 
                 # Recognize candlestick pattern from recent bars context
                 recent_bars = [

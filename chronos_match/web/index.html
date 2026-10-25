@@ -1656,8 +1656,14 @@
       const lows = bars.map(b => b.low);
       let minP = Math.min(...lows);
       let maxP = Math.max(...highs);
-      if (maxP === minP) { maxP += 0.5; minP -= 0.5; }
-      const pad = (maxP - minP) * 0.14;
+      const centerP = (maxP + minP) / 2.0;
+      // Enforce institutional minimum scale span: at least 0.8% of stock price or $0.75
+      const minSpan = Math.max(centerP * 0.008, 0.75);
+      if ((maxP - minP) < minSpan) {
+        maxP = centerP + minSpan / 2.0;
+        minP = centerP - minSpan / 2.0;
+      }
+      const pad = (maxP - minP) * 0.12;
       minP -= pad;
       maxP += pad;
 
@@ -1724,11 +1730,13 @@
         ctx.lineTo(x, wickBottom);
         ctx.stroke();
 
-        // Body
+        // Body with TradingView border & fill
         ctx.fillStyle = color;
+        ctx.strokeStyle = color;
         const topY = Math.min(yOpen, yClose);
-        const bodyH = Math.max(2, Math.abs(yClose - yOpen));
+        const bodyH = Math.max(3, Math.abs(yClose - yOpen));
         ctx.fillRect(x - barW / 2.0, topY, barW, bodyH);
+        ctx.strokeRect(x - barW / 2.0, topY, barW, bodyH);
 
         // Volume Bar
         const maxVol = Math.max(10000, ...bars.map(x => x.volume || 1000));
