@@ -11,6 +11,8 @@ from dataclasses import dataclass
 import glob
 import math
 import os
+import random
+import time
 from typing import Dict, List, Optional, Tuple, Any
 
 
@@ -24,6 +26,170 @@ class StockCandle:
     close: float
     volume: int
     adj_close: Optional[float] = None
+
+
+def generate_institutional_wave_candles(
+    base_price: float,
+    num_bars: int = 60,
+    interval_sec: int = 15,
+    symbol: str = "ASSET",
+    tick_size: float = 0.01,
+) -> List[StockCandle]:
+    """
+    Generate authentic market wave and fractal candlestick dynamics.
+    Produces realistic multi-wave market structures:
+    - Multi-bar impulsive trends (higher highs / higher lows or lower highs / lower lows)
+    - Healthy corrective pullbacks (Fibonacci 38.2% - 61.8% retracements)
+    - Consolidation ranges with Dojis, Spinning Tops, and wick rejections
+    - Clear reversal candlestick morphology (Hammers, Shooting Stars, Engulfing bars)
+    """
+    # Calibrate ATR relative to instrument price scale
+    if base_price > 10000:       # e.g. BTC-USD ($65,000)
+        atr = base_price * random.uniform(0.0035, 0.0065)
+        tick_size = max(0.50, tick_size)
+    elif base_price > 1000:      # e.g. ETH-USD ($3500)
+        atr = base_price * random.uniform(0.0040, 0.0080)
+        tick_size = max(0.10, tick_size)
+    elif base_price > 100:       # e.g. SOL-USD, NVDA, AAPL ($100 - $500)
+        atr = base_price * random.uniform(0.0050, 0.0090)
+        tick_size = max(0.01, tick_size)
+    else:                        # Penny or lower-tier stocks
+        atr = max(0.20, base_price * 0.012)
+        tick_size = 0.01
+
+    candles: List[StockCandle] = []
+    now_t = time.time()
+    cur_open = base_price
+
+    phases = [
+        ("BULL_IMPULSE", random.randint(4, 7)),
+        ("BULL_PULLBACK", random.randint(2, 4)),
+        ("BULL_IMPULSE", random.randint(3, 6)),
+        ("RANGE_CONSOLIDATION", random.randint(4, 7)),
+        ("BEAR_IMPULSE", random.randint(3, 6)),
+        ("BEAR_PULLBACK", random.randint(2, 3)),
+        ("REVERSAL_BOUNCE", random.randint(1, 2)),
+        ("RANGE_CONSOLIDATION", random.randint(3, 5)),
+    ]
+
+    phase_idx = 0
+    curr_phase, phase_len = phases[phase_idx]
+    bars_in_phase = 0
+
+    for i in range(num_bars):
+        t_str = time.strftime("%H:%M:%S", time.localtime(now_t - (num_bars - i) * interval_sec))
+
+        if bars_in_phase >= phase_len:
+            phase_idx = (phase_idx + 1) % len(phases)
+            curr_phase, phase_len = phases[phase_idx]
+            bars_in_phase = 0
+
+        bars_in_phase += 1
+
+        if curr_phase == "BULL_IMPULSE":
+            is_green = random.random() < 0.80
+            vol_mult = random.uniform(1.3, 2.2)
+            if is_green:
+                body = atr * random.uniform(0.6, 1.4)
+                cur_close = cur_open + body
+                wick_u = atr * random.uniform(0.1, 0.35)
+                wick_l = atr * random.uniform(0.1, 0.30)
+            else:
+                body = atr * random.uniform(0.2, 0.5)
+                cur_close = cur_open - body
+                wick_u = atr * random.uniform(0.15, 0.4)
+                wick_l = atr * random.uniform(0.15, 0.4)
+
+        elif curr_phase == "BULL_PULLBACK":
+            is_red = random.random() < 0.78
+            vol_mult = random.uniform(0.5, 0.85)
+            if is_red:
+                body = atr * random.uniform(0.4, 0.8)
+                cur_close = cur_open - body
+                wick_u = atr * random.uniform(0.2, 0.5)
+                wick_l = atr * random.uniform(0.1, 0.25)
+            else:
+                body = atr * random.uniform(0.1, 0.3)
+                cur_close = cur_open + body
+                wick_u = atr * random.uniform(0.15, 0.35)
+                wick_l = atr * random.uniform(0.15, 0.35)
+
+        elif curr_phase == "BEAR_IMPULSE":
+            is_red = random.random() < 0.80
+            vol_mult = random.uniform(1.4, 2.4)
+            if is_red:
+                body = atr * random.uniform(0.6, 1.5)
+                cur_close = cur_open - body
+                wick_u = atr * random.uniform(0.1, 0.30)
+                wick_l = atr * random.uniform(0.1, 0.40)
+            else:
+                body = atr * random.uniform(0.2, 0.5)
+                cur_close = cur_open + body
+                wick_u = atr * random.uniform(0.15, 0.4)
+                wick_l = atr * random.uniform(0.15, 0.4)
+
+        elif curr_phase == "BEAR_PULLBACK":
+            is_green = random.random() < 0.70
+            vol_mult = random.uniform(0.5, 0.9)
+            if is_green:
+                body = atr * random.uniform(0.3, 0.6)
+                cur_close = cur_open + body
+                wick_u = atr * random.uniform(0.2, 0.45)
+                wick_l = atr * random.uniform(0.1, 0.25)
+            else:
+                body = atr * random.uniform(0.1, 0.4)
+                cur_close = cur_open - body
+                wick_u = atr * random.uniform(0.15, 0.35)
+                wick_l = atr * random.uniform(0.15, 0.35)
+
+        elif curr_phase == "REVERSAL_BOUNCE":
+            vol_mult = random.uniform(1.6, 2.8)
+            body = atr * random.uniform(0.3, 0.7)
+            cur_close = cur_open + body
+            wick_l = atr * random.uniform(1.5, 2.8)
+            wick_u = atr * random.uniform(0.05, 0.2)
+
+        else:  # RANGE_CONSOLIDATION
+            vol_mult = random.uniform(0.6, 1.1)
+            is_doji = random.random() < 0.40
+            if is_doji:
+                body = atr * random.uniform(0.02, 0.15)
+                cur_close = cur_open + (body if random.random() < 0.5 else -body)
+                wick_u = atr * random.uniform(0.4, 0.9)
+                wick_l = atr * random.uniform(0.4, 0.9)
+            else:
+                body = atr * random.uniform(0.2, 0.5)
+                cur_close = cur_open + (body if random.random() < 0.52 else -body)
+                wick_u = atr * random.uniform(0.2, 0.5)
+                wick_l = atr * random.uniform(0.2, 0.5)
+
+        high = max(cur_open, cur_close) + wick_u
+        low = min(cur_open, cur_close) - wick_l
+        low = max(tick_size, low)
+
+        cur_open = round(cur_open / tick_size) * tick_size
+        cur_close = round(cur_close / tick_size) * tick_size
+        high = round(high / tick_size) * tick_size
+        low = round(low / tick_size) * tick_size
+
+        high = max(high, max(cur_open, cur_close))
+        low = min(low, min(cur_open, cur_close))
+
+        base_vol = 15000 if base_price > 1000 else 50000
+        vol = int(base_vol * vol_mult * random.uniform(0.85, 1.25))
+
+        candles.append(StockCandle(
+            date=t_str,
+            open=round(cur_open, 2),
+            high=round(high, 2),
+            low=round(low, 2),
+            close=round(cur_close, 2),
+            volume=vol,
+            adj_close=round(cur_close, 2),
+        ))
+        cur_open = cur_close
+
+    return candles
 
 
 @dataclass
@@ -128,30 +294,19 @@ class MarketDataLoader:
             candles = self._cache[sym]
             return candles[-max_bars:] if max_bars > 0 else candles
 
-        # Known crypto pairs should use crypto baseline prices, not NYSE penny stock files
+        # Known crypto pairs should use crypto baseline prices with institutional wave dynamics
         if sym in ("SOL-USD", "BTC-USD", "ETH-USD"):
             crypto_defaults = {"SOL-USD": 150.0, "BTC-USD": 65000.0, "ETH-USD": 3500.0}
             base_p = crypto_defaults[sym]
-            candles: List[StockCandle] = []
-            cur_p = base_p
-            import random
-            import time
-            for i in range(min(max_bars, 60)):
-                drift = (random.random() - 0.49) * 0.012 * cur_p
-                o = cur_p
-                c = max(0.01, cur_p + drift)
-                h = max(o, c) + abs(drift) * 0.4
-                l = min(o, c) - abs(drift) * 0.4
-                v = random.randint(1000, 50000)
-                candles.append(StockCandle(
-                    date=time.strftime("%H:%M:%S", time.localtime(time.time() - (60 - i) * 60)),
-                    open=round(o, 2),
-                    high=round(h, 2),
-                    low=round(l, 2),
-                    close=round(c, 2),
-                    volume=v,
-                ))
-                cur_p = c
+            tick_s = 0.50 if sym == "BTC-USD" else (0.10 if sym == "ETH-USD" else 0.01)
+            bars_count = max_bars if max_bars > 0 else 60
+            candles = generate_institutional_wave_candles(
+                base_price=base_p,
+                num_bars=min(bars_count, 120),
+                interval_sec=15,
+                symbol=sym,
+                tick_size=tick_s,
+            )
             self._cache[sym] = candles
             return candles
 
@@ -161,29 +316,18 @@ class MarketDataLoader:
             sym = base_sym
 
         if sym not in self._index:
-            # Fallback synthetic generation for crypto or unindexed symbols (BTC, ETH, SOL)
-            base_prices = {"BTC": 65000.0, "ETH": 3500.0, "SOL": 150.0, "AAPL": 224.0, "MSFT": 428.0, "TSLA": 248.0, "RELIANCE": 2845.0}
+            # Fallback realistic wave generation for unindexed symbols or synthetic equities
+            base_prices = {"BTC": 65000.0, "ETH": 3500.0, "SOL": 150.0, "AAPL": 224.0, "MSFT": 428.0, "TSLA": 248.0, "RELIANCE": 2845.0, "NVDA": 130.0}
             base_p = base_prices.get(base_sym, 100.0)
-            candles: List[StockCandle] = []
-            cur_p = base_p
-            import random
-            import time
-            for i in range(min(max_bars, 60)):
-                drift = (random.random() - 0.49) * 0.012 * cur_p
-                o = cur_p
-                c = max(0.01, cur_p + drift)
-                h = max(o, c) + abs(drift) * 0.4
-                l = min(o, c) - abs(drift) * 0.4
-                v = random.randint(1000, 50000)
-                candles.append(StockCandle(
-                    date=time.strftime("%H:%M:%S", time.localtime(time.time() - (60 - i) * 60)),
-                    open=round(o, 2),
-                    high=round(h, 2),
-                    low=round(l, 2),
-                    close=round(c, 2),
-                    volume=v,
-                ))
-                cur_p = c
+            tick_s = 0.50 if base_p > 10000 else (0.10 if base_p > 1000 else 0.01)
+            bars_count = max_bars if max_bars > 0 else 60
+            candles = generate_institutional_wave_candles(
+                base_price=base_p,
+                num_bars=min(bars_count, 120),
+                interval_sec=15,
+                symbol=sym,
+                tick_size=tick_s,
+            )
             self._cache[ticker.strip().upper()] = candles
             self._cache[sym] = candles
             return candles

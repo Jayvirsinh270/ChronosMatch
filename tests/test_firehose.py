@@ -69,38 +69,40 @@ def test_firehose_stream_to_ring_buffer_async():
     Verify asynchronous streaming into shared memory RingBuffer
     with concurrent background consumer.
     """
-    rb_path = TEST_DIR / "firehose_test.ring"
+    rb_path = TEST_DIR / f"firehose_test_{time.time_ns()}.ring"
     rb = RingBuffer(str(rb_path), capacity=4096, create=True)
-    firehose = AsyncMarketFirehose(initial_price=150.00)
+    try:
+        firehose = AsyncMarketFirehose(initial_price=150.00)
 
-    total_orders = 10_000
-    consumed = []
+        total_orders = 10_000
+        consumed = []
 
-    async def consumer():
-        while len(consumed) < total_orders:
-            order = rb.read_order()
-            if order is not None:
-                consumed.append(order)
-            else:
-                await asyncio.sleep(0.0001)
+        async def consumer():
+            while len(consumed) < total_orders:
+                order = rb.read_order()
+                if order is not None:
+                    consumed.append(order)
+                else:
+                    await asyncio.sleep(0.0001)
 
-    async def producer():
-        written, elapsed = await firehose.stream_to_ring_buffer(rb, total_orders, batch_size=250)
-        return written, elapsed
+        async def producer():
+            written, elapsed = await firehose.stream_to_ring_buffer(rb, total_orders, batch_size=250)
+            return written, elapsed
 
-    async def main():
-        c_task = asyncio.create_task(consumer())
-        p_res = await producer()
-        await c_task
-        return p_res
+        async def main():
+            c_task = asyncio.create_task(consumer())
+            p_res = await producer()
+            await c_task
+            return p_res
 
-    written, elapsed = asyncio.run(main())
-    rb.close()
+        written, elapsed = asyncio.run(main())
 
-    assert written == total_orders
-    assert len(consumed) == total_orders
-    # Verify FIFO continuity
-    assert consumed[0].order_id == 1
+        assert written == total_orders
+        assert len(consumed) == total_orders
+        # Verify FIFO continuity
+        assert consumed[0].order_id == 1
+    finally:
+        rb.close()
 
 def test_firehose_throughput_benchmark():
     """

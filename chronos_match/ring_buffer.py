@@ -65,7 +65,12 @@ class RingBuffer:
     def _create_buffer(self) -> None:
         """Create new shared memory file and initialize ring header."""
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        # Open in r+b mode (create if not exist)
+        if self.filepath.exists():
+            try:
+                self.filepath.unlink()
+            except Exception:
+                pass
+        # Open in w+b mode (create if not exist)
         self._file = open(self.filepath, "w+b")
         # Resize file to exact required byte size
         self._file.write(b"\x00" * self.total_size)

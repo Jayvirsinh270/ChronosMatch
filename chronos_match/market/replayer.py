@@ -21,6 +21,17 @@ from chronos_match.market.router import MultiBookRouter, SingleSymbolVenue, Symb
 from chronos_match.protocol import to_fixed_price, from_fixed_price, OrderSide, OrderType, TradePacket
 
 
+@dataclass
+class ReplayerWaveState:
+    """Dynamic multi-bar wave momentum state machine for authentic market cycles."""
+    phase: str  # "BULL_IMPULSE", "BULL_PULLBACK", "RANGE_CONSOLIDATION", "BEAR_IMPULSE", "BEAR_PULLBACK", "REVERSAL_BOUNCE"
+    bars_remaining: int
+    swing_high: float
+    swing_low: float
+    atr: float
+    cycle_count: int = 0
+
+
 class HistoricalMarketReplayer:
     """
     Simulates authentic real-market conditions using real historical stock datasets,
@@ -42,6 +53,7 @@ class HistoricalMarketReplayer:
         self.impact_engines: Dict[str, MLMarketImpactEngine] = {}
         self.pattern_models: Dict[str, LightMarketPatternModel] = {}
         self.algo_managers: Dict[str, AlgoTradingManager] = {}
+        self.wave_states: Dict[str, ReplayerWaveState] = {}
         self.candles_cache: Dict[str, List[StockCandle]] = {}
         self.current_candle_idx: Dict[str, int] = {}
         self.current_mid: Dict[str, float] = {}
@@ -174,6 +186,25 @@ class HistoricalMarketReplayer:
         }
         self.live_candle[venue.info.ticker] = self.live_candle[sym]
 
+        # Initialize Institutional Wave Dynamics State Machine
+        if initial_p > 10000:
+            sym_atr = max(tick_size * 20, initial_p * 0.005)
+        elif initial_p > 1000:
+            sym_atr = max(tick_size * 20, initial_p * 0.006)
+        elif initial_p > 100:
+            sym_atr = max(tick_size * 20, initial_p * 0.007)
+        else:
+            sym_atr = max(tick_size * 10, initial_p * 0.012)
+
+        self.wave_states[sym] = ReplayerWaveState(
+            phase="BULL_IMPULSE",
+            bars_remaining=random.randint(3, 5),
+            swing_high=round(initial_p + sym_atr * 2.8, 2),
+            swing_low=round(initial_p - sym_atr * 2.8, 2),
+            atr=sym_atr,
+        )
+        self.wave_states[venue.info.ticker] = self.wave_states[sym]
+
         return venue
 
     def step_market_tick(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -193,28 +224,55 @@ class HistoricalMarketReplayer:
         if not impact or not pattern_model:
             return []
 
-        # 1. Continuous Walk-Forward Stochastic Microstructure with ML Regime Guidance
+        # 1. Continuous Walk-Forward Stochastic Microstructure with ML Regime Guidance & Wave Dynamics
         pred = pattern_model.predict()
         regime = pred.regime
         tick = venue.info.tick_size
         daily_vol = max(0.008, impact.daily_volatility)
         cur_mid = self.current_mid.get(sym, venue.info.initial_price or 100.0)
 
-        # Dynamic drift guided by ML regime prediction
-        if regime == MarketRegime.MOMENTUM_BREAKOUT_BULL:
-            drift = max(0.00025, pred.predicted_drift * 1.6)
+        # Retrieve or initialize wave state
+        w_state = self.wave_states.get(sym)
+        if not w_state:
+            sym_atr = max(tick * 15, cur_mid * 0.006)
+            w_state = ReplayerWaveState(
+                phase="BULL_IMPULSE",
+                bars_remaining=random.randint(3, 5),
+                swing_high=cur_mid + sym_atr * 2.8,
+                swing_low=cur_mid - sym_atr * 2.8,
+                atr=sym_atr,
+            )
+            self.wave_states[sym] = w_state
+
+        # Dynamic drift guided by ML regime prediction and Institutional Wave Momentum
+        if w_state.phase == "BULL_IMPULSE":
+            drift = max(0.00015, (w_state.atr * 0.08 / cur_mid)) + pred.predicted_drift * 0.8
+            vol_mult = 1.3
+            if cur_mid >= w_state.swing_high:
+                drift = -0.00030
+        elif w_state.phase == "BULL_PULLBACK":
+            drift = -max(0.00015, (w_state.atr * 0.07 / cur_mid))
+            vol_mult = 0.85
+            if cur_mid <= w_state.swing_low:
+                drift = 0.00030
+        elif w_state.phase == "BEAR_IMPULSE":
+            drift = -max(0.00018, (w_state.atr * 0.09 / cur_mid)) + pred.predicted_drift * 0.8
             vol_mult = 1.4
-        elif regime == MarketRegime.MOMENTUM_BREAKOUT_BEAR:
-            drift = min(-0.00025, pred.predicted_drift * 1.6)
-            vol_mult = 1.4
+            if cur_mid <= w_state.swing_low:
+                drift = 0.00030
+        elif w_state.phase == "BEAR_PULLBACK":
+            drift = max(0.00015, (w_state.atr * 0.06 / cur_mid))
+            vol_mult = 0.85
+        elif w_state.phase == "REVERSAL_BOUNCE":
+            drift = max(0.00025, (w_state.atr * 0.12 / cur_mid))
+            vol_mult = 1.5
         elif regime == MarketRegime.VOLATILITY_EXPANSION_CHOP:
             drift = 0.0004 if random.random() < 0.5 else -0.0004
-            vol_mult = 2.2
-        else:  # BALANCED_CONSOLIDATION
-            # Mild mean reversion around session midpoint
-            anchor = self.anchor_price.get(sym, cur_mid)
-            deviation = (cur_mid - anchor) / max(1.0, anchor)
-            drift = -0.0004 * deviation + pred.predicted_drift * 0.4
+            vol_mult = 2.0
+        else:  # RANGE_CONSOLIDATION / BALANCED
+            range_mid = (w_state.swing_high + w_state.swing_low) / 2.0
+            deviation = (cur_mid - range_mid) / max(1.0, w_state.atr)
+            drift = -0.00035 * deviation + pred.predicted_drift * 0.3
             vol_mult = 1.0
 
         # Authentic tick volatility shock
@@ -333,18 +391,29 @@ class HistoricalMarketReplayer:
                 venue.total_orders += 1
             best_ask_p = target_ask
 
-        # Regulate trading aggression based on market state
-        if regime == MarketRegime.MOMENTUM_BREAKOUT_BULL:
-            buy_bias = 0.75
+        # Regulate trading aggression based on market state and active wave phase
+        if w_state and w_state.phase in ("BULL_IMPULSE", "REVERSAL_BOUNCE"):
+            buy_bias = 0.70
             trade_prob = 0.92
-        elif regime == MarketRegime.MOMENTUM_BREAKOUT_BEAR:
-            buy_bias = 0.25
+        elif w_state and w_state.phase in ("BEAR_IMPULSE", "BULL_PULLBACK"):
+            buy_bias = 0.30
             trade_prob = 0.92
+        elif w_state and w_state.phase == "BEAR_PULLBACK":
+            buy_bias = 0.65
+            trade_prob = 0.88
         elif regime == MarketRegime.VOLATILITY_EXPANSION_CHOP:
             buy_bias = 0.50
             trade_prob = 0.95
-        else:  # BALANCED_CONSOLIDATION
-            buy_bias = 0.50 + 0.30 * min(1.0, max(-1.0, pred.predicted_drift / 0.005))
+        elif regime == MarketRegime.MOMENTUM_BREAKOUT_BULL:
+            buy_bias = 0.72
+            trade_prob = 0.92
+        elif regime == MarketRegime.MOMENTUM_BREAKOUT_BEAR:
+            buy_bias = 0.28
+            trade_prob = 0.92
+        else:  # RANGE_CONSOLIDATION / BALANCED
+            range_mid = (w_state.swing_high + w_state.swing_low) / 2.0 if w_state else effective_mid
+            dist = (effective_mid - range_mid) / max(0.1, w_state.atr if w_state else 1.0)
+            buy_bias = max(0.20, min(0.80, 0.50 - 0.25 * dist))
             trade_prob = 0.88
 
         if random.random() < trade_prob:
@@ -518,24 +587,113 @@ class HistoricalMarketReplayer:
                 pred = pattern_model.predict() if pattern_model else None
                 regime_bias = pred.predicted_drift if pred else 0.0
 
+                w_state = self.wave_states.get(sym)
+                if not w_state:
+                    cur_p = bar["close"]
+                    sym_atr = max(tick * 15, cur_p * 0.006)
+                    w_state = ReplayerWaveState(
+                        phase="BULL_IMPULSE",
+                        bars_remaining=random.randint(3, 5),
+                        swing_high=cur_p + sym_atr * 2.8,
+                        swing_low=cur_p - sym_atr * 2.8,
+                        atr=sym_atr,
+                    )
+                    self.wave_states[sym] = w_state
+
+                # Advance wave duration and handle structural market cycle transitions
+                w_state.bars_remaining -= 1
+                if w_state.bars_remaining <= 0:
+                    w_state.cycle_count += 1
+                    if w_state.phase == "BULL_IMPULSE":
+                        # After impulse rally, pull back (65%) or consolidate (35%)
+                        w_state.phase = "BULL_PULLBACK" if random.random() < 0.65 else "RANGE_CONSOLIDATION"
+                        w_state.bars_remaining = random.randint(2, 4) if w_state.phase == "BULL_PULLBACK" else random.randint(3, 6)
+                        w_state.swing_high = max(w_state.swing_high, bar["high"])
+                    elif w_state.phase == "BULL_PULLBACK":
+                        # Retracement exhausted -> bounce or resume impulse
+                        w_state.phase = "REVERSAL_BOUNCE" if random.random() < 0.45 else "BULL_IMPULSE"
+                        w_state.bars_remaining = random.randint(1, 2) if w_state.phase == "REVERSAL_BOUNCE" else random.randint(3, 5)
+                        w_state.swing_low = min(w_state.swing_low, bar["low"])
+                    elif w_state.phase == "RANGE_CONSOLIDATION":
+                        # Breakout from range
+                        if random.random() < 0.55:
+                            w_state.phase = "BULL_IMPULSE"
+                            w_state.bars_remaining = random.randint(3, 6)
+                            w_state.swing_high = bar["close"] + w_state.atr * 2.8
+                        else:
+                            w_state.phase = "BEAR_IMPULSE"
+                            w_state.bars_remaining = random.randint(3, 5)
+                            w_state.swing_low = bar["close"] - w_state.atr * 2.8
+                    elif w_state.phase == "BEAR_IMPULSE":
+                        w_state.phase = "BEAR_PULLBACK" if random.random() < 0.60 else "REVERSAL_BOUNCE"
+                        w_state.bars_remaining = random.randint(2, 3) if w_state.phase == "BEAR_PULLBACK" else random.randint(1, 2)
+                        w_state.swing_low = min(w_state.swing_low, bar["low"])
+                    elif w_state.phase == "BEAR_PULLBACK":
+                        w_state.phase = "RANGE_CONSOLIDATION" if random.random() < 0.50 else "BEAR_IMPULSE"
+                        w_state.bars_remaining = random.randint(3, 5)
+                    else:  # REVERSAL_BOUNCE
+                        w_state.phase = "BULL_IMPULSE"
+                        w_state.bars_remaining = random.randint(4, 7)
+
+                atr = w_state.atr
+
                 # Ensure every candle has authentic natural body and distinct wicks
                 if bar["trades"] == 0 or abs(bar["close"] - bar["open"]) < tick:
-                    # Synthesize authentic price progression driven by ML regime
-                    direction = 1 if (regime_bias > 0 or (regime_bias == 0 and random.random() < 0.52)) else -1
-                    move = max(tick, round(daily_vol * bar["close"] * random.uniform(0.0006, 0.0025), 2))
-                    bar["close"] = round(bar["open"] + direction * move, 2)
-                    wick_u = round(max(tick, daily_vol * bar["close"] * random.uniform(0.0004, 0.0020)), 2)
-                    wick_l = round(max(tick, daily_vol * bar["close"] * random.uniform(0.0004, 0.0020)), 2)
+                    # Synthesize authentic candle geometry driven by active wave phase
+                    if w_state.phase == "BULL_IMPULSE":
+                        is_green = random.random() < 0.80
+                        move = atr * random.uniform(0.5, 1.2) if is_green else atr * random.uniform(0.15, 0.4)
+                        bar["close"] = round(bar["open"] + (move if is_green else -move), 2)
+                        wick_u = round(atr * random.uniform(0.10, 0.35), 2)
+                        wick_l = round(atr * random.uniform(0.10, 0.30), 2)
+                        bar["volume"] = random.randint(15000, 45000)
+                    elif w_state.phase == "BULL_PULLBACK":
+                        # Retracement candle (red!)
+                        is_red = random.random() < 0.78
+                        move = atr * random.uniform(0.4, 0.8) if is_red else atr * random.uniform(0.1, 0.3)
+                        bar["close"] = round(bar["open"] - (move if is_red else -move), 2)
+                        wick_u = round(atr * random.uniform(0.20, 0.45), 2)
+                        wick_l = round(atr * random.uniform(0.10, 0.25), 2)
+                        bar["volume"] = random.randint(5000, 18000)
+                    elif w_state.phase == "BEAR_IMPULSE":
+                        is_red = random.random() < 0.80
+                        move = atr * random.uniform(0.5, 1.2) if is_red else atr * random.uniform(0.15, 0.4)
+                        bar["close"] = round(bar["open"] - (move if is_red else -move), 2)
+                        wick_u = round(atr * random.uniform(0.10, 0.30), 2)
+                        wick_l = round(atr * random.uniform(0.10, 0.35), 2)
+                        bar["volume"] = random.randint(15000, 45000)
+                    elif w_state.phase == "BEAR_PULLBACK":
+                        is_green = random.random() < 0.70
+                        move = atr * random.uniform(0.3, 0.6) if is_green else atr * random.uniform(0.1, 0.3)
+                        bar["close"] = round(bar["open"] + (move if is_green else -move), 2)
+                        wick_u = round(atr * random.uniform(0.20, 0.40), 2)
+                        wick_l = round(atr * random.uniform(0.10, 0.25), 2)
+                        bar["volume"] = random.randint(5000, 18000)
+                    elif w_state.phase == "REVERSAL_BOUNCE":
+                        # Bullish Hammer! Long lower wick, small green body
+                        move = atr * random.uniform(0.25, 0.6)
+                        bar["close"] = round(bar["open"] + move, 2)
+                        wick_u = round(atr * random.uniform(0.05, 0.20), 2)
+                        wick_l = round(atr * random.uniform(1.4, 2.5), 2)  # Extended hammer shadow!
+                        bar["volume"] = random.randint(25000, 60000)
+                    else:  # RANGE_CONSOLIDATION
+                        is_doji = random.random() < 0.45
+                        move = atr * random.uniform(0.02, 0.15) if is_doji else atr * random.uniform(0.15, 0.4)
+                        direction = 1 if random.random() < 0.50 else -1
+                        bar["close"] = round(bar["open"] + direction * move, 2)
+                        wick_u = round(atr * random.uniform(0.25, 0.65), 2)
+                        wick_l = round(atr * random.uniform(0.25, 0.65), 2)
+                        bar["volume"] = random.randint(4000, 15000)
+
                     bar["high"] = round(max(bar["open"], bar["close"]) + wick_u, 2)
-                    bar["low"] = round(max(0.01, min(bar["open"], bar["close"]) - wick_l), 2)
-                    bar["volume"] = random.randint(1200, 8500)
+                    bar["low"] = round(max(tick, min(bar["open"], bar["close"]) - wick_l), 2)
                 else:
-                    # Dynamic wick expansion for active traded bars
-                    wick_u = round(max(tick * 2, daily_vol * bar["close"] * random.uniform(0.0005, 0.0025)), 2)
-                    wick_l = round(max(tick * 2, daily_vol * bar["close"] * random.uniform(0.0005, 0.0025)), 2)
+                    # Active traded bars: expand wicks naturally according to ATR
+                    wick_u = round(max(tick * 2, atr * random.uniform(0.15, 0.40)), 2)
+                    wick_l = round(max(tick * 2, atr * random.uniform(0.15, 0.40)), 2)
                     bar["high"] = round(max(bar["high"], max(bar["open"], bar["close"]) + wick_u), 2)
-                    bar["low"] = round(max(0.01, min(bar["low"], min(bar["open"], bar["close"]) - wick_l)), 2)
-                    bar["volume"] = max(bar["volume"], random.randint(1500, 10000))
+                    bar["low"] = round(max(tick, min(bar["low"], min(bar["open"], bar["close"]) - wick_l)), 2)
+                    bar["volume"] = max(bar["volume"], random.randint(8000, 35000))
 
                 self.current_mid[sym] = bar["close"]
                 self.current_mid[sym.split("-")[0]] = bar["close"]

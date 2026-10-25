@@ -280,3 +280,43 @@ def test_api_get_ml_metrics():
     assert "confusion_matrix" in metrics
 
 
+def test_institutional_wave_and_fractal_candlestick_dynamics():
+    """Verify that wave engine generates multi-wave structures and eliminates linear staircases."""
+    from chronos_match.market.data_loader import generate_institutional_wave_candles, MarketDataLoader
+
+    # 1. Verify synthetic wave generator produces balanced bars with real ATR
+    bars = generate_institutional_wave_candles(base_price=3500.0, num_bars=50, symbol="ETH-USD")
+    assert len(bars) == 50
+    greens = sum(1 for b in bars if b.close >= b.open)
+    reds = sum(1 for b in bars if b.close < b.open)
+    assert greens >= 12, f"Expected >= 12 green bars in 50-bar sequence, got {greens}"
+    assert reds >= 12, f"Expected >= 12 red bars in 50-bar sequence, got {reds}"
+
+    # Verify wicks and body geometries
+    for b in bars:
+        assert b.high >= max(b.open, b.close)
+        assert b.low <= min(b.open, b.close)
+        assert b.high >= b.low
+        assert b.volume > 0
+
+    # 2. Verify replayer multi-market wave rollover
+    router = MultiBookRouter()
+    replayer = HistoricalMarketReplayer(router=router, default_ticker="ETH-USD")
+    replayer.candle_interval_sec = 0.005
+
+    for sym in ("ETH-USD", "BTC-USD", "SOL-USD", "NVDA-USD"):
+        replayer.bind_stock(sym)
+        for _ in range(20):
+            replayer.step_market_tick(sym)
+            time.sleep(0.006)
+            replayer.step_market_tick(sym)
+
+        candles = replayer.get_candlesticks(sym, limit=20)
+        assert len(candles) >= 15
+        g = sum(1 for c in candles if c["close"] >= c["open"])
+        r = sum(1 for c in candles if c["close"] < c["open"])
+        # In authentic markets, neither color should dominate 100% of bars (no monotonic staircases)
+        assert g > 0 and r > 0, f"Expected both green and red bars in {sym}, got {g} greens and {r} reds"
+
+
+
