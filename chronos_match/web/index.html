@@ -854,8 +854,14 @@
 
           <!-- CHART TIMEFRAME & INDICATOR TOOLBAR -->
           <div class="chart-toolbar">
-            <button id="btn-mode-candle" class="tb-btn active" onclick="setChartMode('candle')">CANDLES 5s</button>
-            <button id="btn-mode-tick" class="tb-btn" onclick="setChartMode('tick')">TICK TAPE</button>
+            <span style="font-size: 0.68rem; color: var(--text-dim); margin-right: 2px;">TF:</span>
+            <button id="tf-5s" class="tb-btn active" onclick="setTimeframe(5)">5s</button>
+            <button id="tf-15s" class="tb-btn" onclick="setTimeframe(15)">15s</button>
+            <button id="tf-1m" class="tb-btn" onclick="setTimeframe(60)">1m</button>
+            <button id="tf-5m" class="tb-btn" onclick="setTimeframe(300)">5m</button>
+            <span style="border-left: 1px solid var(--border); height: 16px; margin: 0 4px;"></span>
+            <button id="btn-mode-candle" class="tb-btn active" onclick="setChartMode('candle')">CANDLESTICKS</button>
+            <button id="btn-mode-tick" class="tb-btn" onclick="setChartMode('tick')">LINE TAPE</button>
             <button id="btn-toggle-vwap" class="tb-btn purple-active" onclick="toggleVWAP()">VWAP</button>
           </div>
         </div>
@@ -863,10 +869,12 @@
         <!-- HIGH-DPI CANVAS & CURSOR LEGEND -->
         <div class="chart-canvas-box">
           <div class="chart-cursor-legend" id="chart-legend">
+            <span>Time: <strong id="lg-time" style="color: var(--text-muted);">LIVE</strong></span>
             <span>O: <strong id="lg-open">--</strong></span>
             <span>H: <strong id="lg-high">--</strong></span>
             <span>L: <strong id="lg-low">--</strong></span>
             <span>C: <strong id="lg-close">--</strong></span>
+            <span>Chg: <strong id="lg-chg" style="color: var(--green);">--</strong></span>
             <span>Vol: <strong id="lg-vol">--</strong></span>
           </div>
           <canvas id="priceCanvas"></canvas>
@@ -928,43 +936,63 @@
 
         <!-- TAB 3: ML PATTERN RADAR -->
         <div class="dock-content" id="content-tab-ml" style="display: none;">
-          <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; font-family: var(--font-mono); font-size: 0.72rem;">
-            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 8px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span style="color: var(--purple); font-weight: 800;">ACTIVE REGIME</span>
-                <span id="ml-pattern-regime-pill" style="color: var(--purple); font-weight: 800;">BALANCED CONSOLIDATION</span>
+          <div style="display: grid; grid-template-columns: 1.2fr 1.1fr 1.1fr; gap: 10px; font-family: var(--font-mono); font-size: 0.72rem;">
+            <!-- Column 1: AI Trading Signal & Prediction Setup -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <span style="color: var(--purple); font-weight: 800; font-size: 0.74rem;">AI TRADING SIGNAL</span>
+                  <span id="ml-signal-badge" style="background: rgba(14, 203, 129, 0.15); border: 1px solid var(--green); color: var(--green); padding: 2px 8px; border-radius: 4px; font-weight: 800;">STRONG BUY</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-dim); margin-bottom: 4px;">
+                  <span>Regime: <strong id="ml-pattern-regime-pill" style="color: #fff;">MOMENTUM BULL</strong></span>
+                  <span>Confidence: <strong id="ml-pattern-conf-val" style="color: var(--purple);">85%</strong></span>
+                </div>
+                <div style="width: 100%; height: 4px; background: #090d14; border-radius: 2px; overflow: hidden; margin-bottom: 8px;">
+                  <div id="ml-pattern-conf-bar" style="width: 85%; height: 100%; background: linear-gradient(90deg, #a855f7, #0ecb81);"></div>
+                </div>
               </div>
-              <div style="width: 100%; height: 5px; background: #090d14; border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
-                <div id="ml-pattern-conf-bar" style="width: 85%; height: 100%; background: linear-gradient(90deg, #a855f7, #0ecb81);"></div>
-              </div>
-              <div id="ml-pattern-desc" style="font-size: 0.68rem; color: var(--text-muted); line-height: 1.4;">
-                Market in balance. Two-sided liquidity providers dominating order flow.
-              </div>
-            </div>
-            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between;">
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--text-dim);">Forecast Drift:</span>
-                <span id="ml-pattern-drift" style="color: var(--green); font-weight: 800;">+0.00%</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--text-dim);">Spread Multiplier:</span>
-                <span id="ml-pattern-spread" style="color: var(--cyan); font-weight: 800;">1.00x</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--text-dim);">Confidence:</span>
-                <span id="ml-pattern-conf-val" style="color: var(--purple); font-weight: 800;">85%</span>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: rgba(9, 13, 20, 0.5); padding: 6px; border-radius: 4px;">
+                <div>Target: <strong id="ml-target-price" style="color: var(--green);">$132.40</strong></div>
+                <div>Stop: <strong id="ml-stop-price" style="color: var(--red);">$129.80</strong></div>
+                <div>R/R Ratio: <strong id="ml-rrr-val" style="color: var(--cyan);">2.4 : 1</strong></div>
+                <div>Live Accuracy: <strong id="ml-accuracy-val" style="color: var(--green);">79.2%</strong></div>
               </div>
             </div>
-            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between;">
+
+            <!-- Column 2: Quantitative Microstructure Gauges -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between;">
               <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--text-dim);">OFI Score:</span>
-                <span id="ml-ofi-val" style="color: var(--cyan); font-weight: 800;">+0.00</span>
+                <span style="color: var(--text-dim);">Stoikov Micro-Price:</span>
+                <span id="ml-micro-price" style="color: var(--cyan); font-weight: 800;">$130.45 (+0.02)</span>
               </div>
               <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--text-dim);">Kyle-λ Impact:</span>
-                <span id="ml-impact-pct" style="color: var(--green); font-weight: 800;">0.00%</span>
+                <span style="color: var(--text-dim);">Order Flow Imbalance:</span>
+                <span id="ml-ofi-val" style="color: var(--green); font-weight: 800;">+0.00</span>
               </div>
               <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-dim);">RSI Momentum (14):</span>
+                <span id="ml-rsi-val" style="color: var(--amber); font-weight: 800;">52.4</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-dim);">VPIN Toxicity:</span>
+                <span id="ml-vpin-val" style="color: var(--purple); font-weight: 800;">18.5% (Low)</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-dim);">Bollinger Bandwidth:</span>
+                <span id="ml-bbw-val" style="color: #fff; font-weight: 800;">0.45%</span>
+              </div>
+            </div>
+
+            <!-- Column 3: AI Model Explainability & Drivers -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div style="font-weight: 800; color: #fff; margin-bottom: 4px; font-size: 0.72rem;">TOP PREDICTION DRIVERS</div>
+              <div id="ml-drivers-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 0.68rem; color: var(--text-muted);">
+                <div>• OFI Buyer Dominance: Active Flow</div>
+                <div>• Micro-Price Equilibrium</div>
+                <div>• Low Flow Toxicity (Stable)</div>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 4px; margin-top: 4px; font-size: 0.68rem;">
                 <span style="color: var(--text-dim);">Persisted Store:</span>
                 <span id="ml-pattern-storage-stats" style="color: #fff;">0 Ticks</span>
               </div>
@@ -1209,6 +1237,11 @@
     let currentPostOnly = false;
     let chartMode = 'candle';
     let showVWAP = true;
+    let currentTimeframeSec = 5;
+    let mouseHoverX = null;
+    let mouseHoverY = null;
+    let isMouseOver = false;
+    let lastLocalCandleSec = Math.floor(Date.now() / 1000);
 
     let cachedBestBid = 130.43;
     let cachedBestAsk = 130.47;
@@ -1373,10 +1406,25 @@
       document.getElementById('order-fee').innerText = `$${fee.toFixed(2)}`;
     }
 
+    function setTimeframe(sec) {
+      currentTimeframeSec = sec;
+      [5, 15, 60, 300].forEach(s => {
+        const id = s === 5 ? 'tf-5s' : (s === 15 ? 'tf-15s' : (s === 60 ? 'tf-1m' : 'tf-5m'));
+        const btn = document.getElementById(id);
+        if (btn) {
+          if (s === sec) btn.classList.add('active');
+          else btn.classList.remove('active');
+        }
+      });
+      renderCanvasChart(priceHistoryTicks);
+    }
+
     function setChartMode(mode) {
       chartMode = mode;
-      document.getElementById('btn-mode-candle').className = mode === 'candle' ? 'tb-btn active' : 'tb-btn';
-      document.getElementById('btn-mode-tick').className = mode === 'tick' ? 'tb-btn active' : 'tb-btn';
+      const btnCandle = document.getElementById('btn-mode-candle');
+      const btnTick = document.getElementById('btn-mode-tick');
+      if (btnCandle) btnCandle.className = mode === 'candle' ? 'tb-btn active' : 'tb-btn';
+      if (btnTick) btnTick.className = mode === 'tick' ? 'tb-btn active' : 'tb-btn';
       renderCanvasChart(priceHistoryTicks);
     }
 
@@ -1539,6 +1587,27 @@
       if (speed) highlightSpeedBtn(speed);
     }
 
+    function aggregateCandles(candles, tfSec) {
+      if (!candles || candles.length === 0) return [];
+      if (tfSec <= 5) return candles;
+      const factor = Math.round(tfSec / 5);
+      const res = [];
+      for (let i = 0; i < candles.length; i += factor) {
+        const chunk = candles.slice(i, i + factor);
+        if (chunk.length === 0) continue;
+        const open = chunk[0].open;
+        const high = Math.max(...chunk.map(c => c.high));
+        const low = Math.min(...chunk.map(c => c.low));
+        const close = chunk[chunk.length - 1].close;
+        const volume = chunk.reduce((acc, c) => acc + (c.volume || 0), 0);
+        res.push({
+          date: chunk[chunk.length - 1].date,
+          open, high, low, close, volume
+        });
+      }
+      return res;
+    }
+
     // CANVAS MULTI-MODE CHART RENDERING
     function renderCanvasChart(ticks) {
       const canvas = document.getElementById('priceCanvas');
@@ -1560,7 +1629,8 @@
       }
     }
 
-    function renderCandleChart(ctx, w, h, candles) {
+    function renderCandleChart(ctx, w, h, rawCandles) {
+      const candles = aggregateCandles(rawCandles, currentTimeframeSec);
       const bars = candles.slice(-50);
       if (bars.length === 0) return;
 
@@ -1569,11 +1639,11 @@
       let minP = Math.min(...lows);
       let maxP = Math.max(...highs);
       if (maxP === minP) { maxP += 0.5; minP -= 0.5; }
-      const pad = (maxP - minP) * 0.12;
+      const pad = (maxP - minP) * 0.14;
       minP -= pad;
       maxP += pad;
 
-      const chartH = h * 0.76;
+      const chartH = h * 0.74;
       const volH = h * 0.20;
 
       // Price Gridlines & Labels
@@ -1589,21 +1659,33 @@
         ctx.stroke();
 
         const pVal = maxP - (i / 5) * (maxP - minP);
-        ctx.fillText(pVal.toFixed(2), w - 48, y - 3);
+        ctx.fillText(pVal.toFixed(2), w - 52, y - 4);
       }
 
       // Bar geometry
-      const barW = Math.max(3, (w / bars.length) * 0.65);
       const step = w / bars.length;
+      const barW = Math.max(3, Math.min(24, step * 0.68));
 
       let cumVol = 0;
       let cumPV = 0;
       const vwapPoints = [];
 
+      // Check hovered bar index if mouse is on canvas
+      let hoveredBarIdx = -1;
+      if (isMouseOver && mouseHoverX !== null) {
+        hoveredBarIdx = Math.min(bars.length - 1, Math.max(0, Math.floor(mouseHoverX / step)));
+      }
+
       bars.forEach((b, idx) => {
         const x = idx * step + (step / 2.0);
         const isUp = b.close >= b.open;
         const color = isUp ? '#0ecb81' : '#f6465d';
+
+        // Hover highlight column
+        if (idx === hoveredBarIdx) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+          ctx.fillRect(idx * step, 0, step, h);
+        }
 
         const yOpen = chartH - ((b.open - minP) / (maxP - minP) * chartH);
         const yClose = chartH - ((b.close - minP) / (maxP - minP) * chartH);
@@ -1612,7 +1694,7 @@
 
         // Wick
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.3;
         ctx.beginPath();
         ctx.moveTo(x, yHigh);
         ctx.lineTo(x, yLow);
@@ -1625,7 +1707,8 @@
         ctx.fillRect(x - barW / 2.0, topY, barW, bodyH);
 
         // Volume Bar
-        const volRatio = Math.min(1.0, (b.volume || 1000) / 45000);
+        const maxVol = Math.max(10000, ...bars.map(x => x.volume || 1000));
+        const volRatio = Math.min(1.0, (b.volume || 1000) / maxVol);
         const vBarH = Math.max(2, volRatio * volH);
         ctx.fillStyle = isUp ? 'rgba(14, 203, 129, 0.35)' : 'rgba(246, 70, 93, 0.35)';
         ctx.fillRect(x - barW / 2.0, h - vBarH, barW, vBarH);
@@ -1639,14 +1722,6 @@
         vwapPoints.push({ x, y: yVWAP });
       });
 
-      // Update Cursor Legend with latest candle
-      const lastBar = bars[bars.length - 1];
-      document.getElementById('lg-open').innerText = lastBar.open.toFixed(2);
-      document.getElementById('lg-high').innerText = lastBar.high.toFixed(2);
-      document.getElementById('lg-low').innerText = lastBar.low.toFixed(2);
-      document.getElementById('lg-close').innerText = lastBar.close.toFixed(2);
-      document.getElementById('lg-vol').innerText = (lastBar.volume || 0).toLocaleString();
-
       // VWAP curve
       if (showVWAP && vwapPoints.length > 1) {
         ctx.strokeStyle = '#a855f7';
@@ -1657,6 +1732,80 @@
         for (let i = 1; i < vwapPoints.length; i++) ctx.lineTo(vwapPoints[i].x, vwapPoints[i].y);
         ctx.stroke();
         ctx.setLineDash([]);
+      }
+
+      // Latest active candle
+      const lastBar = bars[bars.length - 1];
+      const lastX = (bars.length - 1) * step + (step / 2.0);
+      const lastYClose = chartH - ((lastBar.close - minP) / (maxP - minP) * chartH);
+      const isLastUp = lastBar.close >= lastBar.open;
+      const lastColor = isLastUp ? '#0ecb81' : '#f6465d';
+
+      // Horizontal Real-time Price Line across chart
+      ctx.strokeStyle = lastColor;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(0, lastYClose);
+      ctx.lineTo(w, lastYClose);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Real-time Price Tag on Right Axis
+      ctx.fillStyle = lastColor;
+      ctx.fillRect(w - 56, lastYClose - 8, 54, 16);
+      ctx.fillStyle = '#0b0e14';
+      ctx.font = 'bold 10px JetBrains Mono';
+      ctx.fillText(lastBar.close.toFixed(2), w - 52, lastYClose + 4);
+
+      // Pulsing Beacon on current live tick
+      ctx.fillStyle = lastColor;
+      ctx.beginPath();
+      ctx.arc(lastX, lastYClose, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Interactive Crosshair & Tooltip Legend
+      const activeDisplayBar = (hoveredBarIdx >= 0) ? bars[hoveredBarIdx] : lastBar;
+      const diff = activeDisplayBar.close - activeDisplayBar.open;
+      const chgPct = (diff / Math.max(0.01, activeDisplayBar.open)) * 100.0;
+
+      const lgTime = document.getElementById('lg-time');
+      if (lgTime) lgTime.innerText = activeDisplayBar.date || (hoveredBarIdx >= 0 ? 'PAST' : 'LIVE');
+      document.getElementById('lg-open').innerText = activeDisplayBar.open.toFixed(2);
+      document.getElementById('lg-high').innerText = activeDisplayBar.high.toFixed(2);
+      document.getElementById('lg-low').innerText = activeDisplayBar.low.toFixed(2);
+      document.getElementById('lg-close').innerText = activeDisplayBar.close.toFixed(2);
+      const lgChg = document.getElementById('lg-chg');
+      if (lgChg) {
+        lgChg.innerText = `${diff >= 0 ? '+' : ''}${diff.toFixed(2)} (${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%)`;
+        lgChg.style.color = diff >= 0 ? 'var(--green)' : 'var(--red)';
+      }
+      document.getElementById('lg-vol').innerText = (activeDisplayBar.volume || 0).toLocaleString();
+
+      if (isMouseOver && mouseHoverX !== null && mouseHoverY !== null) {
+        // Vertical crosshair
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(mouseHoverX, 0);
+        ctx.lineTo(mouseHoverX, h);
+        ctx.stroke();
+
+        // Horizontal crosshair
+        ctx.beginPath();
+        ctx.moveTo(0, mouseHoverY);
+        ctx.lineTo(w, mouseHoverY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Hovered price label
+        const hoverPrice = maxP - ((mouseHoverY / chartH) * (maxP - minP));
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+        ctx.fillRect(w - 56, mouseHoverY - 8, 54, 16);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillText(hoverPrice.toFixed(2), w - 52, mouseHoverY + 4);
       }
     }
 
@@ -1799,11 +1948,41 @@
         if (metricP99) metricP99.innerText = `${Number(data.latency.p99_us || 0).toFixed(2)} μs`;
       }
 
-      // Chart Ticks
+      // Real-time Candle Stream & Synthesis
+      if (Array.isArray(data.candles) && data.candles.length > 0) {
+        cachedCandles = data.candles;
+      } else if (cachedCandles && cachedCandles.length > 0 && lastP) {
+        const lastC = cachedCandles[cachedCandles.length - 1];
+        lastC.close = lastP;
+        lastC.high = Math.max(lastC.high, lastP);
+        lastC.low = Math.min(lastC.low, lastP);
+        if (data.recent_trades && data.recent_trades.length > 0) {
+          const latestVol = Number(data.recent_trades[0].shares != null ? data.recent_trades[0].shares : (data.recent_trades[0].quantity || 0));
+          lastC.volume = (lastC.volume || 0) + latestVol;
+        }
+      }
+
+      // Dynamic local bar rollover
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (cachedCandles && cachedCandles.length > 0 && (nowSec - lastLocalCandleSec) >= currentTimeframeSec) {
+        const lastC = cachedCandles[cachedCandles.length - 1];
+        cachedCandles.push({
+          date: new Date().toLocaleTimeString(),
+          open: lastC.close,
+          high: lastC.close,
+          low: lastC.close,
+          close: lastC.close,
+          volume: 0,
+        });
+        if (cachedCandles.length > 80) cachedCandles.shift();
+        lastLocalCandleSec = nowSec;
+      }
+
+      // Chart Ticks & Canvas Re-render
       if (data.price_history && data.price_history.length > 0) {
         priceHistoryTicks = data.price_history;
-        renderCanvasChart(priceHistoryTicks);
       }
+      renderCanvasChart(priceHistoryTicks);
 
       // Open Orders
       const openOrders = Array.isArray(data.open_orders) ? data.open_orders : (data.user_open_orders ? Object.values(data.user_open_orders) : []);
@@ -1903,24 +2082,62 @@
       if (data.ml_pattern) {
         const pat = data.ml_pattern;
         const pill = document.getElementById('ml-pattern-regime-pill');
-        const desc = document.getElementById('ml-pattern-desc');
         if (pill) {
           const reg = pat.regime || 'BALANCED_CONSOLIDATION';
           pill.innerText = reg.replace(/_/g, ' ');
-          if (reg === 'MOMENTUM_BREAKOUT_BULL') {
-            pill.style.color = 'var(--green)';
-            if (desc) desc.innerHTML = '<strong style="color: var(--green);">⚡ Bullish Breakout:</strong> Aggressive institutional buyers absorbing ask depth. Strong upward drift expected.';
-          } else if (reg === 'MOMENTUM_BREAKOUT_BEAR') {
-            pill.style.color = 'var(--red)';
-            if (desc) desc.innerHTML = '<strong style="color: var(--red);">🔻 Bearish Cascade:</strong> Aggressive liquidation. Bids collapsing downward.';
-          } else if (reg === 'VOLATILITY_EXPANSION_CHOP') {
-            pill.style.color = 'var(--amber)';
-            if (desc) desc.innerHTML = '<strong style="color: var(--amber);">🌪️ Volatility Shock:</strong> Spreads widened by 2x. High-frequency sweeps active.';
-          } else {
-            pill.style.color = 'var(--cyan)';
-            if (desc) desc.innerHTML = '<strong style="color: var(--cyan);">🌊 Balanced Consolidation:</strong> Order book in equilibrium. Two-sided market making dominant.';
-          }
+          pill.style.color = (reg === 'MOMENTUM_BREAKOUT_BULL') ? 'var(--green)' :
+                             (reg === 'MOMENTUM_BREAKOUT_BEAR') ? 'var(--red)' :
+                             (reg === 'VOLATILITY_EXPANSION_CHOP') ? 'var(--amber)' : 'var(--cyan)';
         }
+
+        const sigBadge = document.getElementById('ml-signal-badge');
+        if (sigBadge) {
+          const sig = pat.signal || 'NEUTRAL';
+          sigBadge.innerText = sig;
+          const isBuy = sig.includes('BUY');
+          const isSell = sig.includes('SELL');
+          sigBadge.style.color = isBuy ? 'var(--green)' : (isSell ? 'var(--red)' : 'var(--cyan)');
+          sigBadge.style.borderColor = isBuy ? 'var(--green)' : (isSell ? 'var(--red)' : 'var(--cyan)');
+          sigBadge.style.background = isBuy ? 'rgba(14, 203, 129, 0.15)' : (isSell ? 'rgba(246, 70, 93, 0.15)' : 'rgba(0, 184, 217, 0.15)');
+        }
+
+        const targetEl = document.getElementById('ml-target-price');
+        if (targetEl && pat.target_price) targetEl.innerText = `$${Number(pat.target_price).toFixed(2)}`;
+        const stopEl = document.getElementById('ml-stop-price');
+        if (stopEl && pat.stop_loss) stopEl.innerText = `$${Number(pat.stop_loss).toFixed(2)}`;
+        const rrrEl = document.getElementById('ml-rrr-val');
+        if (rrrEl && pat.risk_reward_ratio) rrrEl.innerText = `${pat.risk_reward_ratio} : 1`;
+        const accEl = document.getElementById('ml-accuracy-val');
+        if (accEl && pat.accuracy_pct) accEl.innerText = `${pat.accuracy_pct}% (${pat.evaluated_predictions || 0})`;
+
+        const microEl = document.getElementById('ml-micro-price');
+        if (microEl && pat.micro_price) {
+          const delta = pat.micro_price_delta || 0;
+          microEl.innerText = `$${Number(pat.micro_price).toFixed(2)} (${delta >= 0 ? '+' : ''}${delta.toFixed(2)})`;
+          microEl.style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
+        }
+        const rsiEl = document.getElementById('ml-rsi-val');
+        if (rsiEl && pat.rsi != null) {
+          rsiEl.innerText = `${Number(pat.rsi).toFixed(1)}`;
+          rsiEl.style.color = pat.rsi > 70 ? 'var(--red)' : (pat.rsi < 30 ? 'var(--green)' : 'var(--amber)');
+        }
+        const vpinEl = document.getElementById('ml-vpin-val');
+        if (vpinEl && pat.vpin_toxicity != null) {
+          const vPct = (pat.vpin_toxicity * 100).toFixed(1);
+          const toxLabel = pat.vpin_toxicity > 0.4 ? 'HIGH' : (pat.vpin_toxicity > 0.25 ? 'MED' : 'LOW');
+          vpinEl.innerText = `${vPct}% (${toxLabel})`;
+          vpinEl.style.color = pat.vpin_toxicity > 0.4 ? 'var(--red)' : (pat.vpin_toxicity > 0.25 ? 'var(--amber)' : 'var(--purple)');
+        }
+        const bbwEl = document.getElementById('ml-bbw-val');
+        if (bbwEl && pat.bollinger_bandwidth != null) {
+          bbwEl.innerText = `${Number(pat.bollinger_bandwidth).toFixed(2)}%`;
+        }
+
+        const driversList = document.getElementById('ml-drivers-list');
+        if (driversList && Array.isArray(pat.top_drivers) && pat.top_drivers.length > 0) {
+          driversList.innerHTML = pat.top_drivers.map(d => `<div>• ${d}</div>`).join('');
+        }
+
         const confVal = document.getElementById('ml-pattern-conf-val');
         const confBar = document.getElementById('ml-pattern-conf-bar');
         if (confVal) {
@@ -2070,6 +2287,23 @@
       updateNotional();
       loadHistoricalCandles();
       connectWebSocket();
+
+      const canvas = document.getElementById('priceCanvas');
+      if (canvas) {
+        canvas.addEventListener('mousemove', (e) => {
+          const rect = canvas.getBoundingClientRect();
+          mouseHoverX = e.clientX - rect.left;
+          mouseHoverY = e.clientY - rect.top;
+          isMouseOver = true;
+          renderCanvasChart(priceHistoryTicks);
+        });
+        canvas.addEventListener('mouseleave', () => {
+          isMouseOver = false;
+          mouseHoverX = null;
+          mouseHoverY = null;
+          renderCanvasChart(priceHistoryTicks);
+        });
+      }
     };
   </script>
 </body>

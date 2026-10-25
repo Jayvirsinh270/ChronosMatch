@@ -392,6 +392,12 @@ class WebTradingServer:
             pattern_model = self.replayer.pattern_models.get(venue.info.ticker)
             if pattern_model:
                 pattern_model.record_trade(trade_p, qty, int(side))
+                best_bid_p = from_fixed_price(venue.book.best_bid_price)
+                best_ask_p = from_fixed_price(venue.book.best_ask_price)
+                pattern_model.update_order_book_depth(
+                    best_bid_p, best_ask_p,
+                    venue.book.best_bid_volume, venue.book.best_ask_volume,
+                )
 
             # Persist tick into MarketDataStore
             best_bid_p = from_fixed_price(venue.book.best_bid_price)
@@ -545,6 +551,7 @@ class WebTradingServer:
         snap["market_stats"] = self.replayer.data_store.get_market_statistics(venue.info.ticker)
         algo_mgr = self.replayer.algo_managers.get(venue.info.ticker)
         snap["algo_stats"] = algo_mgr.get_summary(venue.last_trade_price) if algo_mgr else None
+        snap["candles"] = self.replayer.get_candlesticks(venue.info.ticker, limit=60)
         return snap
 
 

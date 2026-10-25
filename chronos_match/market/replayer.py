@@ -313,6 +313,12 @@ class HistoricalMarketReplayer:
         # 1. Update ML Models
         impact.record_execution(side, qty, trade_p)
         pattern_model.record_trade(trade_p, qty, side)
+        pattern_model.update_order_book_depth(
+            from_fixed_price(venue.book.best_bid_price),
+            from_fixed_price(venue.book.best_ask_price),
+            venue.book.best_bid_volume,
+            venue.book.best_ask_volume,
+        )
 
         # 2. Inform Algo Bot
         if algo_mgr:
