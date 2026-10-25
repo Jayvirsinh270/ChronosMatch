@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from chronos_match.market.data_loader import MarketDataLoader, StockCandle
 from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
 from chronos_match.market.ml_pattern_model import LightMarketPatternModel, MarketRegime
+from chronos_match.market.candlestick_patterns import CandlestickPatternRecognizer, DetectedPattern
 from chronos_match.market.storage import MarketDataStore
 from chronos_match.algo import AlgoTradingManager
 from chronos_match.market.router import MultiBookRouter, SingleSymbolVenue, SymbolInfo
@@ -46,6 +47,7 @@ class HistoricalMarketReplayer:
         self.current_mid: Dict[str, float] = {}
         self.anchor_price: Dict[str, float] = {}
         self.macro_drift: Dict[str, float] = {}
+        self.latest_pattern: Dict[str, DetectedPattern] = {}
 
         # Live candlestick synthesis per symbol
         self.live_candle: Dict[str, Dict[str, Any]] = {}
@@ -492,7 +494,7 @@ class HistoricalMarketReplayer:
         bar["trades"] += 1
 
     def _check_candle_rollover(self, sym: str, daily_vol: float = 0.02, tick: float = 0.01) -> None:
-        """Check if candle interval elapsed, ensure organic shape, persist and roll over."""
+        """Check if candle interval elapsed, recognize patterns, persist to DB and feature store, and roll over."""
         now = time.time()
         last_t = self.last_candle_time.get(sym, now)
         if (now - last_t) >= self.candle_interval_sec:
@@ -505,7 +507,20 @@ class HistoricalMarketReplayer:
                     bar["low"] = round(max(0.01, min(bar["open"], bar["close"]) - w_span * 0.4), 2)
                     bar["volume"] = max(bar["volume"], random.randint(500, 2500))
 
-                # Store completed candle in SQLite
+                # Recognize candlestick pattern from recent bars context
+                recent_bars = [
+                    {"open": c.open, "high": c.high, "low": c.low, "close": c.close}
+                    for c in self.candles_cache.get(sym, [])[-3:]
+                ]
+                recent_bars.append({"open": bar["open"], "high": bar["high"], "low": bar["low"], "close": bar["close"]})
+                detected = CandlestickPatternRecognizer.recognize(recent_bars)
+                self.latest_pattern[sym] = detected
+                self.latest_pattern[sym.split("-")[0]] = detected
+
+                pattern_model = self.pattern_models.get(sym)
+                rsi_val = pattern_model.rsi if pattern_model else 50.0
+
+                # Store completed candle with pattern in SQLite
                 self.data_store.record_candle(
                     symbol=sym,
                     timestamp=int(now),
@@ -516,7 +531,55 @@ class HistoricalMarketReplayer:
                     close_p=bar["close"],
                     volume=bar["volume"],
                     trades_count=max(1, bar["trades"]),
+                    pattern=detected.name,
+                    pattern_sentiment=detected.sentiment,
+                    pattern_score=detected.pattern_score,
+                    rsi=rsi_val,
+                    vwap=bar["close"],
                 )
+
+                # Record pattern detection event
+                if detected.name not in ("NORMAL_BAR", "INSUFFICIENT_DATA"):
+                    self.data_store.record_pattern_detection(
+                        symbol=sym,
+                        timestamp=int(now),
+                        date_str=bar["date"],
+                        pattern_name=detected.name,
+                        category=detected.category,
+                        sentiment=detected.sentiment,
+                        confidence=detected.confidence,
+                        pattern_score=detected.pattern_score,
+                        description=detected.description,
+                    )
+
+                # Record feature snapshot into operational Feature Store
+                if pattern_model:
+                    pred = pattern_model.predict()
+                    self.data_store.record_feature_vector(
+                        symbol=sym,
+                        timestamp=int(now),
+                        date_str=bar["date"],
+                        open_p=bar["open"],
+                        high_p=bar["high"],
+                        low_p=bar["low"],
+                        close_p=bar["close"],
+                        volume=bar["volume"],
+                        pattern=detected.name,
+                        pattern_sentiment=detected.sentiment,
+                        pattern_score=detected.pattern_score,
+                        rsi14=pattern_model.rsi,
+                        macd_signal=pattern_model.predicted_drift * 100.0,
+                        bb_bandwidth=pattern_model.bollinger_bandwidth,
+                        atr_ratio=1.0,
+                        mom5=pred.predicted_drift * 10.0,
+                        mom10=pred.predicted_drift * 20.0,
+                        vol_ratio=1.0,
+                        vol10=daily_vol * 100.0,
+                        price_accel=0.0,
+                        predicted_regime=pred.regime.value,
+                        confidence=pred.confidence,
+                    )
+
                 # Push into cached candles so chart displays it
                 self.candles_cache.setdefault(sym, []).append(
                     StockCandle(

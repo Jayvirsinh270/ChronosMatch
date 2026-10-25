@@ -936,12 +936,12 @@
 
         <!-- TAB 3: ML PATTERN RADAR -->
         <div class="dock-content" id="content-tab-ml" style="display: none;">
-          <div style="display: grid; grid-template-columns: 1.2fr 1.1fr 1.1fr; gap: 10px; font-family: var(--font-mono); font-size: 0.72rem;">
+          <div style="display: grid; grid-template-columns: 1.15fr 1.05fr 1.2fr; gap: 10px; font-family: var(--font-mono); font-size: 0.72rem;">
             <!-- Column 1: AI Trading Signal & Prediction Setup -->
             <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between;">
               <div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                  <span style="color: var(--purple); font-weight: 800; font-size: 0.74rem;">AI TRADING SIGNAL</span>
+                  <span style="color: var(--purple); font-weight: 800; font-size: 0.74rem;">AI REGIME SIGNAL</span>
                   <span id="ml-signal-badge" style="background: rgba(14, 203, 129, 0.15); border: 1px solid var(--green); color: var(--green); padding: 2px 8px; border-radius: 4px; font-weight: 800;">STRONG BUY</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-dim); margin-bottom: 4px;">
@@ -956,10 +956,11 @@
                 <div>Target: <strong id="ml-target-price" style="color: var(--green);">$132.40</strong></div>
                 <div>Stop: <strong id="ml-stop-price" style="color: var(--red);">$129.80</strong></div>
                 <div>R/R Ratio: <strong id="ml-rrr-val" style="color: var(--cyan);">2.4 : 1</strong></div>
-                <div>Live Accuracy: <strong id="ml-accuracy-val" style="color: var(--green);">79.2%</strong></div>
+                <div>Drift: <strong id="ml-pattern-drift" style="color: var(--green);">+0.000%</strong></div>
               </div>
-              <div style="margin-top: 5px; font-size: 0.62rem; color: var(--purple); display: flex; justify-content: space-between; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                <span title="Trained on real historical OHLCV data">Weights: <strong id="ml-model-ver" style="color: #93c5fd;">GNB Pre-Trained (1.4M Bars)</strong></span>
+              <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 4px; padding: 4px 6px;">
+                <span style="color: var(--purple); font-weight: 700;">Candlestick:</span>
+                <span id="ml-candlestick-pattern-badge" style="background: rgba(14, 203, 129, 0.15); border: 1px solid var(--green); color: var(--green); padding: 1px 6px; border-radius: 3px; font-weight: 800; font-size: 0.68rem;">STANDARD DOJI (75%)</span>
               </div>
             </div>
 
@@ -987,17 +988,31 @@
               </div>
             </div>
 
-            <!-- Column 3: AI Model Explainability & Drivers -->
+            <!-- Column 3: Institutional ML Scorecard & SQLite Feature Store -->
             <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between;">
-              <div style="font-weight: 800; color: #fff; margin-bottom: 4px; font-size: 0.72rem;">TOP PREDICTION DRIVERS</div>
-              <div id="ml-drivers-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 0.68rem; color: var(--text-muted);">
-                <div>• OFI Buyer Dominance: Active Flow</div>
-                <div>• Micro-Price Equilibrium</div>
-                <div>• Low Flow Toxicity (Stable)</div>
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px;">
+                <span style="font-weight: 800; color: #fff;">INSTITUTIONAL METRICS</span>
+                <span id="ml-model-ver" style="color: #93c5fd; font-size: 0.62rem; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 140px;">2.6M+ Bars</span>
               </div>
-              <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 4px; margin-top: 4px; font-size: 0.68rem;">
-                <span style="color: var(--text-dim);">Persisted Store:</span>
-                <span id="ml-pattern-storage-stats" style="color: #fff;">0 Ticks</span>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 0.68rem; margin-bottom: 4px;">
+                <div>Accuracy: <strong id="ml-accuracy-val" style="color: var(--green);">65.0%</strong></div>
+                <div>Macro F1: <strong id="ml-macro-f1" style="color: var(--cyan);">0.337</strong></div>
+                <div>MCC Score: <strong id="ml-mcc" style="color: var(--purple);">+0.193</strong></div>
+                <div>Directional: <strong id="ml-dhr" style="color: var(--amber);">22.3%</strong></div>
+              </div>
+              <div style="border-top: 1px solid var(--border); padding-top: 4px; font-size: 0.66rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="color: var(--text-dim);">SQLite Feature Store:</span>
+                  <span id="ml-feature-vectors-count" style="color: var(--cyan);">0 Vectors</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="color: var(--text-dim);">Patterns Detected:</span>
+                  <span id="ml-persisted-patterns-count" style="color: var(--green);">0 Logged</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="color: var(--text-dim);">Historical Ticks:</span>
+                  <span id="ml-pattern-storage-stats" style="color: #fff;">0 Ticks</span>
+                </div>
               </div>
             </div>
           </div>
@@ -2102,7 +2117,13 @@
         const rrrEl = document.getElementById('ml-rrr-val');
         if (rrrEl && pat.risk_reward_ratio) rrrEl.innerText = `${pat.risk_reward_ratio} : 1`;
         const accEl = document.getElementById('ml-accuracy-val');
-        if (accEl && pat.accuracy_pct) accEl.innerText = `${pat.accuracy_pct}% (${pat.evaluated_predictions || 0})`;
+        if (accEl && pat.accuracy_pct != null) accEl.innerText = `${pat.accuracy_pct}%`;
+        const f1El = document.getElementById('ml-macro-f1');
+        if (f1El && pat.macro_f1 != null) f1El.innerText = `${pat.macro_f1}`;
+        const mccEl = document.getElementById('ml-mcc');
+        if (mccEl && pat.matthews_corr_coef != null) mccEl.innerText = `${pat.matthews_corr_coef >= 0 ? '+' : ''}${pat.matthews_corr_coef}`;
+        const dhrEl = document.getElementById('ml-dhr');
+        if (dhrEl && pat.directional_hit_rate != null) dhrEl.innerText = `${pat.directional_hit_rate}%`;
         const verEl = document.getElementById('ml-model-ver');
         if (verEl && pat.model_version) verEl.innerText = pat.model_version;
 
@@ -2153,12 +2174,43 @@
         }
       }
 
-      // Persisted Market Stats
+      // Candlestick Pattern Detection
+      if (data.pattern) {
+        const cp = data.pattern;
+        const badge = document.getElementById('ml-candlestick-pattern-badge');
+        if (badge) {
+          const conf = Math.round((cp.confidence || 0) * 100);
+          badge.innerText = `${cp.name} (${conf}%)`;
+          if (cp.sentiment === 'BULLISH') {
+            badge.style.color = 'var(--green)';
+            badge.style.borderColor = 'var(--green)';
+            badge.style.background = 'rgba(14, 203, 129, 0.15)';
+          } else if (cp.sentiment === 'BEARISH') {
+            badge.style.color = 'var(--red)';
+            badge.style.borderColor = 'var(--red)';
+            badge.style.background = 'rgba(246, 70, 93, 0.15)';
+          } else {
+            badge.style.color = 'var(--amber)';
+            badge.style.borderColor = 'var(--amber)';
+            badge.style.background = 'rgba(240, 185, 11, 0.15)';
+          }
+        }
+      }
+
+      // Persisted Market Stats & SQLite Feature Store
       if (data.market_stats) {
         const ms = data.market_stats;
         const statEl = document.getElementById('ml-pattern-storage-stats');
         if (statEl) {
           statEl.innerText = `${Number(ms.persisted_ticks || 0).toLocaleString()} Ticks`;
+        }
+        const featEl = document.getElementById('ml-feature-vectors-count');
+        if (featEl) {
+          featEl.innerText = `${Number(ms.persisted_features || 0).toLocaleString()} Vectors`;
+        }
+        const patEl = document.getElementById('ml-persisted-patterns-count');
+        if (patEl) {
+          patEl.innerText = `${Number(ms.persisted_patterns || 0).toLocaleString()} Logged`;
         }
       }
 

@@ -192,4 +192,92 @@ def test_ml_pretrained_weights_integration():
     pred = model.predict()
     assert pred.regime in [MarketRegime.MOMENTUM_BREAKOUT_BULL, MarketRegime.BALANCED_CONSOLIDATION]
     assert pred.accuracy_pct > 50.0
+    assert pred.macro_f1 > 0.1
+    assert pred.matthews_corr_coef >= 0.0
+
+
+def test_candlestick_pattern_and_feature_store_persistence():
+    """Verify storing and retrieving candlestick patterns and feature vectors in SQLite."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        db_path = tmp.name
+
+    try:
+        store = MarketDataStore(db_path=db_path)
+
+        # 1. Store a detected pattern
+        store.record_pattern_detection(
+            symbol="NVDA",
+            timestamp=1700000000,
+            date_str="2026-10-25 10:00:00",
+            pattern_name="BULLISH ENGULFING",
+            category="REVERSAL",
+            sentiment="BULLISH",
+            confidence=0.88,
+            pattern_score=0.85,
+            description="Strong bullish body engulfing prior bearish candle",
+        )
+
+        pats = store.get_recent_patterns("NVDA", limit=5)
+        assert len(pats) == 1
+        assert pats[0]["pattern_name"] == "BULLISH ENGULFING"
+        assert pats[0]["sentiment"] == "BULLISH"
+        assert pats[0]["confidence"] == 0.88
+
+        # 2. Store a full feature store vector
+        store.record_feature_vector(
+            symbol="NVDA",
+            timestamp=1700000000,
+            date_str="2026-10-25 10:00:00",
+            open_p=120.0,
+            high_p=122.5,
+            low_p=119.5,
+            close_p=122.0,
+            volume=45000,
+            pattern="BULLISH ENGULFING",
+            pattern_sentiment="BULLISH",
+            pattern_score=0.85,
+            rsi14=62.4,
+            macd_signal=1.25,
+            bb_bandwidth=3.4,
+            atr_ratio=1.15,
+            mom5=2.4,
+            mom10=4.1,
+            vol_ratio=1.35,
+            vol10=22.5,
+            price_accel=0.15,
+            predicted_regime="MOMENTUM_BREAKOUT_BULL",
+            confidence=0.85,
+        )
+
+        samples = store.get_feature_store_samples("NVDA", limit=5)
+        assert len(samples) == 1
+        assert samples[0]["rsi14"] == 62.4
+        assert samples[0]["pattern"] == "BULLISH ENGULFING"
+        assert samples[0]["predicted_regime"] == "MOMENTUM_BREAKOUT_BULL"
+
+        # Check market statistics counters
+        stats = store.get_market_statistics("NVDA")
+        assert stats["persisted_patterns"] == 1
+        assert stats["persisted_features"] == 1
+
+        store.close()
+    finally:
+        if os.path.exists(db_path):
+            os.remove(db_path)
+
+
+@pytest.mark.anyio
+async def test_api_get_ml_metrics():
+    """Verify that /api/market/ml-metrics returns institutional evaluation metrics."""
+    from chronos_match.web.server import api_get_ml_metrics
+
+    data = await api_get_ml_metrics()
+    assert "version" in data
+    assert "evaluation_metrics" in data
+    metrics = data["evaluation_metrics"]
+    assert "accuracy" in metrics
+    assert "macro_f1" in metrics
+    assert "matthews_corr_coef" in metrics
+    assert "confusion_matrix" in metrics
+
 

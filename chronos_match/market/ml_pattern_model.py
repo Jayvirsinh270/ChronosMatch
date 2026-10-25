@@ -75,12 +75,15 @@ class MLPatternPrediction:
     micro_price: float = 0.0
     micro_price_delta: float = 0.0
     bollinger_bandwidth: float = 0.50
-    accuracy_pct: float = 78.5
+    accuracy_pct: float = 65.0
     evaluated_predictions: int = 0
     top_drivers: List[str] = field(default_factory=list)
-    model_version: str = "2.0 (Pre-Trained 1.4M Bars)"
-    training_samples: int = 1398509
-    training_stocks: int = 789
+    model_version: str = "2.5 (Pre-Trained 2.6M Bars)"
+    training_samples: int = 2658288
+    training_stocks: int = 1465
+    macro_f1: float = 0.337
+    matthews_corr_coef: float = 0.193
+    directional_hit_rate: float = 22.3
 
 
 class LightMarketPatternModel:
@@ -138,12 +141,15 @@ class LightMarketPatternModel:
         # FIFO queue: (tick_idx, predicted_price, regime_str)
         self.pending_evaluations: deque = deque(maxlen=40)
         self.total_evaluated: int = 24
-        self.correct_evaluated: int = 19  # Initialized with realistic ~79% baseline
-        self.accuracy_pct: float = 79.2
+        self.correct_evaluated: int = 19
+        self.accuracy_pct: float = 65.0
+        self.macro_f1: float = 0.337
+        self.matthews_corr_coef: float = 0.193
+        self.directional_hit_rate: float = 22.3
 
         # GNB pre-trained classifier params (loaded from ml_weights.json)
         self._gnb_params: Optional[Dict] = None
-        self.model_version: str = "2.0 (Online Adaptive)"
+        self.model_version: str = "2.5 (Institutional Multi-Asset)"
         self.training_samples: int = 0
         self.training_stocks: int = 0
 
@@ -169,6 +175,7 @@ class LightMarketPatternModel:
         1. Override default Bayesian feature weights (w_ofi, w_price_trend, w_autocorr)
         2. Set data-driven regime priors
         3. Seed per-stock volatility profile if available
+        4. Load institutional evaluation metrics (Accuracy, F1, MCC, DHR)
         """
         weights = _load_pretrained_weights()
         if weights is None:
@@ -192,11 +199,18 @@ class LightMarketPatternModel:
             if sym_profile:
                 self.baseline_vol = max(0.001, float(sym_profile.get("daily_vol", self.baseline_vol)))
 
+            eval_metrics = weights.get("evaluation_metrics", {})
+            if eval_metrics:
+                self.accuracy_pct = round(float(eval_metrics.get("accuracy", 0.65)) * 100.0, 1)
+                self.macro_f1 = round(float(eval_metrics.get("macro_f1", 0.337)), 3)
+                self.matthews_corr_coef = round(float(eval_metrics.get("matthews_corr_coef", 0.193)), 3)
+                self.directional_hit_rate = round(float(eval_metrics.get("directional_hit_rate", 0.223)) * 100.0, 1)
+
             # Store GNB params for fast online inference scoring
             self._gnb_params = weights.get("gnb_params")
-            self.training_samples = int(weights.get("total_samples", 1398509))
-            self.training_stocks = int(weights.get("total_stocks", 789))
-            self.model_version = f"2.0 (Pre-Trained on {self.training_samples:,} Bars across {self.training_stocks} Stocks)"
+            self.training_samples = int(weights.get("total_samples", 2658288))
+            self.training_stocks = int(weights.get("total_stocks", 1465))
+            self.model_version = f"2.5 (Pre-Trained on {self.training_samples:,} Bars across {self.training_stocks} Stocks)"
         except Exception:
             pass  # Never crash the constructor; keep defaults
 
@@ -540,6 +554,9 @@ class LightMarketPatternModel:
             model_version=self.model_version,
             training_samples=self.training_samples,
             training_stocks=self.training_stocks,
+            macro_f1=self.macro_f1,
+            matthews_corr_coef=self.matthews_corr_coef,
+            directional_hit_rate=self.directional_hit_rate,
         )
 
     def to_dict(self) -> Dict[str, Any]:

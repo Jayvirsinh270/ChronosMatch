@@ -552,6 +552,15 @@ class WebTradingServer:
         algo_mgr = self.replayer.algo_managers.get(venue.info.ticker)
         snap["algo_stats"] = algo_mgr.get_summary(venue.last_trade_price) if algo_mgr else None
         snap["candles"] = self.replayer.get_candlesticks(venue.info.ticker, limit=60)
+        pat = self.replayer.latest_pattern.get(venue.info.ticker)
+        snap["pattern"] = {
+            "name": pat.name,
+            "category": pat.category,
+            "sentiment": pat.sentiment,
+            "confidence": pat.confidence,
+            "pattern_score": pat.pattern_score,
+            "description": pat.description,
+        } if pat else None
         return snap
 
 
@@ -799,6 +808,50 @@ async def api_get_market_stats(symbol: Optional[str] = None):
     """Retrieve stored session market data statistics."""
     sym = symbol or server.active_symbol
     return server.replayer.data_store.get_market_statistics(sym)
+
+
+@app.get("/api/market/patterns")
+async def api_get_market_patterns(symbol: Optional[str] = None, limit: int = 15):
+    """Retrieve persisted detected candlestick patterns for a symbol."""
+    sym = symbol or server.active_symbol
+    return server.replayer.data_store.get_recent_patterns(sym, limit=limit)
+
+
+@app.get("/api/market/features")
+async def api_get_feature_samples(symbol: Optional[str] = None, limit: int = 200):
+    """Retrieve operational feature store vectors for continuous ML learning."""
+    sym = symbol or server.active_symbol
+    return server.replayer.data_store.get_feature_store_samples(sym, limit=limit)
+
+
+@app.get("/api/market/ml-metrics")
+async def api_get_ml_metrics():
+    """Retrieve institutional multi-metric offline evaluation scorecard."""
+    weights_path = Path(__file__).parent.parent / "market" / "ml_weights.json"
+    if not weights_path.exists():
+        weights_path = Path(__file__).parent.parent.parent / "data" / "ml_weights.json"
+    if weights_path.exists():
+        try:
+            import json
+            with open(weights_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return {
+                "version": data.get("version"),
+                "trained_at": data.get("trained_at"),
+                "total_samples": data.get("total_samples"),
+                "total_stocks": data.get("total_stocks"),
+                "feature_names": data.get("feature_names"),
+                "feature_snr": data.get("feature_snr"),
+                "evaluation_metrics": data.get("evaluation_metrics"),
+                "weights": {
+                    "w_ofi": data.get("w_ofi"),
+                    "w_price_trend": data.get("w_price_trend"),
+                    "w_autocorr": data.get("w_autocorr"),
+                },
+            }
+        except Exception as e:
+            return {"error": str(e)}
+    return {"status": "weights_not_found"}
 
 
 @app.websocket("/ws")
