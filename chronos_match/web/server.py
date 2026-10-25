@@ -115,8 +115,11 @@ class WebTradingServer:
 
         # Real-Market Data Replayer & ML Pattern Impact Engine
         self.replayer = HistoricalMarketReplayer(router=self.router, default_ticker="NVDA")
-        self.replayer.bind_stock("NVDA-USD")
-        self.replayer.bind_stock("SOL-USD")
+        for sym in ("NVDA", "NVDA-USD", "AAPL", "AAPL-USD", "MSFT", "MSFT-USD", "TSLA", "TSLA-USD", "RELIANCE", "RELIANCE-BSE", "BTC-USD", "ETH-USD", "SOL-USD"):
+            try:
+                self.replayer.bind_stock(sym)
+            except Exception:
+                pass
 
     # ── Backward-compatible venue delegations ──────────────────────────────
 
@@ -520,7 +523,11 @@ class WebTradingServer:
 
     def get_snapshot(self, symbol: Optional[str] = None) -> Dict[str, Any]:
         """Construct real-time market snapshot for the active or requested symbol."""
-        venue = self.router.get_venue(symbol or self.active_symbol)
+        sym = symbol or self.active_symbol
+        try:
+            venue = self.router.get_venue(sym)
+        except KeyError:
+            venue = self.replayer.bind_stock(sym)
         snap = venue.get_snapshot()
 
         snap["orders_per_sec"] = int(1.0 / max(0.001, self.bot_delay)) if self.bot_active else 0
@@ -601,7 +608,10 @@ async def api_tickers():
 @app.post("/api/symbol/select")
 async def api_select_symbol(req: SymbolSelectRequest):
     """Switch active market symbol."""
-    venue = server.router.get_venue(req.symbol)
+    try:
+        venue = server.router.get_venue(req.symbol)
+    except KeyError:
+        venue = server.replayer.bind_stock(req.symbol)
     server.active_symbol = venue.info.ticker
     return {"active_symbol": server.active_symbol}
 

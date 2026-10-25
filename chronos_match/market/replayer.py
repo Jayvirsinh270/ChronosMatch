@@ -81,8 +81,12 @@ class HistoricalMarketReplayer:
         # Create or retrieve venue
         try:
             venue = self.router.get_venue(sym)
-            venue.info.initial_price = initial_p
-            venue.last_trade_price = initial_p
+            if venue.info.initial_price and venue.info.initial_price > 0:
+                initial_p = venue.info.initial_price
+            else:
+                venue.info.initial_price = initial_p
+            if venue.last_trade_price is None:
+                venue.last_trade_price = initial_p
         except KeyError:
             sym_id = len(self.router.venues_by_id) + 1
             info = SymbolInfo(
@@ -401,8 +405,11 @@ class HistoricalMarketReplayer:
         sym = (symbol or self.active_ticker).upper()
         candles = self.candles_cache.get(sym, [])
         if not candles:
-            candles = self.data_loader.load_candles(sym, max_bars=limit)
-            self.candles_cache[sym] = candles
+            try:
+                candles = self.data_loader.load_candles(sym, max_bars=limit)
+                self.candles_cache[sym] = candles
+            except Exception:
+                candles = []
 
         bars = [
             {

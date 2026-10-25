@@ -234,6 +234,10 @@ class MultiBookRouter:
         if sym_str in self.venues_by_ticker:
             return self.venues_by_ticker[sym_str]
 
+        base_str = sym_str.split("-")[0]
+        if base_str in self.venues_by_ticker:
+            return self.venues_by_ticker[base_str]
+
         # Check fallback defaults
         if sym_str in ("CHRONOS", "DEFAULT", "SOL", "SOL-USD"):
             return self.venues_by_id.get(1, list(self.venues_by_id.values())[0])
