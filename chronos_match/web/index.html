@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChronosMatch // Institutional High-Frequency Trading Workstation</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1710,27 +1711,30 @@
       if (symBadge) symBadge.innerText = `${data.symbol || currentSymbol}`;
 
       // Level 2 Asks & Bids
-      const asks = data.asks || [];
-      const bids = data.bids || [];
+      const asks = (data.l2 && data.l2.asks) || data.asks || [];
+      const bids = (data.l2 && data.l2.bids) || data.bids || [];
       const askLadder = document.getElementById('ask-ladder');
       const bidLadder = document.getElementById('bid-ladder');
 
-      const maxAskVol = Math.max(1, ...asks.map(a => a.shares));
-      const maxBidVol = Math.max(1, ...bids.map(b => b.shares));
+      const maxAskVol = Math.max(1, ...asks.map(a => Number(a.shares != null ? a.shares : (a.volume || 0))));
+      const maxBidVol = Math.max(1, ...bids.map(b => Number(b.shares != null ? b.shares : (b.volume || 0))));
 
-      if (asks.length > 0) cachedBestAsk = asks[0].price;
-      if (bids.length > 0) cachedBestBid = bids[0].price;
+      if (asks.length > 0 && asks[0].price != null) cachedBestAsk = Number(asks[0].price);
+      if (bids.length > 0 && bids[0].price != null) cachedBestBid = Number(bids[0].price);
 
       if (askLadder) {
         const displayAsks = [...asks].slice(0, 7).reverse();
         askLadder.innerHTML = displayAsks.map(a => {
-          const pct = Math.min(100, Math.round((a.shares / maxAskVol) * 100));
+          const shares = Number(a.shares != null ? a.shares : (a.volume || 0));
+          const price = Number(a.price || 0);
+          const orderCount = a.order_count != null ? a.order_count : (a.count || 1);
+          const pct = Math.min(100, Math.round((shares / maxAskVol) * 100));
           return `
-            <div class="ob-row" onclick="setPrice(${a.price})">
+            <div class="ob-row" onclick="setPrice(${price})">
               <div class="ob-depth-bar ask" style="width: ${pct}%;"></div>
-              <span style="color: var(--red); font-weight: 700; position: relative;">${a.price.toFixed(2)}</span>
-              <span style="text-align: right; position: relative;">${a.shares.toLocaleString()}</span>
-              <span style="text-align: right; color: var(--text-dim); position: relative;">${a.order_count}</span>
+              <span style="color: var(--red); font-weight: 700; position: relative;">${price.toFixed(2)}</span>
+              <span style="text-align: right; position: relative;">${shares.toLocaleString()}</span>
+              <span style="text-align: right; color: var(--text-dim); position: relative;">${orderCount}</span>
             </div>
           `;
         }).join('');
@@ -1750,37 +1754,49 @@
       if (bidLadder) {
         const displayBids = bids.slice(0, 7);
         bidLadder.innerHTML = displayBids.map(b => {
-          const pct = Math.min(100, Math.round((b.shares / maxBidVol) * 100));
+          const shares = Number(b.shares != null ? b.shares : (b.volume || 0));
+          const price = Number(b.price || 0);
+          const orderCount = b.order_count != null ? b.order_count : (b.count || 1);
+          const pct = Math.min(100, Math.round((shares / maxBidVol) * 100));
           return `
-            <div class="ob-row" onclick="setPrice(${b.price})">
+            <div class="ob-row" onclick="setPrice(${price})">
               <div class="ob-depth-bar bid" style="width: ${pct}%;"></div>
-              <span style="color: var(--green); font-weight: 700; position: relative;">${b.price.toFixed(2)}</span>
-              <span style="text-align: right; position: relative;">${b.shares.toLocaleString()}</span>
-              <span style="text-align: right; color: var(--text-dim); position: relative;">${b.order_count}</span>
+              <span style="color: var(--green); font-weight: 700; position: relative;">${price.toFixed(2)}</span>
+              <span style="text-align: right; position: relative;">${shares.toLocaleString()}</span>
+              <span style="text-align: right; color: var(--text-dim); position: relative;">${orderCount}</span>
             </div>
           `;
         }).join('');
       }
 
       // Imbalance Bar
-      const totalBidVol = bids.reduce((acc, b) => acc + b.shares, 0);
-      const totalAskVol = asks.reduce((acc, a) => acc + a.shares, 0);
+      const totalBidVol = bids.reduce((acc, b) => acc + Number(b.shares != null ? b.shares : (b.volume || 0)), 0);
+      const totalAskVol = asks.reduce((acc, a) => acc + Number(a.shares != null ? a.shares : (a.volume || 0)), 0);
       const totalVol = Math.max(1, totalBidVol + totalAskVol);
       const bidRatio = Math.round((totalBidVol / totalVol) * 100);
       const askRatio = 100 - bidRatio;
 
-      document.getElementById('lbl-bid-depth').innerText = `${bidRatio}%`;
-      document.getElementById('lbl-ask-depth').innerText = `${askRatio}%`;
-      document.getElementById('imbalance-fill').style.width = `${bidRatio}%`;
+      const lblBidDepth = document.getElementById('lbl-bid-depth');
+      if (lblBidDepth) lblBidDepth.innerText = `${bidRatio}%`;
+      const lblAskDepth = document.getElementById('lbl-ask-depth');
+      if (lblAskDepth) lblAskDepth.innerText = `${askRatio}%`;
+      const imbFill = document.getElementById('imbalance-fill');
+      if (imbFill) imbFill.style.width = `${bidRatio}%`;
 
       // Telemetry
-      document.getElementById('metric-rate').innerText = `${data.orders_per_sec || 0} ord/s`;
-      document.getElementById('metric-orders').innerText = (data.total_orders || 0).toLocaleString();
-      document.getElementById('metric-trades').innerText = (data.total_trades || 0).toLocaleString();
-      document.getElementById('metric-vol').innerText = (data.total_volume || 0).toLocaleString();
+      const metricRate = document.getElementById('metric-rate');
+      if (metricRate) metricRate.innerText = `${data.orders_per_sec || 0} ord/s`;
+      const metricOrders = document.getElementById('metric-orders');
+      if (metricOrders) metricOrders.innerText = Number(data.total_orders || 0).toLocaleString();
+      const metricTrades = document.getElementById('metric-trades');
+      if (metricTrades) metricTrades.innerText = Number(data.total_trades || 0).toLocaleString();
+      const metricVol = document.getElementById('metric-vol');
+      if (metricVol) metricVol.innerText = Number(data.total_volume || 0).toLocaleString();
       if (data.latency) {
-        document.getElementById('metric-p50').innerText = `${(data.latency.p50_us || 0).toFixed(2)} μs`;
-        document.getElementById('metric-p99').innerText = `${(data.latency.p99_us || 0).toFixed(2)} μs`;
+        const metricP50 = document.getElementById('metric-p50');
+        if (metricP50) metricP50.innerText = `${Number(data.latency.p50_us || 0).toFixed(2)} μs`;
+        const metricP99 = document.getElementById('metric-p99');
+        if (metricP99) metricP99.innerText = `${Number(data.latency.p99_us || 0).toFixed(2)} μs`;
       }
 
       // Chart Ticks
@@ -1790,73 +1806,97 @@
       }
 
       // Open Orders
-      const openOrders = data.user_open_orders ? Object.values(data.user_open_orders) : [];
+      const openOrders = Array.isArray(data.open_orders) ? data.open_orders : (data.user_open_orders ? Object.values(data.user_open_orders) : []);
       const ordersTbody = document.getElementById('table-open-orders');
-      document.getElementById('tab-orders').innerText = `OPEN ORDERS (${openOrders.length})`;
+      const tabOrders = document.getElementById('tab-orders');
+      if (tabOrders) tabOrders.innerText = `OPEN ORDERS (${openOrders.length})`;
 
-      if (openOrders.length === 0) {
-        ordersTbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-dim); padding: 12px;">No Active Open Orders</td></tr>';
-      } else {
-        ordersTbody.innerHTML = openOrders.map(o => `
-          <tr>
-            <td style="color: var(--cyan);">#${o.order_id}</td>
-            <td style="font-weight: 700;">${o.symbol}</td>
-            <td style="color: ${o.side === 'BUY' ? 'var(--green)' : 'var(--red)'}; font-weight: 700;">${o.side}</td>
-            <td>LIMIT</td>
-            <td style="font-weight: 700;">$${o.price.toFixed(2)}</td>
-            <td>${o.quantity}</td>
-            <td>${o.filled} / ${o.quantity}</td>
-            <td>${o.tif}</td>
-            <td style="text-align: right;">
-              <button class="btn-cancel-sm" onclick="cancelOrder(${o.order_id})">CANCEL</button>
-            </td>
-          </tr>
-        `).join('');
+      if (ordersTbody) {
+        if (openOrders.length === 0) {
+          ordersTbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-dim); padding: 12px;">No Active Open Orders</td></tr>';
+        } else {
+          ordersTbody.innerHTML = openOrders.map(o => `
+            <tr>
+              <td style="color: var(--cyan);">#${o.order_id || o.id}</td>
+              <td style="font-weight: 700;">${o.symbol || currentSymbol}</td>
+              <td style="color: ${o.side === 'BUY' ? 'var(--green)' : 'var(--red)'}; font-weight: 700;">${o.side || 'BUY'}</td>
+              <td>${o.order_type || 'LIMIT'}</td>
+              <td style="font-weight: 700;">$${Number(o.price || 0).toFixed(2)}</td>
+              <td>${Number(o.quantity || 0).toLocaleString()}</td>
+              <td>${Number(o.filled || 0).toLocaleString()} / ${Number(o.quantity || 0).toLocaleString()}</td>
+              <td>${o.tif || 'GTC'}</td>
+              <td style="text-align: right;">
+                <button class="btn-cancel-sm" onclick="cancelOrder(${o.order_id || o.id})">CANCEL</button>
+              </td>
+            </tr>
+          `).join('');
+        }
       }
 
       // Trade Tape
       const trades = data.recent_trades || [];
-      document.getElementById('tape-count').innerText = trades.length;
+      const tapeCount = document.getElementById('tape-count');
+      if (tapeCount) tapeCount.innerText = trades.length;
       const tape = document.getElementById('trade-tape');
-      if (trades.length > 0 && tape) {
-        tape.innerHTML = trades.slice(0, 18).map(t => {
-          const isBuy = t.taker_side === 'BUY' || t.side === 'BUY';
-          return `
-            <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 6px; background: rgba(9, 13, 20, 0.4); border-left: 2px solid ${isBuy ? 'var(--green)' : 'var(--red)'};">
-              <span style="color: var(--text-dim);">${t.time || '10:00:00'}</span>
-              <span style="font-weight: 700;">$${(t.price || 0).toFixed(2)}</span>
-              <span>${(t.shares || t.quantity || 0).toLocaleString()} shs</span>
-              <span style="color: ${isBuy ? 'var(--green)' : 'var(--red)'}; font-weight: 700;">${isBuy ? 'BUY' : 'SELL'}</span>
-            </div>
-          `;
-        }).join('');
+      if (tape) {
+        if (trades.length > 0) {
+          tape.innerHTML = trades.slice(0, 18).map(t => {
+            const isBuy = t.taker_side === 'BUY' || t.side === 'BUY';
+            const price = Number(t.price || 0);
+            const shares = Number(t.shares != null ? t.shares : (t.quantity || 0));
+            return `
+              <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 6px; background: rgba(9, 13, 20, 0.4); border-left: 2px solid ${isBuy ? 'var(--green)' : 'var(--red)'};">
+                <span style="color: var(--text-dim);">${t.time || '10:00:00'}</span>
+                <span style="font-weight: 700;">$${price.toFixed(2)}</span>
+                <span>${shares.toLocaleString()} shs</span>
+                <span style="color: ${isBuy ? 'var(--green)' : 'var(--red)'}; font-weight: 700;">${isBuy ? 'BUY' : 'SELL'}</span>
+              </div>
+            `;
+          }).join('');
+        } else {
+          tape.innerHTML = '<div style="color: var(--text-dim); padding: 8px; font-size: 0.75rem; text-align: center;">Waiting for executions...</div>';
+        }
       }
 
       // Whales
       const whales = data.whale_alerts || [];
       const whaleList = document.getElementById('whale-list');
-      if (whales.length > 0 && whaleList) {
-        whaleList.innerHTML = whales.slice(0, 4).map(w => `
-          <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.72rem; padding: 3px 6px; background: rgba(245, 158, 11, 0.1); border-left: 2px solid var(--amber); border-radius: 3px;">
-            <span style="color: var(--amber); font-weight: 800;">WHALE ${w.side}</span>
-            <span style="font-weight: 700;">$${w.price.toFixed(2)}</span>
-            <span>${w.shares.toLocaleString()} shs</span>
-          </div>
-        `).join('');
+      if (whaleList) {
+        if (whales.length > 0) {
+          whaleList.innerHTML = whales.slice(0, 4).map(w => {
+            const side = w.side || w.aggressor_side || 'EXEC';
+            const price = Number(w.price || 0);
+            const shares = Number(w.shares != null ? w.shares : (w.quantity || 0));
+            return `
+              <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.72rem; padding: 3px 6px; background: rgba(245, 158, 11, 0.1); border-left: 2px solid var(--amber); border-radius: 3px;">
+                <span style="color: var(--amber); font-weight: 800;">WHALE ${side}</span>
+                <span style="font-weight: 700;">$${price.toFixed(2)}</span>
+                <span>${shares.toLocaleString()} shs</span>
+              </div>
+            `;
+          }).join('');
+        } else {
+          whaleList.innerHTML = '<div style="color: var(--text-dim); padding: 8px; font-size: 0.75rem; text-align: center;">No high-impact sweeps detected</div>';
+        }
       }
 
       // Account
       if (data.account) {
         const a = data.account;
-        availableCash = a.cash_available || 10000000.0;
-        document.getElementById('acc-cash-balance').innerText = `$${(a.cash_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-        document.getElementById('acc-cash-avail').innerText = `$${availableCash.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-        document.getElementById('acc-cash-reserved').innerText = `$${(a.cash_reserved || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+        availableCash = Number(a.cash_available != null ? a.cash_available : 10000000.0);
+        const cashBalEl = document.getElementById('acc-cash-balance');
+        if (cashBalEl) cashBalEl.innerText = `$${Number(a.cash_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const cashAvailEl = document.getElementById('acc-cash-avail');
+        if (cashAvailEl) cashAvailEl.innerText = `$${availableCash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const cashResEl = document.getElementById('acc-cash-reserved');
+        if (cashResEl) cashResEl.innerText = `$${Number(a.cash_reserved || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
         const symKey = currentSymbol.split('-')[0];
-        document.getElementById('acc-curr-symbol').innerText = symKey;
-        const curShares = a.positions ? (a.positions[symKey] || a.positions[data.symbol_id] || 0) : 0;
-        document.getElementById('acc-shares').innerText = `${curShares.toLocaleString()} shs`;
+        const accCurrSym = document.getElementById('acc-curr-symbol');
+        if (accCurrSym) accCurrSym.innerText = symKey;
+        const curShares = a.positions ? Number(a.positions[symKey] || a.positions[data.symbol_id] || 0) : 0;
+        const accSharesEl = document.getElementById('acc-shares');
+        if (accSharesEl) accSharesEl.innerText = `${curShares.toLocaleString()} shs`;
       }
 
       // ML Pattern Radar
@@ -1869,16 +1909,16 @@
           pill.innerText = reg.replace(/_/g, ' ');
           if (reg === 'MOMENTUM_BREAKOUT_BULL') {
             pill.style.color = 'var(--green)';
-            desc.innerHTML = '<strong style="color: var(--green);">⚡ Bullish Breakout:</strong> Aggressive institutional buyers absorbing ask depth. Strong upward drift expected.';
+            if (desc) desc.innerHTML = '<strong style="color: var(--green);">⚡ Bullish Breakout:</strong> Aggressive institutional buyers absorbing ask depth. Strong upward drift expected.';
           } else if (reg === 'MOMENTUM_BREAKOUT_BEAR') {
             pill.style.color = 'var(--red)';
-            desc.innerHTML = '<strong style="color: var(--red);">🔻 Bearish Cascade:</strong> Aggressive liquidation. Bids collapsing downward.';
+            if (desc) desc.innerHTML = '<strong style="color: var(--red);">🔻 Bearish Cascade:</strong> Aggressive liquidation. Bids collapsing downward.';
           } else if (reg === 'VOLATILITY_EXPANSION_CHOP') {
             pill.style.color = 'var(--amber)';
-            desc.innerHTML = '<strong style="color: var(--amber);">🌪️ Volatility Shock:</strong> Spreads widened by 2x. High-frequency sweeps active.';
+            if (desc) desc.innerHTML = '<strong style="color: var(--amber);">🌪️ Volatility Shock:</strong> Spreads widened by 2x. High-frequency sweeps active.';
           } else {
             pill.style.color = 'var(--cyan)';
-            desc.innerHTML = '<strong style="color: var(--cyan);">🌊 Balanced Consolidation:</strong> Order book in equilibrium. Two-sided market making dominant.';
+            if (desc) desc.innerHTML = '<strong style="color: var(--cyan);">🌊 Balanced Consolidation:</strong> Order book in equilibrium. Two-sided market making dominant.';
           }
         }
         const confVal = document.getElementById('ml-pattern-conf-val');
@@ -1903,45 +1943,64 @@
       // Persisted Market Stats
       if (data.market_stats) {
         const ms = data.market_stats;
-        document.getElementById('ml-pattern-storage-stats').innerText = `${(ms.persisted_ticks || 0).toLocaleString()} Ticks`;
+        const statEl = document.getElementById('ml-pattern-storage-stats');
+        if (statEl) {
+          statEl.innerText = `${Number(ms.persisted_ticks || 0).toLocaleString()} Ticks`;
+        }
       }
 
       // ML Impact
       if (data.ml_impact) {
         const imp = data.ml_impact;
-        const ofi = imp.order_flow_imbalance || 0;
-        document.getElementById('ml-ofi-val').innerText = `${ofi >= 0 ? '+' : ''}${ofi.toFixed(2)}`;
-        document.getElementById('lbl-imbalance').innerText = `${ofi >= 0 ? '+' : ''}${ofi.toFixed(2)}`;
-        document.getElementById('ml-net-flow').innerText = (imp.net_order_flow || 0).toLocaleString();
-        document.getElementById('ml-impact-pct').innerText = `${(imp.cumulative_impact_pct || 0).toFixed(2)}%`;
+        const ofi = Number(imp.order_flow_imbalance || 0);
+        const ofiEl = document.getElementById('ml-ofi-val');
+        if (ofiEl) ofiEl.innerText = `${ofi >= 0 ? '+' : ''}${ofi.toFixed(2)}`;
+        const lblImbalance = document.getElementById('lbl-imbalance');
+        if (lblImbalance) lblImbalance.innerText = `${ofi >= 0 ? '+' : ''}${ofi.toFixed(2)}`;
+        const netFlowEl = document.getElementById('ml-net-flow');
+        if (netFlowEl) netFlowEl.innerText = Number(imp.net_order_flow || 0).toLocaleString();
+        const impactPctEl = document.getElementById('ml-impact-pct');
+        if (impactPctEl) impactPctEl.innerText = `${Number(imp.cumulative_impact_pct || 0).toFixed(2)}%`;
       }
 
       // Algo Desk
       if (data.algo_stats) {
         const st = data.algo_stats;
-        const tot = st.total_algorithmic_pnl || 0;
-        document.getElementById('algo-total-pnl').innerText = `${tot >= 0 ? '+$' : '-$'}${Math.abs(tot).toFixed(2)}`;
-        document.getElementById('tab-algo').innerText = `🤖 ALGO DESK (${tot >= 0 ? '+$' : '-$'}${Math.abs(tot).toFixed(0)})`;
+        const tot = Number(st.total_algorithmic_pnl || 0);
+        const algoTotEl = document.getElementById('algo-total-pnl');
+        if (algoTotEl) algoTotEl.innerText = `${tot >= 0 ? '+$' : '-$'}${Math.abs(tot).toFixed(2)}`;
+        const tabAlgo = document.getElementById('tab-algo');
+        if (tabAlgo) tabAlgo.innerText = `🤖 ALGO DESK (${tot >= 0 ? '+$' : '-$'}${Math.abs(tot).toFixed(0)})`;
         if (st.market_maker) {
-          document.getElementById('mm-inventory').innerText = st.market_maker.inventory;
-          document.getElementById('mm-pnl').innerText = `$${(st.market_maker.total_pnl || 0).toFixed(2)}`;
-          document.getElementById('mm-win').innerText = `${Math.round(st.market_maker.win_rate * 100)}%`;
+          const invEl = document.getElementById('mm-inventory');
+          if (invEl) invEl.innerText = st.market_maker.inventory ?? 0;
+          const pnlEl = document.getElementById('mm-pnl');
+          if (pnlEl) pnlEl.innerText = `$${Number(st.market_maker.total_pnl || 0).toFixed(2)}`;
+          const winEl = document.getElementById('mm-win');
+          if (winEl) winEl.innerText = `${Math.round(Number(st.market_maker.win_rate || 0) * 100)}%`;
         }
         if (st.momentum_bot) {
-          document.getElementById('mom-signal').innerText = st.momentum_bot.active ? 'ACTIVE' : 'NEUTRAL';
-          document.getElementById('mom-pnl').innerText = `$${(st.momentum_bot.total_pnl || 0).toFixed(2)}`;
-          document.getElementById('mom-trades').innerText = st.momentum_bot.trades_executed || 0;
+          const momSig = document.getElementById('mom-signal');
+          if (momSig) momSig.innerText = st.momentum_bot.active ? 'ACTIVE' : 'NEUTRAL';
+          const momPnl = document.getElementById('mom-pnl');
+          if (momPnl) momPnl.innerText = `$${Number(st.momentum_bot.total_pnl || 0).toFixed(2)}`;
+          const momTrades = document.getElementById('mom-trades');
+          if (momTrades) momTrades.innerText = st.momentum_bot.trades_executed || 0;
         }
       }
 
       // Risk Gatekeeper
       if (data.risk) {
-        document.getElementById('risk-total-checked').innerText = (data.risk.orders_evaluated || 0).toLocaleString();
-        document.getElementById('risk-total-blocked').innerText = (data.risk.orders_blocked || 0).toLocaleString();
+        const riskTotalChecked = document.getElementById('risk-total-checked');
+        if (riskTotalChecked) riskTotalChecked.innerText = Number(data.risk.orders_evaluated || 0).toLocaleString();
+        const riskTotalBlocked = document.getElementById('risk-total-blocked');
+        if (riskTotalBlocked) riskTotalBlocked.innerText = Number(data.risk.orders_blocked || 0).toLocaleString();
         const cb = data.risk.circuit_breaker_active;
         const cbPill = document.getElementById('cb-status-pill');
-        cbPill.innerText = cb ? 'HALTED' : 'NOMINAL';
-        cbPill.style.color = cb ? 'var(--red)' : 'var(--green)';
+        if (cbPill) {
+          cbPill.innerText = cb ? 'HALTED' : 'NOMINAL';
+          cbPill.style.color = cb ? 'var(--red)' : 'var(--green)';
+        }
       }
     }
 

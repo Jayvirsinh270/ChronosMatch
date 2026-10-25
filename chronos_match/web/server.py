@@ -13,7 +13,7 @@ import time
 from typing import Dict, List, Optional, Any, Union
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 
 from chronos_match.protocol import (
@@ -560,6 +560,12 @@ async def lifespan(app_instance: FastAPI):
 # Initialize App & Server instance
 server = WebTradingServer()
 app = FastAPI(title="ChronosMatch Multi-Asset Trading Terminal", lifespan=lifespan)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Return empty 204 No Content for favicon requests to prevent 404 logs."""
+    return Response(status_code=204)
 
 
 @app.get("/", response_class=HTMLResponse)
