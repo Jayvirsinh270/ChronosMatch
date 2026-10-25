@@ -29,6 +29,7 @@ chronos_match/engine/*_cy.c
 
 # Large Market Datasets
 data/
+!data/ml_weights.json
 
 # Shared Memory Ring Buffer & Test Files
 *.ring

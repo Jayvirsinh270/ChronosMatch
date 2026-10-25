@@ -1,0 +1,1147 @@
+{
+  "version": "2.0",
+  "trained_at": "2026-10-25T12:43:07Z",
+  "total_samples": 1398509,
+  "total_stocks": 789,
+  "feature_names": [
+    "rsi14",
+    "macd_signal",
+    "bb_bandwidth",
+    "atr_ratio",
+    "momentum_5d",
+    "momentum_10d",
+    "volume_ratio",
+    "vol_10d",
+    "price_acceleration"
+  ],
+  "gnb_params": {
+    "MOMENTUM_BREAKOUT_BULL": {
+      "mean": [
+        49.64830839524446,
+        -429.0485328236083,
+        13.059989453410246,
+        1.0410202942213875,
+        2.6190221120972788,
+        16.802188302861648,
+        2.793629830879163,
+        32.8920417490341,
+        -2674.842098772743
+      ],
+      "var": [
+        152.55240709524423,
+        53504184071.41897,
+        1187.64579421204,
+        9.162627384108228,
+        1010814.7204228608,
+        26763850.77621303,
+        348413.65991951444,
+        26316.88877854844,
+        1246155548603.4941
+      ],
+      "count": 344513
+    },
+    "MOMENTUM_BREAKOUT_BEAR": {
+      "mean": [
+        49.903543518176974,
+        -214.4491081786976,
+        13.389321976362227,
+        1.223452299583558,
+        390.73559088446996,
+        321.68760722600956,
+        3.608246212335107,
+        34.628503218612856,
+        -331.9324216360437
+      ],
+      "var": [
+        154.4959362724171,
+        1790257333.9335003,
+        1561.5022764593668,
+        3469.0912108161388,
+        5429799638.447899,
+        3644570680.907669,
+        790715.3491539141,
+        35518.13277761278,
+        14316087443.355045
+      ],
+      "count": 311435
+    },
+    "VOLATILITY_EXPANSION_CHOP": {
+      "mean": [
+        45.22508873553907,
+        2191.171720987411,
+        26.298815226673806,
+        6.090634242249363,
+        933.1953669628699,
+        1358.5462786323283,
+        142.75428403297562,
+        134.5587512200356,
+        -227.5162593186895
+      ],
+      "var": [
+        420.678233796923,
+        9732963611.141663,
+        10073.151837551892,
+        102199.00736672683,
+        1716686907.6108634,
+        2641828073.8264723,
+        32530657.551517785,
+        364174.7834080339,
+        252933339230.0057
+      ],
+      "count": 7775
+    },
+    "BALANCED_CONSOLIDATION": {
+      "mean": [
+        53.34052233414817,
+        -64.99350977409274,
+        6.430192179415717,
+        0.9880172292349607,
+        49.89975712742498,
+        46.29989561648734,
+        1.7683956409614408,
+        14.828317191607107,
+        195.71255686210966
+      ],
+      "var": [
+        144.40108345772114,
+        1008896304.0846263,
+        368.8939998601684,
+        0.022193531523741816,
+        792090247.8561642,
+        749233835.5850523,
+        33672.01514250842,
+        6380.68612286314,
+        39126025678.85784
+      ],
+      "count": 734786
+    }
+  },
+  "priors": {
+    "MOMENTUM_BREAKOUT_BULL": 0.24634306965489675,
+    "MOMENTUM_BREAKOUT_BEAR": 0.22269073706354411,
+    "VOLATILITY_EXPANSION_CHOP": 0.005559492287857997,
+    "BALANCED_CONSOLIDATION": 0.5254067009937011
+  },
+  "regime_counts": {
+    "MOMENTUM_BREAKOUT_BULL": 344513,
+    "MOMENTUM_BREAKOUT_BEAR": 311435,
+    "VOLATILITY_EXPANSION_CHOP": 7775,
+    "BALANCED_CONSOLIDATION": 734786
+  },
+  "w_ofi": 2.5953,
+  "w_price_trend": 1.1417,
+  "w_autocorr": 1.296,
+  "stock_profiles": {
+    "QQQ": {
+      "daily_vol": 0.019567,
+      "avg_volume": 36065975,
+      "latest_close": 182.31
+    },
+    "SPY": {
+      "daily_vol": 0.018822,
+      "avg_volume": 87498837,
+      "latest_close": 246.15
+    },
+    "AAPL": {
+      "daily_vol": 0.024763,
+      "avg_volume": 32397203,
+      "latest_close": 240.91
+    },
+    "AMZN": {
+      "daily_vol": 0.017901,
+      "avg_volume": 3954049,
+      "latest_close": 1907.7
+    },
+    "GOOGL": {
+      "daily_vol": 0.021789,
+      "avg_volume": 1725025,
+      "latest_close": 1102.1
+    },
+    "JPM": {
+      "daily_vol": 0.027349,
+      "avg_volume": 13216817,
+      "latest_close": 84.36
+    },
+    "MSFT": {
+      "daily_vol": 0.024163,
+      "avg_volume": 29754903,
+      "latest_close": 152.11
+    },
+    "NVDA": {
+      "daily_vol": 0.033594,
+      "avg_volume": 10725709,
+      "latest_close": 243.07
+    },
+    "TSLA": {
+      "daily_vol": 0.046074,
+      "avg_volume": 12266062,
+      "latest_close": 481.56
+    },
+    "AAAU": {
+      "daily_vol": 0.010336,
+      "avg_volume": 91300,
+      "latest_close": 15.87
+    },
+    "AADR": {
+      "daily_vol": 0.01994,
+      "avg_volume": 13736,
+      "latest_close": 39.03
+    },
+    "AAXJ": {
+      "daily_vol": 0.017692,
+      "avg_volume": 1377167,
+      "latest_close": 57.07
+    },
+    "ABEQ": {
+      "daily_vol": 0.027445,
+      "avg_volume": 31574,
+      "latest_close": 19.705
+    },
+    "ACES": {
+      "daily_vol": 0.023561,
+      "avg_volume": 27700,
+      "latest_close": 26.91
+    },
+    "ACIO": {
+      "daily_vol": 0.009704,
+      "avg_volume": 34250,
+      "latest_close": 22.48
+    },
+    "ACSG": {
+      "daily_vol": 0.016643,
+      "avg_volume": 807,
+      "latest_close": 21.014
+    },
+    "ACSI": {
+      "daily_vol": 0.017009,
+      "avg_volume": 2236,
+      "latest_close": 28.0
+    },
+    "ACT": {
+      "daily_vol": 0.0169,
+      "avg_volume": 2730,
+      "latest_close": 18.33
+    },
+    "ACWF": {
+      "daily_vol": 0.017766,
+      "avg_volume": 13583,
+      "latest_close": 23.0
+    },
+    "ACWI": {
+      "daily_vol": 0.018102,
+      "avg_volume": 3066241,
+      "latest_close": 59.7
+    },
+    "ACWV": {
+      "daily_vol": 0.015179,
+      "avg_volume": 373848,
+      "latest_close": 77.94
+    },
+    "ACWX": {
+      "daily_vol": 0.017917,
+      "avg_volume": 1612268,
+      "latest_close": 35.85
+    },
+    "ADME": {
+      "daily_vol": 0.010713,
+      "avg_volume": 19757,
+      "latest_close": 27.4468
+    },
+    "ADRE": {
+      "daily_vol": 0.018598,
+      "avg_volume": 7952,
+      "latest_close": 32.15
+    },
+    "AESR": {
+      "daily_vol": 0.030513,
+      "avg_volume": 29887,
+      "latest_close": 7.89
+    },
+    "AFIF": {
+      "daily_vol": 0.00821,
+      "avg_volume": 48471,
+      "latest_close": 9.71
+    },
+    "AFK": {
+      "daily_vol": 0.01935,
+      "avg_volume": 9661,
+      "latest_close": 12.16
+    },
+    "AFLG": {
+      "daily_vol": 0.029593,
+      "avg_volume": 2586,
+      "latest_close": 15.119
+    },
+    "AFMC": {
+      "daily_vol": 0.033089,
+      "avg_volume": 1159,
+      "latest_close": 13.373
+    },
+    "AFSM": {
+      "daily_vol": 0.03448,
+      "avg_volume": 1126,
+      "latest_close": 13.689
+    },
+    "AFTY": {
+      "daily_vol": 0.017412,
+      "avg_volume": 13148,
+      "latest_close": 14.694
+    },
+    "AGG": {
+      "daily_vol": 0.005359,
+      "avg_volume": 5150364,
+      "latest_close": 114.73
+    },
+    "AGGP": {
+      "daily_vol": 0.003049,
+      "avg_volume": 34872,
+      "latest_close": 19.95
+    },
+    "AGGY": {
+      "daily_vol": 0.005266,
+      "avg_volume": 214341,
+      "latest_close": 51.53
+    },
+    "AGND": {
+      "daily_vol": 0.004323,
+      "avg_volume": 3203,
+      "latest_close": 37.25
+    },
+    "AGQ": {
+      "daily_vol": 0.037768,
+      "avg_volume": 336094,
+      "latest_close": 18.07
+    },
+    "AGT": {
+      "daily_vol": 0.030413,
+      "avg_volume": 9973,
+      "latest_close": 13.432
+    },
+    "AGZ": {
+      "daily_vol": 0.002187,
+      "avg_volume": 62293,
+      "latest_close": 120.62
+    },
+    "AGZD": {
+      "daily_vol": 0.003609,
+      "avg_volume": 12140,
+      "latest_close": 46.46
+    },
+    "AIA": {
+      "daily_vol": 0.017728,
+      "avg_volume": 57246,
+      "latest_close": 53.64
+    },
+    "AIEQ": {
+      "daily_vol": 0.018009,
+      "avg_volume": 33547,
+      "latest_close": 21.7
+    },
+    "AIIQ": {
+      "daily_vol": 0.016426,
+      "avg_volume": 1351,
+      "latest_close": 19.523
+    },
+    "AIQ": {
+      "daily_vol": 0.018525,
+      "avg_volume": 16096,
+      "latest_close": 14.86
+    },
+    "AIRR": {
+      "daily_vol": 0.02274,
+      "avg_volume": 14300,
+      "latest_close": 18.77
+    },
+    "ALFA": {
+      "daily_vol": 0.019175,
+      "avg_volume": 2590,
+      "latest_close": 42.1
+    },
+    "ALTS": {
+      "daily_vol": 0.008079,
+      "avg_volume": 683,
+      "latest_close": 31.897
+    },
+    "ALTY": {
+      "daily_vol": 0.023581,
+      "avg_volume": 15360,
+      "latest_close": 8.122
+    },
+    "AMCA": {
+      "daily_vol": 0.018772,
+      "avg_volume": 2646,
+      "latest_close": 22.706
+    },
+    "AMLP": {
+      "daily_vol": 0.036142,
+      "avg_volume": 22709913,
+      "latest_close": 3.39
+    },
+    "AMOM": {
+      "daily_vol": 0.019413,
+      "avg_volume": 890,
+      "latest_close": 22.938
+    },
+    "AMZA": {
+      "daily_vol": 0.053251,
+      "avg_volume": 99503,
+      "latest_close": 10.75
+    },
+    "ANGL": {
+      "daily_vol": 0.012267,
+      "avg_volume": 674198,
+      "latest_close": 24.93
+    },
+    "AOA": {
+      "daily_vol": 0.013658,
+      "avg_volume": 70158,
+      "latest_close": 46.01
+    },
+    "AOK": {
+      "daily_vol": 0.006103,
+      "avg_volume": 97944,
+      "latest_close": 33.48
+    },
+    "AOM": {
+      "daily_vol": 0.007545,
+      "avg_volume": 162911,
+      "latest_close": 36.07
+    },
+    "AOR": {
+      "daily_vol": 0.01022,
+      "avg_volume": 127462,
+      "latest_close": 40.45
+    },
+    "ARCM": {
+      "daily_vol": 0.001159,
+      "avg_volume": 1390,
+      "latest_close": 99.22
+    },
+    "ARGT": {
+      "daily_vol": 0.030751,
+      "avg_volume": 79656,
+      "latest_close": 15.7
+    },
+    "ARKF": {
+      "daily_vol": 0.020671,
+      "avg_volume": 27999,
+      "latest_close": 19.225
+    },
+    "ARKG": {
+      "daily_vol": 0.026399,
+      "avg_volume": 165773,
+      "latest_close": 29.13
+    },
+    "ARKK": {
+      "daily_vol": 0.026054,
+      "avg_volume": 358347,
+      "latest_close": 40.24
+    },
+    "ARKQ": {
+      "daily_vol": 0.021739,
+      "avg_volume": 30111,
+      "latest_close": 31.008
+    },
+    "ARKW": {
+      "daily_vol": 0.024209,
+      "avg_volume": 135507,
+      "latest_close": 49.12
+    },
+    "ASEA": {
+      "daily_vol": 0.018007,
+      "avg_volume": 7370,
+      "latest_close": 10.51
+    },
+    "ASET": {
+      "daily_vol": 0.016181,
+      "avg_volume": 1438,
+      "latest_close": 22.072
+    },
+    "ASHR": {
+      "daily_vol": 0.018796,
+      "avg_volume": 6092841,
+      "latest_close": 25.44
+    },
+    "ASHS": {
+      "daily_vol": 0.019799,
+      "avg_volume": 36118,
+      "latest_close": 25.16
+    },
+    "ASHX": {
+      "daily_vol": 0.017408,
+      "avg_volume": 5953,
+      "latest_close": 18.81
+    },
+    "AUSF": {
+      "daily_vol": 0.021258,
+      "avg_volume": 26591,
+      "latest_close": 16.74
+    },
+    "AVDE": {
+      "daily_vol": 0.022418,
+      "avg_volume": 61592,
+      "latest_close": 38.19
+    },
+    "AVDV": {
+      "daily_vol": 0.021433,
+      "avg_volume": 26440,
+      "latest_close": 35.19
+    },
+    "AVEM": {
+      "daily_vol": 0.022195,
+      "avg_volume": 38652,
+      "latest_close": 38.1
+    },
+    "AVUS": {
+      "daily_vol": 0.025793,
+      "avg_volume": 67461,
+      "latest_close": 39.02
+    },
+    "AVUV": {
+      "daily_vol": 0.030734,
+      "avg_volume": 35466,
+      "latest_close": 29.03
+    },
+    "AWTM": {
+      "daily_vol": 0.002014,
+      "avg_volume": 44270,
+      "latest_close": 47.472
+    },
+    "AXJL": {
+      "daily_vol": 0.017638,
+      "avg_volume": 1721,
+      "latest_close": 50.95
+    },
+    "BAB": {
+      "daily_vol": 0.013649,
+      "avg_volume": 264492,
+      "latest_close": 29.9
+    },
+    "BAPR": {
+      "daily_vol": 0.013568,
+      "avg_volume": 32147,
+      "latest_close": 24.14
+    },
+    "BATT": {
+      "daily_vol": 0.021787,
+      "avg_volume": 5717,
+      "latest_close": 6.51
+    },
+    "BAUG": {
+      "daily_vol": 0.016303,
+      "avg_volume": 17512,
+      "latest_close": 21.945
+    },
+    "BBAX": {
+      "daily_vol": 0.018246,
+      "avg_volume": 190417,
+      "latest_close": 18.27
+    },
+    "BBC": {
+      "daily_vol": 0.02497,
+      "avg_volume": 13468,
+      "latest_close": 27.283
+    },
+    "BBCA": {
+      "daily_vol": 0.022005,
+      "avg_volume": 344732,
+      "latest_close": 18.06
+    },
+    "BBEU": {
+      "daily_vol": 0.017849,
+      "avg_volume": 1090867,
+      "latest_close": 18.36
+    },
+    "BBH": {
+      "daily_vol": 0.01686,
+      "avg_volume": 17455,
+      "latest_close": 124.43
+    },
+    "BBIN": {
+      "daily_vol": 0.027541,
+      "avg_volume": 10883,
+      "latest_close": 38.266
+    },
+    "BBJP": {
+      "daily_vol": 0.01392,
+      "avg_volume": 1004801,
+      "latest_close": 19.5
+    },
+    "BBP": {
+      "daily_vol": 0.021055,
+      "avg_volume": 3216,
+      "latest_close": 35.864
+    },
+    "BBRE": {
+      "daily_vol": 0.0226,
+      "avg_volume": 133103,
+      "latest_close": 59.91
+    },
+    "BBSA": {
+      "daily_vol": 0.00248,
+      "avg_volume": 8912,
+      "latest_close": 25.84
+    },
+    "BBUS": {
+      "daily_vol": 0.018539,
+      "avg_volume": 17126,
+      "latest_close": 44.37
+    },
+    "BCD": {
+      "daily_vol": 0.008113,
+      "avg_volume": 565,
+      "latest_close": 19.49
+    },
+    "BCI": {
+      "daily_vol": 0.011078,
+      "avg_volume": 51354,
+      "latest_close": 17.18
+    },
+    "BDCY": {
+      "daily_vol": 0.098895,
+      "avg_volume": 1555,
+      "latest_close": 4.412
+    },
+    "BDEC": {
+      "daily_vol": 0.021443,
+      "avg_volume": 34929,
+      "latest_close": 22.07
+    },
+    "BDRY": {
+      "daily_vol": 0.034214,
+      "avg_volume": 24175,
+      "latest_close": 6.29
+    },
+    "BFIT": {
+      "daily_vol": 0.018302,
+      "avg_volume": 10236,
+      "latest_close": 14.899
+    },
+    "BFOR": {
+      "daily_vol": 0.020411,
+      "avg_volume": 12262,
+      "latest_close": 29.33
+    },
+    "BGRN": {
+      "daily_vol": 0.003276,
+      "avg_volume": 9420,
+      "latest_close": 52.71
+    },
+    "BIB": {
+      "daily_vol": 0.037899,
+      "avg_volume": 146301,
+      "latest_close": 42.71
+    },
+    "BIBL": {
+      "daily_vol": 0.020877,
+      "avg_volume": 20770,
+      "latest_close": 23.449
+    },
+    "BICK": {
+      "daily_vol": 0.021348,
+      "avg_volume": 15010,
+      "latest_close": 19.28
+    },
+    "BIL": {
+      "daily_vol": 0.000349,
+      "avg_volume": 2506374,
+      "latest_close": 91.57
+    },
+    "BIS": {
+      "daily_vol": 0.035928,
+      "avg_volume": 86366,
+      "latest_close": 15.17
+    },
+    "BIV": {
+      "daily_vol": 0.004398,
+      "avg_volume": 923672,
+      "latest_close": 89.05
+    },
+    "BIZD": {
+      "daily_vol": 0.02854,
+      "avg_volume": 110466,
+      "latest_close": 8.27
+    },
+    "BJAN": {
+      "daily_vol": 0.014577,
+      "avg_volume": 59707,
+      "latest_close": 23.87
+    },
+    "BJK": {
+      "daily_vol": 0.023082,
+      "avg_volume": 8486,
+      "latest_close": 24.87
+    },
+    "BJUL": {
+      "daily_vol": 0.014365,
+      "avg_volume": 48085,
+      "latest_close": 22.96
+    },
+    "BJUN": {
+      "daily_vol": 0.014851,
+      "avg_volume": 4407,
+      "latest_close": 23.713
+    },
+    "BKF": {
+      "daily_vol": 0.018024,
+      "avg_volume": 68612,
+      "latest_close": 34.21
+    },
+    "BKLN": {
+      "daily_vol": 0.009382,
+      "avg_volume": 6763434,
+      "latest_close": 20.0
+    },
+    "BLCN": {
+      "daily_vol": 0.017383,
+      "avg_volume": 10649,
+      "latest_close": 20.442
+    },
+    "BLES": {
+      "daily_vol": 0.019092,
+      "avg_volume": 31729,
+      "latest_close": 20.11
+    },
+    "BLHY": {
+      "daily_vol": 0.004139,
+      "avg_volume": 10059,
+      "latest_close": 21.49
+    },
+    "BLOK": {
+      "daily_vol": 0.018057,
+      "avg_volume": 26027,
+      "latest_close": 14.82
+    },
+    "BLV": {
+      "daily_vol": 0.010993,
+      "avg_volume": 537921,
+      "latest_close": 105.17
+    },
+    "BND": {
+      "daily_vol": 0.005931,
+      "avg_volume": 3850590,
+      "latest_close": 85.6
+    },
+    "BNDC": {
+      "daily_vol": 0.004501,
+      "avg_volume": 9873,
+      "latest_close": 25.955
+    },
+    "BNDW": {
+      "daily_vol": 0.004021,
+      "avg_volume": 32115,
+      "latest_close": 79.1
+    },
+    "BNDX": {
+      "daily_vol": 0.003346,
+      "avg_volume": 2036750,
+      "latest_close": 56.12
+    },
+    "BNO": {
+      "daily_vol": 0.029093,
+      "avg_volume": 698421,
+      "latest_close": 7.62
+    },
+    "BNOV": {
+      "daily_vol": 0.01984,
+      "avg_volume": 40064,
+      "latest_close": 21.99
+    },
+    "BOCT": {
+      "daily_vol": 0.014834,
+      "avg_volume": 73583,
+      "latest_close": 21.71
+    },
+    "BOIL": {
+      "daily_vol": 0.04352,
+      "avg_volume": 372767,
+      "latest_close": 3.91
+    },
+    "BOND": {
+      "daily_vol": 0.004834,
+      "avg_volume": 192149,
+      "latest_close": 106.13
+    },
+    "BOSS": {
+      "daily_vol": 0.020458,
+      "avg_volume": 3898,
+      "latest_close": 15.382
+    },
+    "BOTZ": {
+      "daily_vol": 0.022759,
+      "avg_volume": 688621,
+      "latest_close": 17.07
+    },
+    "BOUT": {
+      "daily_vol": 0.017597,
+      "avg_volume": 5489,
+      "latest_close": 17.2
+    },
+    "BRF": {
+      "daily_vol": 0.032601,
+      "avg_volume": 23485,
+      "latest_close": 12.41
+    },
+    "BRZU": {
+      "daily_vol": 0.10587,
+      "avg_volume": 3296131,
+      "latest_close": 1.41
+    },
+    "BSAE": {
+      "daily_vol": 0.00207,
+      "avg_volume": 1864,
+      "latest_close": 24.65
+    },
+    "BSBE": {
+      "daily_vol": 0.002225,
+      "avg_volume": 1305,
+      "latest_close": 24.485
+    },
+    "BSCE": {
+      "daily_vol": 0.00317,
+      "avg_volume": 1354,
+      "latest_close": 24.315
+    },
+    "BSCK": {
+      "daily_vol": 0.003043,
+      "avg_volume": 417116,
+      "latest_close": 21.03
+    },
+    "BSCL": {
+      "daily_vol": 0.004748,
+      "avg_volume": 368901,
+      "latest_close": 20.92
+    },
+    "BSCM": {
+      "daily_vol": 0.004853,
+      "avg_volume": 372485,
+      "latest_close": 20.89
+    },
+    "BSCN": {
+      "daily_vol": 0.006161,
+      "avg_volume": 228090,
+      "latest_close": 20.47
+    },
+    "BSCO": {
+      "daily_vol": 0.006746,
+      "avg_volume": 215340,
+      "latest_close": 20.42
+    },
+    "BSCP": {
+      "daily_vol": 0.005726,
+      "avg_volume": 122314,
+      "latest_close": 20.49
+    },
+    "BSCQ": {
+      "daily_vol": 0.006301,
+      "avg_volume": 48261,
+      "latest_close": 19.68
+    },
+    "BSCR": {
+      "daily_vol": 0.006727,
+      "avg_volume": 37327,
+      "latest_close": 19.57
+    },
+    "BSCS": {
+      "daily_vol": 0.007279,
+      "avg_volume": 26522,
+      "latest_close": 20.39
+    },
+    "BSCT": {
+      "daily_vol": 0.007034,
+      "avg_volume": 9862,
+      "latest_close": 18.9205
+    },
+    "BSDE": {
+      "daily_vol": 0.008609,
+      "avg_volume": 3186,
+      "latest_close": 23.175
+    },
+    "BSEP": {
+      "daily_vol": 0.016528,
+      "avg_volume": 3840,
+      "latest_close": 22.312
+    },
+    "BSJK": {
+      "daily_vol": 0.003155,
+      "avg_volume": 261994,
+      "latest_close": 22.93
+    },
+    "BSJL": {
+      "daily_vol": 0.007117,
+      "avg_volume": 295278,
+      "latest_close": 21.79
+    },
+    "BSJM": {
+      "daily_vol": 0.00828,
+      "avg_volume": 225330,
+      "latest_close": 21.2
+    },
+    "BSJN": {
+      "daily_vol": 0.0085,
+      "avg_volume": 100614,
+      "latest_close": 21.98
+    },
+    "BSJO": {
+      "daily_vol": 0.008718,
+      "avg_volume": 43728,
+      "latest_close": 21.96
+    },
+    "BSJP": {
+      "daily_vol": 0.009802,
+      "avg_volume": 35698,
+      "latest_close": 20.736
+    },
+    "BSJQ": {
+      "daily_vol": 0.009898,
+      "avg_volume": 23437,
+      "latest_close": 21.87
+    },
+    "BSJR": {
+      "daily_vol": 0.011662,
+      "avg_volume": 15930,
+      "latest_close": 21.4987
+    },
+    "BSML": {
+      "daily_vol": 0.002645,
+      "avg_volume": 5158,
+      "latest_close": 24.75
+    },
+    "BSMM": {
+      "daily_vol": 0.003165,
+      "avg_volume": 3614,
+      "latest_close": 24.72
+    },
+    "BSMN": {
+      "daily_vol": 0.004489,
+      "avg_volume": 2357,
+      "latest_close": 24.67
+    },
+    "BSMO": {
+      "daily_vol": 0.005341,
+      "avg_volume": 2594,
+      "latest_close": 24.515
+    },
+    "BSMP": {
+      "daily_vol": 0.006256,
+      "avg_volume": 2587,
+      "latest_close": 24.515
+    },
+    "BSMQ": {
+      "daily_vol": 0.008441,
+      "avg_volume": 2410,
+      "latest_close": 24.055
+    },
+    "BSMR": {
+      "daily_vol": 0.010398,
+      "avg_volume": 1247,
+      "latest_close": 23.785
+    },
+    "BSMS": {
+      "daily_vol": 0.009766,
+      "avg_volume": 2719,
+      "latest_close": 23.965
+    },
+    "BSMT": {
+      "daily_vol": 0.010535,
+      "avg_volume": 2787,
+      "latest_close": 24.635
+    },
+    "BSV": {
+      "daily_vol": 0.002307,
+      "avg_volume": 2011664,
+      "latest_close": 81.85
+    },
+    "BTAL": {
+      "daily_vol": 0.008632,
+      "avg_volume": 117230,
+      "latest_close": 25.98
+    },
+    "BTEC": {
+      "daily_vol": 0.021687,
+      "avg_volume": 2225,
+      "latest_close": 29.705
+    },
+    "BUG": {
+      "daily_vol": 0.248964,
+      "avg_volume": 11631,
+      "latest_close": 14.445
+    },
+    "BUL": {
+      "daily_vol": 0.380466,
+      "avg_volume": 553,
+      "latest_close": 18.588
+    },
+    "BUY": {
+      "daily_vol": 0.020025,
+      "avg_volume": 6133,
+      "latest_close": 11.679
+    },
+    "BUYN": {
+      "daily_vol": 0.025883,
+      "avg_volume": 151,
+      "latest_close": 7.115
+    },
+    "BVAL": {
+      "daily_vol": 0.017568,
+      "avg_volume": 6345,
+      "latest_close": 12.57
+    },
+    "BWX": {
+      "daily_vol": 0.006813,
+      "avg_volume": 326031,
+      "latest_close": 27.56
+    },
+    "BWZ": {
+      "daily_vol": 0.003727,
+      "avg_volume": 58424,
+      "latest_close": 29.46
+    },
+    "BYLD": {
+      "daily_vol": 0.006597,
+      "avg_volume": 72152,
+      "latest_close": 24.165
+    },
+    "BZQ": {
+      "daily_vol": 0.063909,
+      "avg_volume": 220944,
+      "latest_close": 38.12
+    },
+    "CACG": {
+      "daily_vol": 0.018801,
+      "avg_volume": 20204,
+      "latest_close": 27.883
+    },
+    "CALF": {
+      "daily_vol": 0.022054,
+      "avg_volume": 11633,
+      "latest_close": 16.168
+    },
+    "CANE": {
+      "daily_vol": 0.01193,
+      "avg_volume": 39845,
+      "latest_close": 5.21
+    },
+    "CARZ": {
+      "daily_vol": 0.021457,
+      "avg_volume": 3710,
+      "latest_close": 22.44
+    },
+    "CATH": {
+      "daily_vol": 0.019091,
+      "avg_volume": 26194,
+      "latest_close": 30.39
+    },
+    "CBON": {
+      "daily_vol": 0.00401,
+      "avg_volume": 924,
+      "latest_close": 21.895
+    },
+    "CCOR": {
+      "daily_vol": 0.008168,
+      "avg_volume": 20170,
+      "latest_close": 28.47
+    },
+    "CDC": {
+      "daily_vol": 0.009324,
+      "avg_volume": 56185,
+      "latest_close": 40.95
+    },
+    "CDL": {
+      "daily_vol": 0.019554,
+      "avg_volume": 40066,
+      "latest_close": 33.444
+    },
+    "CEF": {
+      "daily_vol": 0.013406,
+      "avg_volume": 733821,
+      "latest_close": 14.52
+    },
+    "CEFS": {
+      "daily_vol": 0.018783,
+      "avg_volume": 17467,
+      "latest_close": 14.71
+    },
+    "CEMB": {
+      "daily_vol": 0.007108,
+      "avg_volume": 44092,
+      "latest_close": 44.82
+    },
+    "CEW": {
+      "daily_vol": 0.004618,
+      "avg_volume": 5486,
+      "latest_close": 16.27
+    },
+    "CEY": {
+      "daily_vol": 0.015768,
+      "avg_volume": 10732,
+      "latest_close": 16.652
+    },
+    "CEZ": {
+      "daily_vol": 0.016743,
+      "avg_volume": 9391,
+      "latest_close": 18.224
+    },
+    "CFA": {
+      "daily_vol": 0.019386,
+      "avg_volume": 67920,
+      "latest_close": 40.367
+    },
+    "CFO": {
+      "daily_vol": 0.009285,
+      "avg_volume": 63919,
+      "latest_close": 46.13
+    },
+    "CGW": {
+      "daily_vol": 0.018554,
+      "avg_volume": 74849,
+      "latest_close": 31.18
+    },
+    "CHAD": {
+      "daily_vol": 0.018244,
+      "avg_volume": 48747,
+      "latest_close": 30.42
+    },
+    "CHAU": {
+      "daily_vol": 0.036804,
+      "avg_volume": 489874,
+      "latest_close": 16.95
+    },
+    "CHEP": {
+      "daily_vol": 0.009879,
+      "avg_volume": 687,
+      "latest_close": 16.59
+    },
+    "CHGX": {
+      "daily_vol": 0.017657,
+      "avg_volume": 4282,
+      "latest_close": 17.63
+    },
+    "CHIC": {
+      "daily_vol": 0.018004,
+      "avg_volume": 4846,
+      "latest_close": 21.34
+    },
+    "CHIE": {
+      "daily_vol": 0.019961,
+      "avg_volume": 649,
+      "latest_close": 8.21
+    },
+    "CHIH": {
+      "daily_vol": 0.019704,
+      "avg_volume": 3287,
+      "latest_close": 16.93
+    }
+  },
+  "feature_snr": {
+    "rsi14": 0.0206,
+    "macd_signal": 0.0013,
+    "bb_bandwidth": 0.0089,
+    "atr_ratio": 0.0045,
+    "momentum_5d": 0.0076,
+    "momentum_10d": 0.0073,
+    "volume_ratio": 0.0011,
+    "vol_10d": 0.0099,
+    "price_acceleration": 0.0029
+  }
+}

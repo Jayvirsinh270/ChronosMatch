@@ -958,6 +958,9 @@
                 <div>R/R Ratio: <strong id="ml-rrr-val" style="color: var(--cyan);">2.4 : 1</strong></div>
                 <div>Live Accuracy: <strong id="ml-accuracy-val" style="color: var(--green);">79.2%</strong></div>
               </div>
+              <div style="margin-top: 5px; font-size: 0.62rem; color: var(--purple); display: flex; justify-content: space-between; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <span title="Trained on real historical OHLCV data">Weights: <strong id="ml-model-ver" style="color: #93c5fd;">GNB Pre-Trained (1.4M Bars)</strong></span>
+              </div>
             </div>
 
             <!-- Column 2: Quantitative Microstructure Gauges -->
@@ -2094,6 +2097,8 @@
         if (rrrEl && pat.risk_reward_ratio) rrrEl.innerText = `${pat.risk_reward_ratio} : 1`;
         const accEl = document.getElementById('ml-accuracy-val');
         if (accEl && pat.accuracy_pct) accEl.innerText = `${pat.accuracy_pct}% (${pat.evaluated_predictions || 0})`;
+        const verEl = document.getElementById('ml-model-ver');
+        if (verEl && pat.model_version) verEl.innerText = pat.model_version;
 
         const microEl = document.getElementById('ml-micro-price');
         if (microEl && pat.micro_price) {

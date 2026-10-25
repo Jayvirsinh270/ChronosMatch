@@ -165,3 +165,31 @@ def test_replayer_ml_pattern_integration():
     finally:
         if os.path.exists(db_path):
             os.remove(db_path)
+
+
+def test_ml_pretrained_weights_integration():
+    """Verify that LightMarketPatternModel integrates pre-trained weights from real dataset."""
+    from chronos_match.market.ml_pattern_model import _load_pretrained_weights
+
+    weights = _load_pretrained_weights()
+    assert weights is not None, "Pre-trained weights file should be loaded"
+    assert "gnb_params" in weights
+    assert "priors" in weights
+    assert "total_samples" in weights
+    assert weights["total_samples"] > 100_000
+
+    # Instantiate model and verify calibrated parameters
+    model = LightMarketPatternModel(symbol="NVDA", base_price=120.0)
+    assert model._gnb_params is not None
+    assert model.w_ofi > 1.5
+    assert model.w_price_trend > 0.8
+    assert model.w_autocorr > 0.5
+
+    # Run trades and ensure GNB scoring runs without error
+    for i in range(25):
+        model.record_trade(price=120.0 + i * 0.1, quantity=100, side=1)
+
+    pred = model.predict()
+    assert pred.regime in [MarketRegime.MOMENTUM_BREAKOUT_BULL, MarketRegime.BALANCED_CONSOLIDATION]
+    assert pred.accuracy_pct > 50.0
+
