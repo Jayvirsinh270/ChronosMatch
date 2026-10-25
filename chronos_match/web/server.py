@@ -664,27 +664,17 @@ async def _bot_simulation_loop():
     """Generates continuous realistic background order flow across all active venues."""
     while server.bot_active:
         try:
-            # Pick a random registered venue to generate realistic market ticks
+            # 1. Prioritize active symbol currently viewed by the trader
+            active_sym = server.active_symbol
+            server.replayer.step_market_tick(active_sym)
+
+            # 2. Also step a secondary venue in the background
             venues = list(server.router.venues_by_id.values())
-            venue = random.choice(venues)
-            pkt = venue.generator.generate_next_order()
-            side_str = "BUY" if pkt.side == OrderSide.BUY else "SELL"
-            type_str = "CANCEL" if pkt.order_type == OrderType.CANCEL else "LIMIT"
+            if venues:
+                bg_venue = random.choice(venues)
+                if bg_venue.info.ticker != active_sym:
+                    server.replayer.step_market_tick(bg_venue.info.ticker)
 
-            # Step real-market replay & ML impact tick
-            server.replayer.step_market_tick(venue.info.ticker)
-
-            if type_str == "CANCEL":
-                venue.book.cancel_order(pkt.order_id)
-            else:
-                server.place_order(
-                    side_str=side_str,
-                    type_str=type_str,
-                    price_float=from_fixed_price(pkt.price),
-                    quantity=pkt.quantity,
-                    client_id=pkt.client_id,
-                    symbol=venue.info.ticker,
-                )
             await asyncio.sleep(server.bot_delay)
         except Exception:
             await asyncio.sleep(0.05)

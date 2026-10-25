@@ -75,9 +75,6 @@ class HistoricalMarketReplayer:
             avg_vol = 500_000
             tick_size = 0.01
 
-        self.candles_cache[sym] = candles
-        self.current_candle_idx[sym] = len(candles) - 1 if candles else 0
-
         # Create or retrieve venue
         try:
             venue = self.router.get_venue(sym)
@@ -99,6 +96,31 @@ class HistoricalMarketReplayer:
                 initial_price=initial_p,
             )
             venue = self.router.register_symbol(info, seed=True)
+
+        # Calibrate historical candles so the latest bar matches venue initial_p perfectly
+        if candles and candles[-1].close > 0:
+            scale = initial_p / candles[-1].close
+            now_t = time.time()
+            n = len(candles)
+            calibrated_candles = []
+            for i, c in enumerate(candles):
+                t_str = time.strftime("%H:%M:%S", time.localtime(now_t - (n - i) * 15))
+                calibrated_candles.append(
+                    StockCandle(
+                        date=t_str,
+                        open=round(c.open * scale, 2),
+                        high=round(c.high * scale, 2),
+                        low=round(c.low * scale, 2),
+                        close=round(c.close * scale, 2),
+                        volume=c.volume,
+                        adj_close=round(c.close * scale, 2),
+                    )
+                )
+            candles = calibrated_candles
+
+        self.candles_cache[sym] = candles
+        self.candles_cache[venue.info.ticker] = candles
+        self.current_candle_idx[sym] = len(candles) - 1 if candles else 0
 
         # Initialize dedicated ML Impact Engine
         if sym not in self.impact_engines:
@@ -235,28 +257,40 @@ class HistoricalMarketReplayer:
         # 5. Multi-Participant Natural Market Flow (Driven by ML Regime)
         regime = pred.regime
         spread_mult = max(1.0, impact.get_spread_multiplier() * pred.spread_multiplier)
+        best_bid_p = from_fixed_price(venue.book.best_bid_price)
+        best_ask_p = from_fixed_price(venue.book.best_ask_price)
+
+        if best_bid_p <= 0 or best_ask_p <= 0:
+            best_bid_p = round(effective_mid - tick, 2)
+            best_ask_p = round(effective_mid + tick, 2)
 
         # Regulate trading aggression based on market state
         if regime == MarketRegime.MOMENTUM_BREAKOUT_BULL:
             buy_bias = 0.75
-            trade_prob = 0.80
+            trade_prob = 0.90
         elif regime == MarketRegime.MOMENTUM_BREAKOUT_BEAR:
             buy_bias = 0.25
-            trade_prob = 0.80
+            trade_prob = 0.90
         elif regime == MarketRegime.VOLATILITY_EXPANSION_CHOP:
             buy_bias = 0.50
-            trade_prob = 0.90
+            trade_prob = 0.95
         else:  # BALANCED_CONSOLIDATION
-            buy_bias = 0.50
-            trade_prob = 0.55
+            buy_bias = 0.50 + 0.30 * min(1.0, max(-1.0, pred.predicted_drift / 0.005))
+            trade_prob = 0.85
 
         if random.random() < trade_prob:
             side = OrderSide.BUY if random.random() < buy_bias else OrderSide.SELL
-            offset = random.choice([0, 1, 2, 4]) * tick * spread_mult
 
-            # If offset is 0, it acts as an aggressive market sweep; otherwise resting liquidity
-            order_p = (effective_mid + offset) if side == OrderSide.BUY else (effective_mid - offset)
-            qty = random.choice([50, 100, 250, 500, 1000 if regime == MarketRegime.VOLATILITY_EXPANSION_CHOP else 100])
+            # 65% of orders are aggressive spread-crossing orders (marketable)
+            # 35% are passive liquidity additions
+            is_market_sweep = random.random() < 0.65
+            if is_market_sweep:
+                order_p = best_ask_p if side == OrderSide.BUY else best_bid_p
+            else:
+                offset = random.choice([1, 2, 3, 5]) * tick * spread_mult
+                order_p = (best_bid_p - offset) if side == OrderSide.BUY else (best_ask_p + offset)
+
+            qty = random.choice([50, 100, 200, 500, 1000 if regime == MarketRegime.VOLATILITY_EXPANSION_CHOP else 100])
 
             oid = self.router.allocate_order_id()
             self.router.client_order_registry[oid] = 99  # External market participant
@@ -310,7 +344,39 @@ class HistoricalMarketReplayer:
         venue.high_price = max(venue.high_price, trade_p)
         venue.low_price = min(venue.low_price, trade_p)
 
-        # 1. Update ML Models
+        # 1. Record Trade & Inspect Whale Flow
+        trade_id = match_info.get("trade_id", venue.total_trades)
+        trade_data = {
+            "trade_id": trade_id,
+            "symbol": venue.info.ticker,
+            "side": "BUY" if side == int(OrderSide.BUY) else "SELL",
+            "price": trade_p,
+            "quantity": qty,
+            "latency_us": 0.12,
+            "time": time.strftime("%H:%M:%S"),
+        }
+        venue.recent_trades.insert(0, trade_data)
+        if len(venue.recent_trades) > 40:
+            venue.recent_trades.pop()
+
+        venue.price_history.append({"price": trade_p, "time": trade_data["time"]})
+        if len(venue.price_history) > 60:
+            venue.price_history.pop(0)
+
+        tp = TradePacket(
+            trade_id=trade_id,
+            buy_order_id=match_info.get("buy_order_id", 0),
+            sell_order_id=match_info.get("sell_order_id", 0),
+            price=to_fixed_price(trade_p),
+            quantity=qty,
+            symbol_id=venue.info.symbol_id,
+            aggressor_side=side,
+            match_timestamp_ns=time.perf_counter_ns(),
+            latency_ns=120,
+        )
+        venue.whale_detector.inspect_trade(tp)
+
+        # 2. Update ML Models
         impact.record_execution(side, qty, trade_p)
         pattern_model.record_trade(trade_p, qty, side)
         pattern_model.update_order_book_depth(
@@ -320,12 +386,12 @@ class HistoricalMarketReplayer:
             venue.book.best_ask_volume,
         )
 
-        # 2. Inform Algo Bot
+        # 3. Inform Algo Bot
         if algo_mgr:
-            algo_mgr.on_trade_executed(match_info["buy_order_id"], int(OrderSide.BUY), trade_p, qty)
-            algo_mgr.on_trade_executed(match_info["sell_order_id"], int(OrderSide.SELL), trade_p, qty)
+            algo_mgr.on_trade_executed(match_info.get("buy_order_id", 0), int(OrderSide.BUY), trade_p, qty)
+            algo_mgr.on_trade_executed(match_info.get("sell_order_id", 0), int(OrderSide.SELL), trade_p, qty)
 
-        # 3. Persist Tick
+        # 4. Persist Tick
         best_bid = from_fixed_price(venue.book.best_bid_price)
         best_ask = from_fixed_price(venue.book.best_ask_price)
         self.data_store.record_tick(

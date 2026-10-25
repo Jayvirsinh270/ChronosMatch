@@ -1741,12 +1741,12 @@
       const isLastUp = lastBar.close >= lastBar.open;
       const lastColor = isLastUp ? '#0ecb81' : '#f6465d';
 
-      // Horizontal Real-time Price Line across chart
+      // Real-time Price Line extending from live candle to right axis
       ctx.strokeStyle = lastColor;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
-      ctx.moveTo(0, lastYClose);
+      ctx.moveTo(lastX, lastYClose);
       ctx.lineTo(w, lastYClose);
       ctx.stroke();
       ctx.setLineDash([]);
@@ -1962,21 +1962,6 @@
         }
       }
 
-      // Dynamic local bar rollover
-      const nowSec = Math.floor(Date.now() / 1000);
-      if (cachedCandles && cachedCandles.length > 0 && (nowSec - lastLocalCandleSec) >= currentTimeframeSec) {
-        const lastC = cachedCandles[cachedCandles.length - 1];
-        cachedCandles.push({
-          date: new Date().toLocaleTimeString(),
-          open: lastC.close,
-          high: lastC.close,
-          low: lastC.close,
-          close: lastC.close,
-          volume: 0,
-        });
-        if (cachedCandles.length > 80) cachedCandles.shift();
-        lastLocalCandleSec = nowSec;
-      }
 
       // Chart Ticks & Canvas Re-render
       if (data.price_history && data.price_history.length > 0) {
