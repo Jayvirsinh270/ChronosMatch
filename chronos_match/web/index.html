@@ -1696,11 +1696,17 @@
         const yLow = chartH - ((b.low - minP) / (maxP - minP) * chartH);
 
         // Wick
+        let wickTop = yHigh;
+        let wickBottom = yLow;
+        if (Math.abs(wickBottom - wickTop) < 3) {
+          wickTop -= 2;
+          wickBottom += 2;
+        }
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.3;
+        ctx.lineWidth = 1.4;
         ctx.beginPath();
-        ctx.moveTo(x, yHigh);
-        ctx.lineTo(x, yLow);
+        ctx.moveTo(x, wickTop);
+        ctx.lineTo(x, wickBottom);
         ctx.stroke();
 
         // Body

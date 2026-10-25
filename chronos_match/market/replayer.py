@@ -43,6 +43,9 @@ class HistoricalMarketReplayer:
         self.algo_managers: Dict[str, AlgoTradingManager] = {}
         self.candles_cache: Dict[str, List[StockCandle]] = {}
         self.current_candle_idx: Dict[str, int] = {}
+        self.current_mid: Dict[str, float] = {}
+        self.anchor_price: Dict[str, float] = {}
+        self.macro_drift: Dict[str, float] = {}
 
         # Live candlestick synthesis per symbol
         self.live_candle: Dict[str, Dict[str, Any]] = {}
@@ -121,6 +124,12 @@ class HistoricalMarketReplayer:
         self.candles_cache[sym] = candles
         self.candles_cache[venue.info.ticker] = candles
         self.current_candle_idx[sym] = len(candles) - 1 if candles else 0
+        self.current_mid[sym] = initial_p
+        self.current_mid[venue.info.ticker] = initial_p
+        self.anchor_price[sym] = initial_p
+        self.anchor_price[venue.info.ticker] = initial_p
+        self.macro_drift[sym] = 0.0
+        self.macro_drift[venue.info.ticker] = 0.0
 
         # Initialize dedicated ML Impact Engine
         if sym not in self.impact_engines:
@@ -182,21 +191,33 @@ class HistoricalMarketReplayer:
         if not impact or not pattern_model:
             return []
 
-        # 1. Update Macro Anchor from historical candles
-        candles = self.candles_cache.get(sym, [])
-        if candles:
-            idx = self.current_candle_idx.get(sym, len(candles) - 1)
-            c = candles[idx]
-            impact.set_baseline_price(c.close)
-
-        # 2. Get ML Pattern Prediction & Dynamic Drift
+        # 1. Update Macro Anchor & Stochastic Microstructure Motion (Ornstein-Uhlenbeck)
         pred = pattern_model.predict()
-        pattern_drift = pred.predicted_drift
-        effective_mid = impact.get_effective_price() * (1.0 + pattern_drift)
+        regime = pred.regime
         tick = venue.info.tick_size
+        daily_vol = impact.daily_volatility
+        anchor = self.anchor_price.get(sym, venue.info.initial_price or 100.0)
+
+        # OU Process: smooth continuous oscillations within +/- 2.5% of anchor
+        theta = 0.04
+        sigma = max(0.0004, min(0.0022, daily_vol * 0.05))
+        m_drift = self.macro_drift.get(sym, 0.0)
+        ml_nudge = pred.predicted_drift * 0.10
+        m_drift += -theta * m_drift + sigma * random.gauss(0, 1) + ml_nudge
+        m_drift = max(-0.025, min(0.025, m_drift))
+        self.macro_drift[sym] = m_drift
+        self.macro_drift[venue.info.ticker] = m_drift
+
+        # Micro-tick jitter
+        micro = random.gauss(0, 1) * 0.0002
+        new_mid = max(tick * 5, round(anchor * (1.0 + m_drift + micro), 2))
+        self.current_mid[sym] = new_mid
+        self.current_mid[venue.info.ticker] = new_mid
+        impact.set_baseline_price(new_mid)
+        effective_mid = new_mid
         events: List[Dict[str, Any]] = []
 
-        # 3. Market Maker Quoting
+        # 2. Market Maker Quoting
         if algo_mgr and algo_mgr.market_maker.active:
             res_p, bid_p, ask_p = algo_mgr.market_maker.compute_quotes(
                 mid_price=effective_mid,
@@ -229,7 +250,7 @@ class HistoricalMarketReplayer:
             )
             venue.total_orders += 1
 
-        # 4. Momentum Bot Evaluation
+        # 3. Momentum Bot Evaluation
         if algo_mgr and algo_mgr.momentum_bot.active:
             sig = algo_mgr.momentum_bot.update_tick(
                 price=effective_mid,
@@ -254,43 +275,77 @@ class HistoricalMarketReplayer:
                     self._on_trade_matched(venue, sym, int(side_enum), trade_p, m["quantity"], impact, pattern_model, algo_mgr, m)
                     events.append({"type": "MOMENTUM_TRADE", "side": action, "price": trade_p, "qty": m["quantity"]})
 
-        # 5. Multi-Participant Natural Market Flow (Driven by ML Regime)
-        regime = pred.regime
+        # 4. Multi-Participant Natural Market Flow & Dynamic Book Depth
         spread_mult = max(1.0, impact.get_spread_multiplier() * pred.spread_multiplier)
+        half_spread = max(tick, round(effective_mid * 0.0003 * spread_mult, 2))
         best_bid_p = from_fixed_price(venue.book.best_bid_price)
         best_ask_p = from_fixed_price(venue.book.best_ask_price)
 
-        if best_bid_p <= 0 or best_ask_p <= 0:
-            best_bid_p = round(effective_mid - tick, 2)
-            best_ask_p = round(effective_mid + tick, 2)
+        target_bid = round(effective_mid - half_spread, 2)
+        target_ask = round(effective_mid + half_spread, 2)
+
+        # Replenish top-of-book liquidity levels if disconnected or exhausted
+        if best_bid_p <= 0 or abs(best_bid_p - target_bid) > half_spread * 2.5:
+            for lvl in range(3):
+                p_lvl = round(target_bid - lvl * tick * 2, 2)
+                b_oid = self.router.allocate_order_id()
+                self.router.client_order_registry[b_oid] = 99
+                venue.book.add_limit_order(
+                    order_id=b_oid,
+                    client_id=99,
+                    price=to_fixed_price(p_lvl),
+                    quantity=random.choice([200, 500, 1000]),
+                    side=int(OrderSide.BUY),
+                    symbol_id=venue.info.symbol_id,
+                )
+                venue.total_orders += 1
+            best_bid_p = target_bid
+
+        if best_ask_p <= 0 or abs(best_ask_p - target_ask) > half_spread * 2.5:
+            for lvl in range(3):
+                p_lvl = round(target_ask + lvl * tick * 2, 2)
+                a_oid = self.router.allocate_order_id()
+                self.router.client_order_registry[a_oid] = 99
+                venue.book.add_limit_order(
+                    order_id=a_oid,
+                    client_id=99,
+                    price=to_fixed_price(p_lvl),
+                    quantity=random.choice([200, 500, 1000]),
+                    side=int(OrderSide.SELL),
+                    symbol_id=venue.info.symbol_id,
+                )
+                venue.total_orders += 1
+            best_ask_p = target_ask
 
         # Regulate trading aggression based on market state
         if regime == MarketRegime.MOMENTUM_BREAKOUT_BULL:
             buy_bias = 0.75
-            trade_prob = 0.90
+            trade_prob = 0.92
         elif regime == MarketRegime.MOMENTUM_BREAKOUT_BEAR:
             buy_bias = 0.25
-            trade_prob = 0.90
+            trade_prob = 0.92
         elif regime == MarketRegime.VOLATILITY_EXPANSION_CHOP:
             buy_bias = 0.50
             trade_prob = 0.95
         else:  # BALANCED_CONSOLIDATION
             buy_bias = 0.50 + 0.30 * min(1.0, max(-1.0, pred.predicted_drift / 0.005))
-            trade_prob = 0.85
+            trade_prob = 0.88
 
         if random.random() < trade_prob:
             side = OrderSide.BUY if random.random() < buy_bias else OrderSide.SELL
 
-            # 65% of orders are aggressive spread-crossing orders (marketable)
-            # 35% are passive liquidity additions
-            is_market_sweep = random.random() < 0.65
+            # 70% of orders are aggressive spread-crossing orders (market sweeps)
+            is_market_sweep = random.random() < 0.70
             if is_market_sweep:
                 order_p = best_ask_p if side == OrderSide.BUY else best_bid_p
+                # Occasional sweep into deeper level
+                if random.random() < 0.25:
+                    order_p = round(order_p + (tick if side == OrderSide.BUY else -tick), 2)
             else:
-                offset = random.choice([1, 2, 3, 5]) * tick * spread_mult
-                order_p = (best_bid_p - offset) if side == OrderSide.BUY else (best_ask_p + offset)
+                offset = random.choice([1, 2, 3]) * tick * spread_mult
+                order_p = round((best_bid_p - offset) if side == OrderSide.BUY else (best_ask_p + offset), 2)
 
-            qty = random.choice([50, 100, 200, 500, 1000 if regime == MarketRegime.VOLATILITY_EXPANSION_CHOP else 100])
+            qty = random.choice([100, 200, 300, 500, 1000 if regime == MarketRegime.VOLATILITY_EXPANSION_CHOP else 150])
 
             oid = self.router.allocate_order_id()
             self.router.client_order_registry[oid] = 99  # External market participant
@@ -309,6 +364,9 @@ class HistoricalMarketReplayer:
                 trade_p = from_fixed_price(m["execution_price"])
                 self._on_trade_matched(venue, sym, int(side), trade_p, m["quantity"], impact, pattern_model, algo_mgr, m)
                 events.append({"type": "NATURAL_FILL", "price": trade_p, "qty": m["quantity"]})
+
+        # 5. Check Candlestick Rollover Interval
+        self._check_candle_rollover(sym, daily_vol, tick)
 
         # Periodic ML regime logging & order flow decay
         pattern_model.step_decay(elapsed_sec=0.05)
@@ -410,7 +468,7 @@ class HistoricalMarketReplayer:
         self._update_live_candle(sym, trade_p, qty)
 
     def _update_live_candle(self, sym: str, price: float, volume: int) -> None:
-        """Accumulate live tick into active candle bar and roll over when interval elapses."""
+        """Accumulate live tick into active candle bar."""
         now = time.time()
         bar = self.live_candle.get(sym)
         if not bar:
@@ -433,44 +491,59 @@ class HistoricalMarketReplayer:
         bar["volume"] += volume
         bar["trades"] += 1
 
-        # Check if interval elapsed -> rollover & persist
+    def _check_candle_rollover(self, sym: str, daily_vol: float = 0.02, tick: float = 0.01) -> None:
+        """Check if candle interval elapsed, ensure organic shape, persist and roll over."""
+        now = time.time()
         last_t = self.last_candle_time.get(sym, now)
         if (now - last_t) >= self.candle_interval_sec:
-            # Store completed candle
-            self.data_store.record_candle(
-                symbol=sym,
-                timestamp=int(now),
-                date_str=bar["date"],
-                open_p=bar["open"],
-                high_p=bar["high"],
-                low_p=bar["low"],
-                close_p=bar["close"],
-                volume=bar["volume"],
-                trades_count=bar["trades"],
-            )
-            # Push into cached candles so chart displays it
-            self.candles_cache.setdefault(sym, []).append(
-                StockCandle(
-                    date=bar["date"],
-                    open=bar["open"],
-                    high=bar["high"],
-                    low=bar["low"],
-                    close=bar["close"],
+            bar = self.live_candle.get(sym)
+            if bar:
+                # Ensure every candle has authentic body and wicks (never a 0-pixel flat line)
+                if bar["high"] <= bar["low"] + 0.001:
+                    w_span = max(tick * 4, round(bar["close"] * daily_vol * 0.003, 2))
+                    bar["high"] = round(max(bar["open"], bar["close"]) + w_span * 0.6, 2)
+                    bar["low"] = round(max(0.01, min(bar["open"], bar["close"]) - w_span * 0.4), 2)
+                    bar["volume"] = max(bar["volume"], random.randint(500, 2500))
+
+                # Store completed candle in SQLite
+                self.data_store.record_candle(
+                    symbol=sym,
+                    timestamp=int(now),
+                    date_str=bar["date"],
+                    open_p=bar["open"],
+                    high_p=bar["high"],
+                    low_p=bar["low"],
+                    close_p=bar["close"],
                     volume=bar["volume"],
+                    trades_count=max(1, bar["trades"]),
                 )
-            )
-            # Reset active candle
-            self.last_candle_time[sym] = now
-            self.live_candle[sym] = {
-                "date": time.strftime("%H:%M:%S"),
-                "open": price,
-                "high": price,
-                "low": price,
-                "close": price,
-                "volume": 0,
-                "trades": 0,
-                "start_time": now,
-            }
+                # Push into cached candles so chart displays it
+                self.candles_cache.setdefault(sym, []).append(
+                    StockCandle(
+                        date=bar["date"],
+                        open=bar["open"],
+                        high=bar["high"],
+                        low=bar["low"],
+                        close=bar["close"],
+                        volume=bar["volume"],
+                    )
+                )
+                if len(self.candles_cache[sym]) > 120:
+                    self.candles_cache[sym] = self.candles_cache[sym][-120:]
+
+                # Start fresh live candle with open = previous close (smooth continuity)
+                prev_close = bar["close"]
+                self.last_candle_time[sym] = now
+                self.live_candle[sym] = {
+                    "date": time.strftime("%H:%M:%S"),
+                    "open": prev_close,
+                    "high": prev_close,
+                    "low": prev_close,
+                    "close": prev_close,
+                    "volume": 0,
+                    "trades": 0,
+                    "start_time": now,
+                }
 
     def get_candlesticks(self, symbol: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
         """Return historical candlestick list for active or specified symbol, including live candle."""
@@ -507,4 +580,4 @@ class HistoricalMarketReplayer:
                 "volume": live["volume"],
             })
 
-        return bars
+        return bars[-limit:] if limit > 0 else bars
