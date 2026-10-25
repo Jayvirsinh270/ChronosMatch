@@ -109,21 +109,28 @@ class LightMarketPatternModel:
 
     def _compute_rolling_volatility(self) -> float:
         """Compute annualized/rolling volatility of returns."""
-        if len(self.returns) < 5:
+        n = len(self.returns)
+        if n < 5:
             return self.baseline_vol
-        mean_r = sum(self.returns) / len(self.returns)
-        variance = sum((r - mean_r) ** 2 for r in self.returns) / (len(self.returns) - 1)
+        mean_r = sum(self.returns) / n
+        variance = sum((r - mean_r) * (r - mean_r) for r in self.returns) / (n - 1)
         return math.sqrt(max(1e-8, variance))
 
     def _compute_autocorrelation(self) -> float:
         """Compute lag-1 return autocorrelation to detect trend persistence."""
-        if len(self.returns) < 8:
+        n = len(self.returns)
+        if n < 8:
             return 0.0
-        rets = list(self.returns)
-        pairs = list(zip(rets[:-1], rets[1:]))
-        mean_r = sum(rets) / len(rets)
-        num = sum((x - mean_r) * (y - mean_r) for x, y in pairs)
-        denom = sum((x - mean_r) ** 2 for x in rets)
+        mean_r = sum(self.returns) / n
+        num = 0.0
+        denom = 0.0
+        prev = self.returns[0] - mean_r
+        for i in range(1, n):
+            curr = self.returns[i] - mean_r
+            num += prev * curr
+            denom += prev * prev
+            prev = curr
+        denom += prev * prev
         return num / denom if denom > 1e-9 else 0.0
 
     def _evaluate_regime(self) -> None:

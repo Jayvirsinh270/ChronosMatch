@@ -110,6 +110,9 @@ def test_firehose_throughput_benchmark():
     firehose = AsyncMarketFirehose(initial_price=100.00)
     count = 100_000
 
+    # Warmup JIT / branch predictors
+    _ = firehose.generate_batch(2000)
+
     t0 = time.perf_counter_ns()
     batch = firehose.generate_batch(count)
     t1 = time.perf_counter_ns()
