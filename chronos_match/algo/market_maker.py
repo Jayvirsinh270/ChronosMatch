@@ -10,10 +10,12 @@ Implements the classic high-frequency optimal market making framework:
 from dataclasses import dataclass
 import math
 import time
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
 
 from chronos_match.protocol import to_fixed_price, from_fixed_price, OrderSide
-from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
+
+if TYPE_CHECKING:
+    from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
 
 
 @dataclass

@@ -76,6 +76,14 @@ class SymbolSelectRequest(BaseModel):
     symbol: str
 
 
+class RLOrderRequest(BaseModel):
+    symbol: Optional[str] = None
+    side: str = "BUY"
+    shares: int = 1000
+    horizon_sec: float = 60.0
+    risk_aversion: float = 0.001
+
+
 class WebTradingServer:
     def __init__(
         self,
@@ -793,6 +801,54 @@ async def api_algo_status(symbol: Optional[str] = None):
     venue = server.router.get_venue(sym)
     mid = venue.last_trade_price or venue.info.initial_price
     return algo_mgr.get_summary(mid) if algo_mgr else {}
+
+
+@app.post("/api/algo/rl/start-order")
+def api_rl_start_order(req: RLOrderRequest):
+    """Commission a new institutional parent order for RL optimal execution."""
+    sym = (req.symbol or server.active_symbol).upper()
+    algo_mgr = server.replayer.algo_managers.get(sym)
+    if not algo_mgr:
+        server.replayer.bind_stock(sym)
+        algo_mgr = server.replayer.algo_managers.get(sym)
+    venue = server.router.get_venue(sym)
+    mid = venue.last_trade_price or venue.info.initial_price or 100.0
+
+    order = algo_mgr.rl_execution_agent.start_parent_order(
+        symbol=sym,
+        side_str=req.side,
+        total_shares=req.shares,
+        horizon_sec=req.horizon_sec,
+        arrival_price=mid,
+        risk_aversion=req.risk_aversion,
+    )
+    return {
+        "status": "ORDER_STARTED",
+        "order": algo_mgr.rl_execution_agent.to_dict(mid),
+    }
+
+
+@app.get("/api/algo/rl/telemetry")
+def api_rl_telemetry(symbol: Optional[str] = None):
+    """Retrieve telemetry, execution progress, and Q-network loss for RL agent."""
+    sym = (symbol or server.active_symbol).upper()
+    algo_mgr = server.replayer.algo_managers.get(sym)
+    if not algo_mgr:
+        server.replayer.bind_stock(sym)
+        algo_mgr = server.replayer.algo_managers.get(sym)
+    venue = server.router.get_venue(sym)
+    mid = venue.last_trade_price or venue.info.initial_price or 100.0
+    return algo_mgr.rl_execution_agent.to_dict(mid)
+
+
+@app.post("/api/algo/rl/cancel-order")
+def api_rl_cancel_order(symbol: Optional[str] = None):
+    """Stop the active RL parent order."""
+    sym = (symbol or server.active_symbol).upper()
+    algo_mgr = server.replayer.algo_managers.get(sym)
+    if algo_mgr and algo_mgr.rl_execution_agent.active_parent_order:
+        algo_mgr.rl_execution_agent._finish_parent_order()
+    return {"status": "ORDER_CANCELLED"}
 
 
 @app.get("/api/market/ml-pattern")

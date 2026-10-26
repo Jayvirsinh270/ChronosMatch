@@ -240,7 +240,10 @@ class MultiBookRouter:
 
         # Check fallback defaults
         if sym_str in ("CHRONOS", "DEFAULT", "SOL", "SOL-USD"):
-            return self.venues_by_id.get(1, list(self.venues_by_id.values())[0])
+            if 1 in self.venues_by_id:
+                return self.venues_by_id[1]
+            if self.venues_by_id:
+                return list(self.venues_by_id.values())[0]
 
         raise KeyError(f"Unknown symbol ticker: '{symbol}'. Available: {list(self.venues_by_ticker.keys())}")
 

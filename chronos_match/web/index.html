@@ -1020,7 +1020,7 @@
 
         <!-- TAB 4: QUANTITATIVE ALGO DESK -->
         <div class="dock-content" id="content-tab-algo" style="display: none;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-family: var(--font-mono); font-size: 0.72rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-family: var(--font-mono); font-size: 0.72rem; margin-bottom: 10px;">
             <!-- Avellaneda-Stoikov MM -->
             <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -1043,6 +1043,88 @@
                 <span>Signal: <strong id="mom-signal" style="color: var(--amber);">NEUTRAL</strong></span>
                 <span>PnL: <strong id="mom-pnl" style="color: var(--green);">$0.00</strong></span>
                 <span>Executions: <strong id="mom-trades">0</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Deep Reinforcement Learning Optimal Execution Agent (DQN) -->
+          <div style="background: var(--bg-card); border: 1px solid #3b82f644; border-radius: 6px; padding: 12px; font-family: var(--font-mono); font-size: 0.72rem; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.9rem;">🧠</span>
+                <span style="font-weight: 800; color: #60a5fa; font-size: 0.8rem; letter-spacing: 0.5px;">ADAPTIVE RL OPTIMAL EXECUTION (DQN)</span>
+                <span id="rl-status-pill" style="background: #1e293b; color: var(--text-muted); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; border: 1px solid var(--border);">STANDBY</span>
+              </div>
+              <div style="display: flex; gap: 10px; color: var(--text-dim); font-size: 0.68rem;">
+                <span>ε-Exploration: <strong id="rl-telemetry-eps" style="color: var(--purple);">0.200</strong></span>
+                <span>DQN Steps: <strong id="rl-telemetry-steps" style="color: #fff;">0</strong></span>
+                <span>Loss: <strong id="rl-telemetry-loss" style="color: var(--amber);">0.000</strong></span>
+              </div>
+            </div>
+
+            <!-- Commission Order Controls -->
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: rgba(15, 23, 42, 0.6); padding: 8px; border-radius: 6px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="color: var(--text-dim);">Side:</span>
+                <select id="rl-order-side" style="background: var(--bg-dark); color: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 0.72rem;">
+                  <option value="BUY">BUY</option>
+                  <option value="SELL">SELL</option>
+                </select>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="color: var(--text-dim);">Shares:</span>
+                <input id="rl-order-shares" type="number" value="1000" min="100" step="100" style="width: 70px; background: var(--bg-dark); color: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 0.72rem;" />
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="color: var(--text-dim);">Horizon:</span>
+                <select id="rl-order-horizon" style="background: var(--bg-dark); color: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 0.72rem;">
+                  <option value="30">30s (Rapid Sweep)</option>
+                  <option value="60" selected>60s (Standard TWAP/VWAP)</option>
+                  <option value="120">120s (Passive Liquidation)</option>
+                </select>
+              </div>
+              <button onclick="startRLParentOrder()" class="btn-trade btn-buy" style="padding: 4px 12px; font-size: 0.72rem; margin-left: auto;">⚡ START RL EXECUTION</button>
+              <button onclick="cancelRLParentOrder()" class="btn-cancel-sm" style="padding: 4px 8px; font-size: 0.72rem; background: #374151; color: #fff;">ABORT</button>
+            </div>
+
+            <!-- Execution Progress & Benchmark Metrics -->
+            <div style="margin-bottom: 8px;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-dim); margin-bottom: 3px;">
+                <span>Parent Order Slicing Progress: <strong id="rl-progress-shares" style="color: #fff;">0 / 0 shares (0%)</strong></span>
+                <span>Arrival P₀: <strong id="rl-p0-val" style="color: var(--cyan);">$0.00</strong> | Avg Exec: <strong id="rl-avg-p" style="color: #fff;">$0.00</strong></span>
+              </div>
+              <div style="width: 100%; height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; border: 1px solid var(--border);">
+                <div id="rl-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6, #10b981); transition: width 0.3s ease;"></div>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.25); padding: 6px; border-radius: 4px;">
+              <div>
+                <div style="color: var(--text-dim); font-size: 0.65rem;">SHORTFALL (IS)</div>
+                <div id="rl-shortfall-bps" style="font-weight: 800; font-size: 0.8rem; color: var(--green);">0.0 bps</div>
+              </div>
+              <div>
+                <div style="color: var(--text-dim); font-size: 0.65rem;">SLIPPAGE SAVED</div>
+                <div id="rl-saved-dollars" style="font-weight: 800; font-size: 0.8rem; color: var(--green);">+$0.00</div>
+              </div>
+              <div>
+                <div style="color: var(--text-dim); font-size: 0.65rem;">MAKER / PASSIVE RATIO</div>
+                <div id="rl-passive-ratio" style="font-weight: 800; font-size: 0.8rem; color: var(--cyan);">0.0%</div>
+              </div>
+              <div>
+                <div style="color: var(--text-dim); font-size: 0.65rem;">CUMULATIVE REWARD</div>
+                <div id="rl-cum-reward" style="font-weight: 800; font-size: 0.8rem; color: var(--purple);">0.00</div>
+              </div>
+            </div>
+
+            <!-- Recent Child Fills Feed -->
+            <div style="border-top: 1px solid var(--border); padding-top: 6px;">
+              <div style="font-size: 0.67rem; color: var(--text-dim); margin-bottom: 4px; display: flex; justify-content: space-between;">
+                <span>RECENT CHILD SLICE FILLS</span>
+                <span id="rl-active-action-pill" style="color: #60a5fa; font-weight: 700;">POLICY: STANDBY</span>
+              </div>
+              <div id="rl-child-fills-list" style="display: flex; flex-direction: column; gap: 3px; max-height: 80px; overflow-y: auto;">
+                <div style="color: var(--text-dim); font-style: italic; font-size: 0.68rem;">No active parent order running. Configure shares above and click Start RL Execution.</div>
               </div>
             </div>
           </div>
@@ -1546,6 +1628,48 @@
         }
       } catch (e) {
         console.error('Toggle algo error', e);
+      }
+    }
+
+    async function startRLParentOrder() {
+      try {
+        const side = document.getElementById('rl-order-side')?.value || 'BUY';
+        const shares = parseInt(document.getElementById('rl-order-shares')?.value || '1000', 10);
+        const horizon = parseFloat(document.getElementById('rl-order-horizon')?.value || '60');
+        const resp = await fetch('/api/algo/rl/start-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol: currentSymbol,
+            side: side,
+            shares: shares,
+            horizon_sec: horizon,
+            risk_aversion: 0.001
+          })
+        });
+        const res = await resp.json();
+        const pill = document.getElementById('rl-status-pill');
+        if (pill) {
+          pill.innerText = 'EXECUTING';
+          pill.style.background = '#2563eb';
+          pill.style.color = '#fff';
+        }
+      } catch (e) {
+        console.error('Failed to start RL parent order', e);
+      }
+    }
+
+    async function cancelRLParentOrder() {
+      try {
+        await fetch(`/api/algo/rl/cancel-order?symbol=${encodeURIComponent(currentSymbol)}`, { method: 'POST' });
+        const pill = document.getElementById('rl-status-pill');
+        if (pill) {
+          pill.innerText = 'ABORTED';
+          pill.style.background = '#dc2626';
+          pill.style.color = '#fff';
+        }
+      } catch (e) {
+        console.error('Failed to cancel RL parent order', e);
       }
     }
 
@@ -2259,6 +2383,76 @@
           if (momPnl) momPnl.innerText = `$${Number(st.momentum_bot.total_pnl || 0).toFixed(2)}`;
           const momTrades = document.getElementById('mom-trades');
           if (momTrades) momTrades.innerText = st.momentum_bot.trades_executed || 0;
+        }
+        if (st.rl_execution_agent) {
+          const rl = st.rl_execution_agent;
+          const epsEl = document.getElementById('rl-telemetry-eps');
+          if (epsEl) epsEl.innerText = Number(rl.epsilon || 0).toFixed(3);
+          const stepsEl = document.getElementById('rl-telemetry-steps');
+          if (stepsEl) stepsEl.innerText = rl.training_steps || 0;
+          const lossEl = document.getElementById('rl-telemetry-loss');
+          if (lossEl) lossEl.innerText = Number(rl.last_loss || 0).toFixed(3);
+          const cumRewEl = document.getElementById('rl-cum-reward');
+          if (cumRewEl) cumRewEl.innerText = Number(rl.cumulative_reward || 0).toFixed(2);
+          const passRatEl = document.getElementById('rl-passive-ratio');
+          if (passRatEl) passRatEl.innerText = `${Number(rl.passive_fill_ratio_pct || 0).toFixed(1)}%`;
+          const savedDollEl = document.getElementById('rl-saved-dollars');
+          if (savedDollEl) savedDollEl.innerText = `${rl.total_slippage_saved_dollars >= 0 ? '+$' : '-$'}${Math.abs(Number(rl.total_slippage_saved_dollars || 0)).toFixed(2)}`;
+
+          const pill = document.getElementById('rl-status-pill');
+          if (pill) {
+            if (rl.active) {
+              pill.innerText = 'EXECUTING';
+              pill.style.background = '#2563eb';
+              pill.style.color = '#fff';
+            } else if (rl.active_parent_order && rl.active_parent_order.completed) {
+              pill.innerText = 'COMPLETED';
+              pill.style.background = 'var(--green)';
+              pill.style.color = '#000';
+            } else {
+              pill.innerText = 'STANDBY';
+              pill.style.background = '#1e293b';
+              pill.style.color = 'var(--text-muted)';
+            }
+          }
+
+          if (rl.active_parent_order) {
+            const ord = rl.active_parent_order;
+            const progBar = document.getElementById('rl-progress-bar');
+            if (progBar) progBar.style.width = `${Math.min(100, ord.progress_pct || 0)}%`;
+            const progTxt = document.getElementById('rl-progress-shares');
+            if (progTxt) progTxt.innerText = `${Number(ord.filled_shares || 0).toLocaleString()} / ${Number(ord.total_shares || 0).toLocaleString()} shares (${ord.progress_pct}%)`;
+            const p0El = document.getElementById('rl-p0-val');
+            if (p0El) p0El.innerText = `$${Number(ord.arrival_price || 0).toFixed(2)}`;
+            const avgPEl = document.getElementById('rl-avg-p');
+            if (avgPEl) avgPEl.innerText = `$${Number(ord.average_exec_price || 0).toFixed(2)}`;
+
+            const isEl = document.getElementById('rl-shortfall-bps');
+            if (isEl) {
+              const isVal = Number(ord.implementation_shortfall_bps || 0);
+              isEl.innerText = `${isVal >= 0 ? '+' : ''}${isVal.toFixed(1)} bps`;
+              isEl.style.color = (isVal <= 5.0) ? 'var(--green)' : ((isVal <= 15.0) ? 'var(--amber)' : 'var(--red)');
+            }
+
+            if (ord.recent_fills && ord.recent_fills.length > 0) {
+              const lastFill = ord.recent_fills[ord.recent_fills.length - 1];
+              const actPill = document.getElementById('rl-active-action-pill');
+              if (actPill) actPill.innerText = `LAST ACTION: ${lastFill.action} (${lastFill.maker ? 'MAKER' : 'TAKER'})`;
+
+              const fillsContainer = document.getElementById('rl-child-fills-list');
+              if (fillsContainer) {
+                fillsContainer.innerHTML = ord.recent_fills.map(f => `
+                  <div style="display: flex; justify-content: space-between; font-size: 0.68rem; padding: 2px 4px; background: rgba(255,255,255,0.03); border-radius: 3px;">
+                    <span style="color: var(--text-dim);">${f.time}</span>
+                    <span style="color: ${f.maker ? 'var(--cyan)' : 'var(--amber)'}; font-weight: 700;">${f.action}</span>
+                    <span style="color: #fff;">${f.qty} @ $${Number(f.price).toFixed(2)}</span>
+                    <span style="color: ${f.slippage_bps <= 5 ? 'var(--green)' : 'var(--amber)'};">${f.slippage_bps >= 0 ? '+' : ''}${f.slippage_bps} bps</span>
+                    <span style="color: ${f.maker ? 'var(--cyan)' : 'var(--purple)'};">${f.maker ? 'MAKER' : 'TAKER'}</span>
+                  </div>
+                `).reverse().join('');
+              }
+            }
+          }
         }
       }
 

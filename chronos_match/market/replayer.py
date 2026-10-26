@@ -349,6 +349,63 @@ class HistoricalMarketReplayer:
                     self._on_trade_matched(venue, sym, int(side_enum), trade_p, m["quantity"], impact, pattern_model, algo_mgr, m)
                     events.append({"type": "MOMENTUM_TRADE", "side": action, "price": trade_p, "qty": m["quantity"]})
 
+        # 3.5. Reinforcement Learning Optimal Execution Agent (DQN)
+        if algo_mgr and algo_mgr.rl_execution_agent.active and algo_mgr.rl_execution_agent.active_parent_order:
+            best_b_val = from_fixed_price(venue.book.best_bid_price)
+            best_a_val = from_fixed_price(venue.book.best_ask_price)
+            eff_bid = best_b_val if best_b_val > 0 else round(effective_mid - tick, 2)
+            eff_ask = best_a_val if best_a_val > 0 else round(effective_mid + tick, 2)
+            spread_mult_val = max(1.0, impact.get_spread_multiplier() * pred.spread_multiplier)
+
+            latest_pat = self.latest_pattern.get(sym)
+            pat_sentiment = (
+                latest_pat.sentiment.value if latest_pat
+                else ("BULLISH" if "BULL" in regime.value else ("BEARISH" if "BEAR" in regime.value else "NEUTRAL"))
+            )
+            rl_state = algo_mgr.rl_execution_agent.extract_microstructure_state(
+                market_mid=effective_mid,
+                best_bid=eff_bid,
+                best_ask=eff_ask,
+                bid_vol=venue.book.best_bid_volume or 100,
+                ask_vol=venue.book.best_ask_volume or 100,
+                ofi=impact.ofi,
+                daily_vol=daily_vol,
+                spread_mult=spread_mult_val,
+                predicted_drift=pred.predicted_drift,
+                regime_value=regime.value,
+                pattern_sentiment=pat_sentiment,
+                tick_size=tick,
+            )
+            child_order = algo_mgr.rl_execution_agent.step_execution_policy(
+                state=rl_state,
+                best_bid=eff_bid,
+                best_ask=eff_ask,
+                tick_size=tick,
+            )
+            if child_order:
+                child_oid = self.router.allocate_order_id()
+                self.router.client_order_registry[child_oid] = algo_mgr.rl_execution_agent.bot_id
+                matches = venue.book.add_limit_order(
+                    order_id=child_oid,
+                    client_id=algo_mgr.rl_execution_agent.bot_id,
+                    price=to_fixed_price(child_order["price"]),
+                    quantity=child_order["quantity"],
+                    side=int(child_order["side"]),
+                    symbol_id=venue.info.symbol_id,
+                )
+                venue.total_orders += 1
+                for m in matches:
+                    trade_p = from_fixed_price(m["execution_price"])
+                    self._on_trade_matched(venue, sym, int(child_order["side"]), trade_p, m["quantity"], impact, pattern_model, algo_mgr, m)
+                    events.append({
+                        "type": "RL_EXECUTION_FILL",
+                        "action": child_order["action"],
+                        "side": "BUY" if child_order["side"] == int(OrderSide.BUY) else "SELL",
+                        "price": trade_p,
+                        "qty": m["quantity"],
+                        "maker": child_order["is_maker"],
+                    })
+
         # 4. Multi-Participant Natural Market Flow & Dynamic Book Depth
         spread_mult = max(1.0, impact.get_spread_multiplier() * pred.spread_multiplier)
         half_spread = max(tick, round(effective_mid * 0.0003 * spread_mult, 2))
@@ -531,8 +588,15 @@ class HistoricalMarketReplayer:
 
         # 3. Inform Algo Bot
         if algo_mgr:
-            algo_mgr.on_trade_executed(match_info.get("buy_order_id", 0), int(OrderSide.BUY), trade_p, qty)
-            algo_mgr.on_trade_executed(match_info.get("sell_order_id", 0), int(OrderSide.SELL), trade_p, qty)
+            b_oid = match_info.get("buy_order_id", 0)
+            s_oid = match_info.get("sell_order_id", 0)
+            b_cid = self.router.client_order_registry.get(b_oid, b_oid)
+            s_cid = self.router.client_order_registry.get(s_oid, s_oid)
+            aggressor = match_info.get("aggressor_side", 1)
+            b_is_maker = (aggressor == 2)
+            s_is_maker = (aggressor == 1)
+            algo_mgr.on_trade_executed(b_cid, int(OrderSide.BUY), trade_p, qty, is_maker=b_is_maker)
+            algo_mgr.on_trade_executed(s_cid, int(OrderSide.SELL), trade_p, qty, is_maker=s_is_maker)
 
         # 4. Persist Tick
         best_bid = from_fixed_price(venue.book.best_bid_price)
