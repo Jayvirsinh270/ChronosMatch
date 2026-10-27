@@ -25,6 +25,16 @@ from chronos_match.market.storage import (
     StoredCandle,
 )
 from chronos_match.market.replayer import HistoricalMarketReplayer
+from chronos_match.market.sor_network import (
+    MultiVenueNetwork,
+    ExchangeVenue,
+    VenueConfig,
+    VenueFill,
+)
+from chronos_match.market.nbbo import (
+    NBBOEngine,
+    NBBORecord,
+)
 
 __all__ = [
     "SymbolInfo",
@@ -42,4 +52,10 @@ __all__ = [
     "MarketDataStore",
     "StoredCandle",
     "HistoricalMarketReplayer",
+    "MultiVenueNetwork",
+    "ExchangeVenue",
+    "VenueConfig",
+    "VenueFill",
+    "NBBOEngine",
+    "NBBORecord",
 ]

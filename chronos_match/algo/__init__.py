@@ -117,6 +117,16 @@ from chronos_match.algo.backtester import (
     BayesianOrderFlowStrategy,
     RLTWAPExecutionBenchmark,
 )
+from chronos_match.algo.smart_order_router import (
+    SmartOrderRouter,
+    RoutingPolicy,
+    SORRoutingResult,
+    SORChildOrder,
+)
+from chronos_match.algo.latency_arbitrage import (
+    LatencyArbitrageEngine,
+    ArbitrageOpportunity,
+)
 
 
 __all__ = [
@@ -152,4 +162,10 @@ __all__ = [
     "MeanReversionBollingerStrategy",
     "BayesianOrderFlowStrategy",
     "RLTWAPExecutionBenchmark",
+    "SmartOrderRouter",
+    "RoutingPolicy",
+    "SORRoutingResult",
+    "SORChildOrder",
+    "LatencyArbitrageEngine",
+    "ArbitrageOpportunity",
 ]

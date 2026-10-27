@@ -48,12 +48,17 @@ from chronos_match.persistence.recovery import DeterministicRecoveryEngine
 from chronos_match.market.data_loader import MarketDataLoader
 from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
 from chronos_match.market.replayer import HistoricalMarketReplayer
+from chronos_match.market.sor_network import MultiVenueNetwork
+from chronos_match.market.nbbo import NBBOEngine
 from chronos_match.algo import (
     AlgoTradingManager,
     BacktestEngine,
     BacktestResult,
     MonteCarloEngine,
     MonteCarloResult,
+    SmartOrderRouter,
+    RoutingPolicy,
+    LatencyArbitrageEngine,
 )
 
 
@@ -113,6 +118,20 @@ class MonteCarloRunRequest(BaseModel):
     method: str = "bootstrap"
 
 
+class SORRouteRequest(BaseModel):
+    symbol: str = "NVDA"
+    side: str = "BUY"
+    quantity: int = 1000
+    policy: str = "NBBO_BEST_PRICE"  # "NBBO_BEST_PRICE", "PRO_RATA_DEPTH", "COST_AND_FEE_OPTIMIZED", "SIMULTANEOUS_SWEEP"
+    limit_price: Optional[float] = None
+
+
+class MarketShockRequest(BaseModel):
+    symbol: str = "NVDA"
+    venue_id: str = "BATS"
+    price_delta: float = 0.50
+
+
 class WebTradingServer:
     def __init__(
         self,
@@ -160,6 +179,26 @@ class WebTradingServer:
 
         # Institutional Quantitative Backtesting & Monte Carlo Engine
         self.backtest_engine = BacktestEngine(data_loader=self.replayer.data_loader)
+
+        # Multi-Exchange Smart Order Routing (SOR) & HFT Latency Arbitrage
+        self.sor_network = MultiVenueNetwork()
+        self.nbbo_engine = NBBOEngine(network=self.sor_network)
+        self.sor = SmartOrderRouter(network=self.sor_network, nbbo_engine=self.nbbo_engine)
+        self.arbitrage_engine = LatencyArbitrageEngine(network=self.sor_network, nbbo_engine=self.nbbo_engine)
+
+        # Seed multi-exchange liquidity across equity & crypto instruments
+        seed_prices = {
+            "NVDA": 130.00,
+            "AAPL": 220.00,
+            "MSFT": 415.00,
+            "TSLA": 250.00,
+            "RELIANCE": 2900.00,
+            "BTC-USD": 65000.00,
+            "ETH-USD": 3500.00,
+            "SOL-USD": 150.00,
+        }
+        for s_sym, s_px in seed_prices.items():
+            self.sor_network.seed_network(symbol=s_sym, mid_price=s_px, spread_bps=5.0)
 
     # ── Backward-compatible venue delegations ──────────────────────────────
 
@@ -994,6 +1033,88 @@ def api_run_monte_carlo(req: MonteCarloRunRequest):
         return mc_res.to_dict()
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Multi-Exchange Smart Order Routing (SOR) & Arbitrage API ───────────
+
+@app.get("/api/sor/venues")
+def api_get_sor_venues():
+    """List connected exchange venues, fee schedules, and geographic latencies."""
+    return server.sor_network.list_venues()
+
+
+@app.get("/api/sor/nbbo")
+def api_get_sor_nbbo(symbol: Optional[str] = None):
+    """Retrieve real-time consolidated National Best Bid & Offer (NBBO) quote."""
+    sym = (symbol or server.active_symbol).upper().replace("-USD", "")
+    # Check if symbol has venue order books, fallback to NVDA
+    try:
+        nbbo = server.nbbo_engine.compute_nbbo(sym)
+    except Exception:
+        sym = "NVDA"
+        nbbo = server.nbbo_engine.compute_nbbo(sym)
+    return nbbo.to_dict()
+
+
+@app.get("/api/sor/arbitrage/stats")
+def api_get_arbitrage_stats():
+    """Retrieve operational telemetry and recent snipes of HFT latency arbitrage bot."""
+    return server.arbitrage_engine.get_statistics()
+
+
+@app.post("/api/sor/arbitrage/toggle")
+def api_toggle_arbitrage():
+    """Enable or disable the autonomous cross-exchange latency arbitrage bot."""
+    server.arbitrage_engine.active = not server.arbitrage_engine.active
+    return {"active": server.arbitrage_engine.active}
+
+
+@app.post("/api/sor/arbitrage/step")
+def api_step_arbitrage(symbol: Optional[str] = None):
+    """Trigger a manual online arbitrage scan-and-snipe tick."""
+    sym = (symbol or "NVDA").upper().replace("-USD", "")
+    target = server.arbitrage_engine.step_arbitrage_cycle(sym)
+    return {
+        "sniped": target is not None,
+        "opportunity": target.to_dict() if target else None,
+        "stats": server.arbitrage_engine.get_statistics(),
+    }
+
+
+@app.post("/api/sor/route-order")
+def api_route_smart_order(req: SORRouteRequest):
+    """Route parent order across fragmented venues using chosen SOR policy."""
+    sym = req.symbol.upper().replace("-USD", "")
+    try:
+        result = server.sor.route_order(
+            symbol=sym,
+            side=req.side,
+            quantity=req.quantity,
+            policy=req.policy,
+            limit_price=req.limit_price,
+        )
+        return result.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/sor/market-shock")
+def api_inject_market_shock(req: MarketShockRequest):
+    """Inject order flow shock into a specific venue to induce an arbitrage window."""
+    sym = req.symbol.upper().replace("-USD", "")
+    try:
+        server.sor_network.inject_market_shock(symbol=sym, venue_id=req.venue_id, price_delta=req.price_delta)
+        nbbo = server.nbbo_engine.compute_nbbo(sym)
+        opps = server.arbitrage_engine.scan_opportunities(sym)
+        return {
+            "status": "SHOCK_INJECTED",
+            "symbol": sym,
+            "venue_id": req.venue_id,
+            "nbbo": nbbo.to_dict(),
+            "opportunities_detected": len(opps),
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

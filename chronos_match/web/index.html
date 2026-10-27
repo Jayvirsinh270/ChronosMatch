@@ -753,6 +753,133 @@
       background: #de3b50;
     }
 
+    /* MULTI-VENUE SMART ORDER ROUTING & ARBITRAGE STYLES */
+    .sor-nbbo-banner {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-mono);
+    }
+    .sor-nbbo-side {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sor-nbbo-label {
+      font-size: 0.60rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sor-nbbo-price {
+      font-size: 1.25rem;
+      font-weight: 800;
+    }
+    .sor-nbbo-venue-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.62rem;
+      font-weight: 700;
+    }
+    .sor-venues-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 1200px) {
+      .sor-venues-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    .sor-venue-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-family: var(--font-mono);
+    }
+    .sor-venue-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.70rem;
+      font-weight: 700;
+      color: #fff;
+      border-bottom: 1px solid rgba(30, 41, 59, 0.5);
+      padding-bottom: 4px;
+    }
+    .sor-venue-loc {
+      font-size: 0.58rem;
+      color: var(--text-dim);
+    }
+    .sor-venue-quotes {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+      font-size: 0.74rem;
+    }
+    .sor-venue-fees {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.60rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .sor-workstation-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 1100px) {
+      .sor-workstation-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .sor-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-family: var(--font-mono);
+    }
+    .btn-route-sor {
+      background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+      color: #0b1914;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+    }
+    .btn-route-sor:hover {
+      background: linear-gradient(135deg, #059669 0%, #0891b2 100%);
+      transform: translateY(-1px);
+    }
+
     /* FOOTER */
     footer {
       background: var(--bg-header);
@@ -1023,6 +1150,7 @@
             <button id="tab-algo" class="dock-tab" onclick="switchDockTab('algo')">🤖 ALGO DESK (+$0.00)</button>
             <button id="tab-risk" class="dock-tab" onclick="switchDockTab('risk')">🛡️ RISK & MARGIN</button>
             <button id="tab-quant" class="dock-tab" onclick="switchDockTab('quant')">📊 QUANT TEAR SHEET & MONTE CARLO</button>
+            <button id="tab-sor" class="dock-tab" onclick="switchDockTab('sor')">🌐 MULTI-VENUE SOR & ARBITRAGE</button>
           </div>
           <button class="btn-cancel-sm" style="padding: 4px 10px;" onclick="cancelAllOrders()">
             CANCEL ALL (ESC)
@@ -1482,6 +1610,156 @@
           </div>
         </div>
 
+        <!-- TAB 7: MULTI-VENUE SOR & LATENCY ARBITRAGE -->
+        <div class="dock-content" id="content-tab-sor" style="display: none; max-height: 480px; overflow-y: auto;">
+          <!-- 1. Consolidated NBBO Banner -->
+          <div class="sor-nbbo-banner">
+            <div class="sor-nbbo-side">
+              <span class="sor-nbbo-label">National Best Bid (NBB)</span>
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span class="sor-nbbo-price" id="sor-nbb-price" style="color: var(--green);">$0.00</span>
+                <span class="sor-nbbo-venue-badge" id="sor-nbb-venue" style="background: rgba(16, 185, 129, 0.2); color: var(--green);">NASDAQ (0 shs)</span>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+              <span class="sor-nbbo-label">Consolidated Spread</span>
+              <div style="display: flex; align-items: baseline; gap: 6px;">
+                <strong id="sor-nbbo-spread" style="font-size: 1.05rem; color: #fff;">$0.00</strong>
+                <span id="sor-nbbo-spread-bps" style="font-size: 0.68rem; color: var(--text-dim);">(0.0 bps)</span>
+              </div>
+              <span id="sor-market-condition-pill" style="font-size: 0.62rem; padding: 2px 8px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 700;">REG NMS REGULAR</span>
+            </div>
+
+            <div class="sor-nbbo-side" style="align-items: flex-end;">
+              <span class="sor-nbbo-label">National Best Offer (NBO)</span>
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span class="sor-nbbo-venue-badge" id="sor-nbo-venue" style="background: rgba(239, 68, 68, 0.2); color: var(--red);">BATS (0 shs)</span>
+                <span class="sor-nbbo-price" id="sor-nbo-price" style="color: var(--red);">$0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Cross-Exchange Top-of-Book Matrix Cards -->
+          <div class="sor-venues-grid" id="sor-venues-container">
+            <!-- Rendered dynamically -->
+          </div>
+
+          <!-- 3. Workstation: SOR Router (Left) & Latency Arbitrage (Right) -->
+          <div class="sor-workstation-grid">
+            <!-- Left: Smart Order Router Pad -->
+            <div class="sor-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
+                <span style="font-size: 0.72rem; font-weight: 700; color: #fff;">🚀 SMART ORDER ROUTER (SOR) EXECUTION</span>
+                <span style="font-size: 0.62rem; color: var(--text-dim);">MULTI-VENUE DISPATCH</span>
+              </div>
+
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end;">
+                <div class="quant-toolbar-item">
+                  <span class="quant-label">Side</span>
+                  <select id="sor-order-side" class="quant-select" style="font-weight: 700;">
+                    <option value="BUY" style="color: var(--green);">BUY</option>
+                    <option value="SELL" style="color: var(--red);">SELL</option>
+                  </select>
+                </div>
+                <div class="quant-toolbar-item">
+                  <span class="quant-label">Shares</span>
+                  <input type="number" id="sor-order-qty" class="quant-input" value="1200" style="width: 80px;" />
+                </div>
+                <div class="quant-toolbar-item">
+                  <span class="quant-label">Symbol</span>
+                  <select id="sor-order-symbol" class="quant-select" onchange="fetchSORData()">
+                    <option value="NVDA">NVDA</option>
+                    <option value="AAPL">AAPL</option>
+                    <option value="MSFT">MSFT</option>
+                    <option value="TSLA">TSLA</option>
+                    <option value="RELIANCE">RELIANCE</option>
+                    <option value="BTC-USD">BTC-USD</option>
+                    <option value="ETH-USD">ETH-USD</option>
+                    <option value="SOL-USD">SOL-USD</option>
+                  </select>
+                </div>
+                <div class="quant-toolbar-item">
+                  <span class="quant-label">Routing Policy</span>
+                  <select id="sor-order-policy" class="quant-select" style="min-width: 170px;">
+                    <option value="NBBO_BEST_PRICE">NBBO Best Price Sweep</option>
+                    <option value="PRO_RATA_DEPTH">Pro-Rata Depth Allocation</option>
+                    <option value="COST_AND_FEE_OPTIMIZED">Cost & Fee-Aware (Net Cost)</option>
+                    <option value="SIMULTANEOUS_SWEEP">Simultaneous Latency Stagger</option>
+                  </select>
+                </div>
+                <button class="btn-route-sor" onclick="submitSOROrder()">
+                  <span>⚡ ROUTE PARENT ORDER</span>
+                </button>
+              </div>
+
+              <!-- Route Breakdown Visualizer -->
+              <div id="sor-route-breakdown" style="background: rgba(14, 19, 29, 0.7); border: 1px dashed var(--border); border-radius: 4px; padding: 8px 10px; font-size: 0.68rem; min-height: 85px; display: flex; flex-direction: column; justify-content: center;">
+                <div style="color: var(--text-dim); text-align: center; font-style: italic;">
+                  Configure order parameters above and click "Route Parent Order" to execute and inspect cross-exchange split telemetry.
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: HFT Latency Arbitrage Desk -->
+            <div class="sor-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 0.72rem; font-weight: 700; color: #fff;">⚡ CROSS-VENUE LATENCY ARBITRAGE</span>
+                  <span id="arb-bot-status-pill" style="font-size: 0.58rem; padding: 1px 6px; border-radius: 3px; background: rgba(16, 185, 129, 0.2); color: var(--green); font-weight: 700;">BOT ACTIVE</span>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <button class="btn-cancel-sm" style="color: var(--cyan); border-color: var(--cyan); background: rgba(6, 182, 212, 0.1);" onclick="injectExchangeShock()">
+                    💥 INJECT SHOCK
+                  </button>
+                  <button id="btn-toggle-arb" class="btn-cancel-sm" onclick="toggleArbitrageBot()">
+                    PAUSE
+                  </button>
+                </div>
+              </div>
+
+              <!-- Arbitrage KPIs -->
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+                <div style="background: rgba(14, 19, 29, 0.8); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px;">
+                  <div style="font-size: 0.56rem; color: var(--text-dim);">SNIPES</div>
+                  <div style="font-size: 0.85rem; font-weight: 800; color: #fff;" id="arb-stat-snipes">0</div>
+                </div>
+                <div style="background: rgba(14, 19, 29, 0.8); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px;">
+                  <div style="font-size: 0.56rem; color: var(--text-dim);">NET PNL</div>
+                  <div style="font-size: 0.85rem; font-weight: 800; color: var(--green);" id="arb-stat-net-pnl">$0.00</div>
+                </div>
+                <div style="background: rgba(14, 19, 29, 0.8); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px;">
+                  <div style="font-size: 0.56rem; color: var(--text-dim);">VOLUME</div>
+                  <div style="font-size: 0.85rem; font-weight: 800; color: var(--cyan);" id="arb-stat-volume">0 shs</div>
+                </div>
+                <div style="background: rgba(14, 19, 29, 0.8); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px;">
+                  <div style="font-size: 0.56rem; color: var(--text-dim);">AVG / SNIPE</div>
+                  <div style="font-size: 0.85rem; font-weight: 800; color: #fbbf24;" id="arb-stat-avg">$0.00</div>
+                </div>
+              </div>
+
+              <!-- Recent Snipes Table -->
+              <div style="max-height: 90px; overflow-y: auto;">
+                <table class="data-table" style="font-size: 0.65rem;">
+                  <thead>
+                    <tr>
+                      <th>PAIR</th>
+                      <th>QTY</th>
+                      <th>SPREAD</th>
+                      <th>GROSS</th>
+                      <th>NET PNL</th>
+                      <th>PING</th>
+                    </tr>
+                  </thead>
+                  <tbody id="table-arb-snipes">
+                    <tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 8px;">No cross-market arbitrage opportunities triggered yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -1858,7 +2136,13 @@
     }
 
     function switchDockTab(tab) {
-      ['orders', 'tape', 'ml', 'algo', 'risk', 'quant'].forEach(t => {
+      if (tab === 'sor') {
+        fetchSORData();
+        if (!sorPollTimer) sorPollTimer = setInterval(fetchSORData, 1200);
+      } else {
+        if (sorPollTimer) { clearInterval(sorPollTimer); sorPollTimer = null; }
+      }
+      ['orders', 'tape', 'ml', 'algo', 'risk', 'quant', 'sor'].forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
         const content = document.getElementById(`content-tab-${t}`);
         if (btn && content) {
@@ -2847,6 +3131,215 @@
         clearInterval(pollInterval);
         pollInterval = null;
       }
+    }
+
+    // ── MULTI-VENUE SMART ORDER ROUTING & ARBITRAGE LOGIC ───────────────
+    let sorPollTimer = null;
+    let arbBotActive = true;
+
+    async function fetchSORData() {
+      const symEl = document.getElementById('sor-order-symbol');
+      const sym = symEl ? symEl.value : 'NVDA';
+
+      try {
+        const [nbboResp, venuesResp, arbResp] = await Promise.all([
+          fetch(`/api/sor/nbbo?symbol=${encodeURIComponent(sym)}`),
+          fetch('/api/sor/venues'),
+          fetch('/api/sor/arbitrage/stats'),
+        ]);
+
+        if (nbboResp.ok) {
+          const nbbo = await nbboResp.json();
+          renderSORNBBO(nbbo);
+        }
+        if (venuesResp.ok) {
+          const venues = await venuesResp.json();
+          renderSORVenues(venues);
+        }
+        if (arbResp.ok) {
+          const arbStats = await arbResp.json();
+          renderArbitrageStats(arbStats);
+        }
+      } catch (e) {
+        console.error('Fetch SOR error', e);
+      }
+    }
+
+    function renderSORNBBO(nbbo) {
+      if (!nbbo) return;
+      document.getElementById('sor-nbb-price').innerText = '$' + nbbo.national_best_bid.toFixed(2);
+      document.getElementById('sor-nbb-venue').innerText = nbbo.national_best_bid_venue + ' (' + nbbo.national_best_bid_size.toLocaleString() + ' shs)';
+
+      document.getElementById('sor-nbo-price').innerText = '$' + nbbo.national_best_offer.toFixed(2);
+      document.getElementById('sor-nbo-venue').innerText = nbbo.national_best_offer_venue + ' (' + nbbo.national_best_offer_size.toLocaleString() + ' shs)';
+
+      document.getElementById('sor-nbbo-spread').innerText = '$' + nbbo.spread.toFixed(2);
+      document.getElementById('sor-nbbo-spread-bps').innerText = '(' + nbbo.spread_bps.toFixed(1) + ' bps)';
+
+      const pill = document.getElementById('sor-market-condition-pill');
+      if (nbbo.is_crossed) {
+        pill.innerText = '⚡ CROSSED MARKET (ARBITRAGE WINDOW $' + nbbo.arbitrage_spread.toFixed(2) + ')';
+        pill.style.background = 'rgba(239, 68, 68, 0.25)';
+        pill.style.color = '#ef4444';
+      } else if (nbbo.is_locked) {
+        pill.innerText = '🔒 LOCKED MARKET ($0.00 SPREAD)';
+        pill.style.background = 'rgba(251, 191, 36, 0.25)';
+        pill.style.color = '#fbbf24';
+      } else {
+        pill.innerText = 'REG NMS REGULAR (FAIR ORDER FLOW)';
+        pill.style.background = 'rgba(56, 189, 248, 0.15)';
+        pill.style.color = '#38bdf8';
+      }
+    }
+
+    function renderSORVenues(venues) {
+      const container = document.getElementById('sor-venues-container');
+      if (!container || !venues) return;
+
+      let html = '';
+      venues.forEach(v => {
+        const speedBumpBadge = v.speed_bump_ms > 0 ? `<span style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; font-size: 0.55rem; padding: 1px 4px; border-radius: 2px;">+350µs COIL</span>` : '';
+        html += `
+          <div class="sor-venue-card">
+            <div class="sor-venue-header">
+              <span>${v.venue_id}</span>
+              ${speedBumpBadge}
+              <span style="color: var(--cyan); font-size: 0.60rem;">${v.base_latency_ms.toFixed(2)}ms</span>
+            </div>
+            <div class="sor-venue-loc">${v.location}</div>
+            <div class="sor-venue-quotes">
+              <span style="color: var(--green);">BID: <strong>$130.00</strong></span>
+              <span style="color: var(--red);">ASK: <strong>$130.04</strong></span>
+            </div>
+            <div class="sor-venue-fees">
+              <span>Taker: ${v.taker_fee_bps} bps</span>
+              <span>Rebate: ${v.maker_rebate_bps} bps</span>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    async function submitSOROrder() {
+      const side = document.getElementById('sor-order-side').value;
+      const qty = parseInt(document.getElementById('sor-order-qty').value) || 1000;
+      const sym = document.getElementById('sor-order-symbol').value;
+      const policy = document.getElementById('sor-order-policy').value;
+
+      const container = document.getElementById('sor-route-breakdown');
+      container.innerHTML = '<div style="text-align: center; color: var(--cyan);">⚡ ROUTING THROUGH MULTI-VENUE SIP ENGINE...</div>';
+
+      try {
+        const resp = await fetch('/api/sor/route-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol: sym,
+            side: side,
+            quantity: qty,
+            policy: policy
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          container.innerHTML = `<div style="color: var(--red);">Routing Failed: ${err.detail || 'Unknown'}</div>`;
+          return;
+        }
+
+        const data = await resp.json();
+        let allocPills = '';
+        for (const [vid, allocQty] of Object.entries(data.venue_allocations)) {
+          allocPills += `<span style="background: rgba(6, 182, 212, 0.15); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-weight: 700;">${vid}: <strong style="color: #fff;">${allocQty} shs</strong></span>`;
+        }
+
+        const savingsColor = data.price_improvement_usd >= 0 ? 'var(--green)' : 'var(--red)';
+        container.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="color: var(--green); font-weight: 800;">✓ FILLED ${data.filled_quantity} / ${data.requested_quantity} SHARES</span>
+            <span style="color: var(--text-dim); font-size: 0.62rem;">${data.execution_time_ms.toFixed(2)} ms</span>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+            ${allocPills}
+          </div>
+          <div style="display: flex; justify-content: space-between; color: var(--text-dim); font-size: 0.64rem; border-top: 1px solid rgba(30, 41, 59, 0.5); padding-top: 4px;">
+            <span>Avg Fill: <strong style="color: #fff;">$${data.average_fill_price.toFixed(2)}</strong></span>
+            <span>Fees: <strong style="color: var(--amber);">$${data.total_fees_usd.toFixed(2)}</strong></span>
+            <span>Price Improvement: <strong style="color: ${savingsColor};">+$${Math.max(0, data.price_improvement_usd).toFixed(2)}</strong></span>
+          </div>
+        `;
+
+        fetchSORData();
+      } catch (e) {
+        console.error('SOR submit error', e);
+        container.innerHTML = `<div style="color: var(--red);">Error: ${e}</div>`;
+      }
+    }
+
+    async function toggleArbitrageBot() {
+      try {
+        const resp = await fetch('/api/sor/arbitrage/toggle', { method: 'POST' });
+        const res = await resp.json();
+        arbBotActive = res.active;
+        const pill = document.getElementById('arb-bot-status-pill');
+        const btn = document.getElementById('btn-toggle-arb');
+        if (pill) {
+          pill.innerText = arbBotActive ? 'BOT ACTIVE' : 'BOT PAUSED';
+          pill.style.color = arbBotActive ? 'var(--green)' : 'var(--amber)';
+        }
+        if (btn) {
+          btn.innerText = arbBotActive ? 'PAUSE' : 'RESUME';
+        }
+      } catch (e) {
+        console.error('Toggle arb error', e);
+      }
+    }
+
+    async function injectExchangeShock() {
+      const sym = document.getElementById('sor-order-symbol')?.value || 'NVDA';
+      try {
+        await fetch('/api/sor/market-shock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: sym, venue_id: 'BATS', price_delta: 0.45 })
+        });
+        // Immediately step arbitrage cycle
+        await fetch(`/api/sor/arbitrage/step?symbol=${encodeURIComponent(sym)}`, { method: 'POST' });
+        fetchSORData();
+      } catch (e) {
+        console.error('Inject shock error', e);
+      }
+    }
+
+    function renderArbitrageStats(stats) {
+      if (!stats) return;
+      document.getElementById('arb-stat-snipes').innerText = stats.total_snipes_executed;
+      document.getElementById('arb-stat-net-pnl').innerText = '$' + stats.total_net_profit_usd.toFixed(2);
+      document.getElementById('arb-stat-volume').innerText = stats.total_volume_sniped.toLocaleString() + ' shs';
+      document.getElementById('arb-stat-avg').innerText = '$' + stats.average_profit_per_snipe.toFixed(2);
+
+      const tbody = document.getElementById('table-arb-snipes');
+      if (!tbody) return;
+      if (!stats.recent_snipes || stats.recent_snipes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 8px;">Click "INJECT SHOCK" above to simulate an arbitrage window!</td></tr>';
+        return;
+      }
+
+      let rows = '';
+      stats.recent_snipes.slice(-8).reverse().forEach(s => {
+        rows += `
+          <tr>
+            <td style="font-weight: 700; color: var(--cyan);">${s.buy_venue} ➔ ${s.sell_venue}</td>
+            <td>${s.executable_quantity.toLocaleString()}</td>
+            <td>$${s.spread_usd.toFixed(2)}</td>
+            <td style="color: var(--green);">$${s.gross_profit_usd.toFixed(2)}</td>
+            <td style="color: var(--green); font-weight: 700;">$${s.net_profit_usd.toFixed(2)}</td>
+            <td style="color: var(--text-dim);">${s.latency_window_us.toFixed(0)}µs</td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rows;
     }
 
     // ── QUANT TEAR SHEET & MONTE CARLO JAVASCRIPT LOGIC ──────────────────
