@@ -88,6 +88,37 @@ class AlgoTradingManager:
         }
 
 
+from chronos_match.algo.risk_metrics import (
+    TearSheetMetrics,
+    generate_tear_sheet,
+    calculate_returns,
+    cagr,
+    annualized_volatility,
+    sharpe_ratio,
+    sortino_ratio,
+    max_drawdown,
+    calmar_ratio,
+    value_at_risk,
+    conditional_var,
+    beta_and_alpha,
+    calculate_trade_statistics,
+)
+from chronos_match.algo.monte_carlo import (
+    MonteCarloEngine,
+    MonteCarloResult,
+)
+from chronos_match.algo.backtester import (
+    BacktestEngine,
+    BacktestResult,
+    BacktestTrade,
+    BaseStrategy,
+    DualEMABreakoutStrategy,
+    MeanReversionBollingerStrategy,
+    BayesianOrderFlowStrategy,
+    RLTWAPExecutionBenchmark,
+)
+
+
 __all__ = [
     "AvellanedaStoikovMarketMaker",
     "MarketMakerStats",
@@ -98,4 +129,27 @@ __all__ = [
     "ParentOrderState",
     "ChildExecutionFill",
     "AlgoTradingManager",
+    "TearSheetMetrics",
+    "generate_tear_sheet",
+    "calculate_returns",
+    "cagr",
+    "annualized_volatility",
+    "sharpe_ratio",
+    "sortino_ratio",
+    "max_drawdown",
+    "calmar_ratio",
+    "value_at_risk",
+    "conditional_var",
+    "beta_and_alpha",
+    "calculate_trade_statistics",
+    "MonteCarloEngine",
+    "MonteCarloResult",
+    "BacktestEngine",
+    "BacktestResult",
+    "BacktestTrade",
+    "BaseStrategy",
+    "DualEMABreakoutStrategy",
+    "MeanReversionBollingerStrategy",
+    "BayesianOrderFlowStrategy",
+    "RLTWAPExecutionBenchmark",
 ]

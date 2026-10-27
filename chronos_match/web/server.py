@@ -48,7 +48,13 @@ from chronos_match.persistence.recovery import DeterministicRecoveryEngine
 from chronos_match.market.data_loader import MarketDataLoader
 from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
 from chronos_match.market.replayer import HistoricalMarketReplayer
-from chronos_match.algo import AlgoTradingManager
+from chronos_match.algo import (
+    AlgoTradingManager,
+    BacktestEngine,
+    BacktestResult,
+    MonteCarloEngine,
+    MonteCarloResult,
+)
 
 
 class OrderRequest(BaseModel):
@@ -82,6 +88,29 @@ class RLOrderRequest(BaseModel):
     shares: int = 1000
     horizon_sec: float = 60.0
     risk_aversion: float = 0.001
+
+
+class BacktestRunRequest(BaseModel):
+    symbol: str = "NVDA"
+    strategy: str = "dual_ema"
+    initial_capital: float = 100_000.0
+    max_bars: int = 300
+    commission_bps: float = 5.0
+    slippage_bps: float = 3.5
+    stop_loss_pct: float = 4.0
+    take_profit_pct: float = 8.0
+    params: Optional[Dict[str, Any]] = None
+    run_monte_carlo: bool = True
+    monte_carlo_sims: int = 1_000
+
+
+class MonteCarloRunRequest(BaseModel):
+    symbol: str = "NVDA"
+    num_simulations: int = 1_000
+    forecast_bars: int = 60
+    initial_equity: float = 100_000.0
+    ruin_drawdown_pct: float = 20.0
+    method: str = "bootstrap"
 
 
 class WebTradingServer:
@@ -128,6 +157,9 @@ class WebTradingServer:
                 self.replayer.bind_stock(sym)
             except Exception:
                 pass
+
+        # Institutional Quantitative Backtesting & Monte Carlo Engine
+        self.backtest_engine = BacktestEngine(data_loader=self.replayer.data_loader)
 
     # ── Backward-compatible venue delegations ──────────────────────────────
 
@@ -908,6 +940,62 @@ def api_get_ml_metrics():
         except Exception as e:
             return {"error": str(e)}
     return {"status": "weights_not_found"}
+
+
+# ── Institutional Quantitative Backtesting & Monte Carlo API ───────────
+
+@app.get("/api/backtest/strategies")
+def api_get_backtest_strategies():
+    """Retrieve catalog of institutional quantitative alpha strategies."""
+    return server.backtest_engine.get_supported_strategies()
+
+
+@app.post("/api/backtest/run")
+def api_run_backtest(req: BacktestRunRequest):
+    """Execute historical strategy backtest with institutional tear sheet analytics."""
+    try:
+        result = server.backtest_engine.run_backtest(
+            symbol=req.symbol,
+            strategy_id=req.strategy,
+            initial_capital=req.initial_capital,
+            max_bars=req.max_bars,
+            commission_bps=req.commission_bps,
+            slippage_bps=req.slippage_bps,
+            stop_loss_pct=req.stop_loss_pct,
+            take_profit_pct=req.take_profit_pct,
+            strategy_params=req.params,
+            run_monte_carlo=req.run_monte_carlo,
+            monte_carlo_sims=req.monte_carlo_sims,
+        )
+        return result.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/monte-carlo/simulate")
+def api_run_monte_carlo(req: MonteCarloRunRequest):
+    """Run parametric/bootstrapped Monte Carlo forward return fan cone simulation."""
+    try:
+        # Load returns for symbol
+        candles = server.replayer.data_loader.load_candles(req.symbol)
+        if not candles or len(candles) < 10:
+            raise HTTPException(status_code=400, detail=f"Insufficient candle history for {req.symbol}")
+        closes = [c.close for c in candles]
+        rets = [(closes[i] - closes[i - 1]) / closes[i - 1] for i in range(1, len(closes)) if closes[i - 1] > 0]
+        mc_res = server.backtest_engine.monte_carlo_engine.simulate_from_returns(
+            returns=rets,
+            num_simulations=req.num_simulations,
+            forecast_bars=req.forecast_bars,
+            initial_equity=req.initial_equity,
+            ruin_drawdown_pct=req.ruin_drawdown_pct,
+            method=req.method,
+            symbol=req.symbol,
+        )
+        return mc_res.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.websocket("/ws")

@@ -764,6 +764,138 @@
       color: var(--text-dim);
       font-family: var(--font-mono);
     }
+    /* QUANT TEAR SHEET & MONTE CARLO COCKPIT STYLES */
+    .quant-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-end;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+    }
+    .quant-toolbar-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .quant-label {
+      font-size: 0.60rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .quant-input, .quant-select {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 4px 8px;
+      border-radius: 4px;
+      outline: none;
+    }
+    .quant-input:focus, .quant-select:focus {
+      border-color: var(--cyan);
+    }
+    .btn-run-quant {
+      background: linear-gradient(135deg, #0284c7 0%, #06b6d4 100%);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.25);
+    }
+    .btn-run-quant:hover {
+      background: linear-gradient(135deg, #0369a1 0%, #0891b2 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.4);
+    }
+    .quant-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 1280px) {
+      .quant-kpi-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+    .quant-kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .quant-kpi-title {
+      font-size: 0.58rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .quant-kpi-val {
+      font-size: 1.02rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: #fff;
+    }
+    .quant-kpi-sub {
+      font-size: 0.58rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+    .quant-charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 1024px) {
+      .quant-charts-row {
+        grid-template-columns: 1fr;
+      }
+    }
+    .quant-chart-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      height: 230px;
+    }
+    .quant-chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-dim);
+    }
+    .quant-svg-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
   </style>
 </head>
 <body>
@@ -890,6 +1022,7 @@
             <button id="tab-ml" class="dock-tab" onclick="switchDockTab('ml')">🔮 ML PATTERN RADAR</button>
             <button id="tab-algo" class="dock-tab" onclick="switchDockTab('algo')">🤖 ALGO DESK (+$0.00)</button>
             <button id="tab-risk" class="dock-tab" onclick="switchDockTab('risk')">🛡️ RISK & MARGIN</button>
+            <button id="tab-quant" class="dock-tab" onclick="switchDockTab('quant')">📊 QUANT TEAR SHEET & MONTE CARLO</button>
           </div>
           <button class="btn-cancel-sm" style="padding: 4px 10px;" onclick="cancelAllOrders()">
             CANCEL ALL (ESC)
@@ -1156,6 +1289,195 @@
                 <span>Inventory (<span id="acc-curr-symbol">NVDA</span>): <strong id="acc-shares" style="color: var(--cyan);">10,000 shs</strong></span>
                 <span id="acc-cross-positions" style="color: var(--text-dim);">BTC: 50 | ETH: 500</span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 6: QUANT TEAR SHEET & MONTE CARLO -->
+        <div class="dock-content" id="content-tab-quant" style="display: none; max-height: 480px; overflow-y: auto;">
+          <!-- Controls Toolbar -->
+          <div class="quant-toolbar">
+            <div class="quant-toolbar-item">
+              <span class="quant-label">Symbol</span>
+              <select id="quant-symbol" class="quant-select">
+                <option value="NVDA">NVDA</option>
+                <option value="AAPL">AAPL</option>
+                <option value="MSFT">MSFT</option>
+                <option value="TSLA">TSLA</option>
+                <option value="RELIANCE">RELIANCE</option>
+                <option value="SOL-USD">SOL-USD</option>
+                <option value="BTC-USD">BTC-USD</option>
+                <option value="ETH-USD">ETH-USD</option>
+              </select>
+            </div>
+            <div class="quant-toolbar-item">
+              <span class="quant-label">Strategy</span>
+              <select id="quant-strategy" class="quant-select" style="min-width: 220px;">
+                <option value="dual_ema">Dual EMA Trend Breakout (12 / 26)</option>
+                <option value="bollinger_mr">Bollinger Bands Mean Reversion (20, 2.0)</option>
+                <option value="order_flow">Bayesian Order Flow Momentum (OFI + Micro)</option>
+                <option value="twap_benchmark">RL-TWAP Execution Benchmark</option>
+              </select>
+            </div>
+            <div class="quant-toolbar-item">
+              <span class="quant-label">Capital ($)</span>
+              <input type="number" id="quant-capital" class="quant-input" value="100000" style="width: 85px;" />
+            </div>
+            <div class="quant-toolbar-item">
+              <span class="quant-label">Max Bars</span>
+              <input type="number" id="quant-max-bars" class="quant-input" value="300" style="width: 60px;" />
+            </div>
+            <div class="quant-toolbar-item">
+              <span class="quant-label">Stop Loss %</span>
+              <input type="number" step="0.5" id="quant-sl" class="quant-input" value="4.0" style="width: 55px;" />
+            </div>
+            <div class="quant-toolbar-item">
+              <span class="quant-label">Take Profit %</span>
+              <input type="number" step="0.5" id="quant-tp" class="quant-input" value="8.0" style="width: 55px;" />
+            </div>
+            <div class="quant-toolbar-item">
+              <span class="quant-label">Fee (bps)</span>
+              <input type="number" step="0.5" id="quant-fee-bps" class="quant-input" value="5.0" style="width: 50px;" />
+            </div>
+            <div class="quant-toolbar-item">
+              <span class="quant-label">Slippage (bps)</span>
+              <input type="number" step="0.5" id="quant-slip-bps" class="quant-input" value="3.5" style="width: 50px;" />
+            </div>
+            <div class="quant-toolbar-item" style="flex-direction: row; align-items: center; gap: 6px; padding: 4px 6px;">
+              <input type="checkbox" id="quant-mc-toggle" checked style="accent-color: var(--cyan); cursor: pointer;" />
+              <span class="quant-label" style="cursor: pointer;" onclick="document.getElementById('quant-mc-toggle').click()">Monte Carlo (1k)</span>
+            </div>
+            <button id="btn-run-backtest" class="btn-run-quant" onclick="runBacktest()">
+              <span>⚡ RUN STRATEGY BACKTEST & MONTE CARLO</span>
+            </button>
+          </div>
+
+          <!-- Tear Sheet Scorecard KPI Badges -->
+          <div class="quant-kpi-grid">
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">SHARPE RATIO (ANN.)</div>
+              <div class="quant-kpi-val" id="kpi-sharpe" style="color: var(--green);">--</div>
+              <div class="quant-kpi-sub">Benchmark: 0.85</div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">SORTINO RATIO</div>
+              <div class="quant-kpi-val" id="kpi-sortino" style="color: var(--cyan);">--</div>
+              <div class="quant-kpi-sub">Downside Risk Focus</div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">CALMAR RATIO</div>
+              <div class="quant-kpi-val" id="kpi-calmar" style="color: #a78bfa;">--</div>
+              <div class="quant-kpi-sub">CAGR / Max Drawdown</div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">STRATEGY CAGR</div>
+              <div class="quant-kpi-val" id="kpi-cagr">--</div>
+              <div class="quant-kpi-sub" id="kpi-net-pnl">Net PnL: $0.00</div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">MAX DRAWDOWN</div>
+              <div class="quant-kpi-val" id="kpi-mdd" style="color: var(--red);">--</div>
+              <div class="quant-kpi-sub" id="kpi-mdd-dur">Duration: 0 bars</div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">ANNUALIZED VOLATILITY</div>
+              <div class="quant-kpi-val" id="kpi-vol">--</div>
+              <div class="quant-kpi-sub">Daily Returns σ × √252</div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">VALUE AT RISK (VaR 95%)</div>
+              <div class="quant-kpi-val" id="kpi-var95" style="color: #f87171;">--</div>
+              <div class="quant-kpi-sub">VaR 99%: <span id="kpi-var99">--</span></div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">CONDITIONAL VaR (CVaR 95%)</div>
+              <div class="quant-kpi-val" id="kpi-cvar95" style="color: #ef4444;">--</div>
+              <div class="quant-kpi-sub">Expected Shortfall Tail</div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">ALPHA & BETA (VS BMK)</div>
+              <div class="quant-kpi-val" id="kpi-alpha" style="color: var(--green);">--</div>
+              <div class="quant-kpi-sub">Beta: <span id="kpi-beta">--</span> | Bmk: <span id="kpi-bmk-ret">--</span></div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">WIN RATE %</div>
+              <div class="quant-kpi-val" id="kpi-winrate">--</div>
+              <div class="quant-kpi-sub" id="kpi-win-loss-count">0 Wins / 0 Losses</div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">PROFIT FACTOR</div>
+              <div class="quant-kpi-val" id="kpi-profit-factor" style="color: var(--cyan);">--</div>
+              <div class="quant-kpi-sub">Payoff Ratio: <span id="kpi-payoff">--</span></div>
+            </div>
+            <div class="quant-kpi-card">
+              <div class="quant-kpi-title">PROBABILITY OF RUIN</div>
+              <div class="quant-kpi-val" id="kpi-ruin" style="color: #38bdf8;">--</div>
+              <div class="quant-kpi-sub">Monte Carlo (>20% Drawdown)</div>
+            </div>
+          </div>
+
+          <!-- Dual Visualizations: Equity Curve & Monte Carlo Cone -->
+          <div class="quant-charts-row">
+            <div class="quant-chart-box">
+              <div class="quant-chart-header">
+                <span>📈 CUMULATIVE EQUITY CURVE VS. BUY & HOLD BENCHMARK</span>
+                <div style="display: flex; gap: 10px; font-size: 0.62rem;">
+                  <span style="color: #00e5ff;">■ Strategy</span>
+                  <span style="color: #94a3b8;">--- Benchmark</span>
+                  <span style="color: #ef4444;">■ Underwater Drawdown</span>
+                </div>
+              </div>
+              <div class="quant-svg-container" id="chart-equity-container">
+                <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.72rem; font-family: var(--font-mono);">
+                  Click "⚡ RUN STRATEGY BACKTEST" to simulate performance and render equity path.
+                </div>
+              </div>
+            </div>
+
+            <div class="quant-chart-box">
+              <div class="quant-chart-header">
+                <span>🎲 MONTE CARLO FORWARD PERCENTILE CONE (1,000 PATHS)</span>
+                <div style="display: flex; gap: 10px; font-size: 0.62rem;">
+                  <span style="color: #ef444466;">■ 5th-95th Tail</span>
+                  <span style="color: #06b6d488;">■ 25th-75th Core</span>
+                  <span style="color: #fbbf24;">■ Median Path</span>
+                </div>
+              </div>
+              <div class="quant-svg-container" id="chart-monte-carlo-container">
+                <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.72rem; font-family: var(--font-mono);">
+                  Simulated multi-path percentile cone will render here upon backtest execution.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Closed Trades Ledger Table -->
+          <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-family: var(--font-mono); font-size: 0.68rem; font-weight: 700; color: var(--text-dim);">
+              <span>TRADE EXECUTION BLOTTER (<span id="quant-trades-count">0</span> TRADES)</span>
+              <span id="quant-trades-summary" style="font-weight: 400; font-size: 0.62rem; color: var(--text-dim);">Commission & Slippage Deducted</span>
+            </div>
+            <div style="max-height: 160px; overflow-y: auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>SIDE</th>
+                    <th>ENTRY TIME</th>
+                    <th>EXIT TIME</th>
+                    <th>ENTRY $</th>
+                    <th>EXIT $</th>
+                    <th>SHARES</th>
+                    <th>GROSS PNL</th>
+                    <th>NET PNL</th>
+                    <th>RETURN %</th>
+                    <th>REASON</th>
+                  </tr>
+                </thead>
+                <tbody id="table-quant-trades">
+                  <tr><td colspan="11" style="text-align: center; color: var(--text-dim); padding: 12px;">No historical backtest run executed yet.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1536,7 +1858,7 @@
     }
 
     function switchDockTab(tab) {
-      ['orders', 'tape', 'ml', 'algo', 'risk'].forEach(t => {
+      ['orders', 'tape', 'ml', 'algo', 'risk', 'quant'].forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
         const content = document.getElementById(`content-tab-${t}`);
         if (btn && content) {
@@ -2525,6 +2847,306 @@
         clearInterval(pollInterval);
         pollInterval = null;
       }
+    }
+
+    // ── QUANT TEAR SHEET & MONTE CARLO JAVASCRIPT LOGIC ──────────────────
+    let lastBacktestResult = null;
+
+    async function runBacktest() {
+      const btn = document.getElementById('btn-run-backtest');
+      const origText = btn.innerHTML;
+      btn.innerHTML = '<span>⏳ SIMULATING MONTE CARLO & ALPHA...</span>';
+      btn.style.opacity = '0.7';
+
+      try {
+        const symbol = document.getElementById('quant-symbol').value;
+        const strategy = document.getElementById('quant-strategy').value;
+        const capital = parseFloat(document.getElementById('quant-capital').value) || 100000;
+        const maxBars = parseInt(document.getElementById('quant-max-bars').value) || 300;
+        const sl = parseFloat(document.getElementById('quant-sl').value) || 4.0;
+        const tp = parseFloat(document.getElementById('quant-tp').value) || 8.0;
+        const feeBps = parseFloat(document.getElementById('quant-fee-bps').value) || 5.0;
+        const slipBps = parseFloat(document.getElementById('quant-slip-bps').value) || 3.5;
+        const runMC = document.getElementById('quant-mc-toggle').checked;
+
+        const resp = await fetch('/api/backtest/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol: symbol,
+            strategy: strategy,
+            initial_capital: capital,
+            max_bars: maxBars,
+            commission_bps: feeBps,
+            slippage_bps: slipBps,
+            stop_loss_pct: sl,
+            take_profit_pct: tp,
+            run_monte_carlo: runMC,
+            monte_carlo_sims: 1000
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          alert('Backtest failed: ' + (err.detail || 'Unknown error'));
+          return;
+        }
+
+        const data = await resp.json();
+        lastBacktestResult = data;
+        renderQuantTearSheet(data);
+      } catch (e) {
+        console.error('Backtest error', e);
+        alert('Backtest error: ' + e);
+      } finally {
+        btn.innerHTML = origText;
+        btn.style.opacity = '1';
+      }
+    }
+
+    function renderQuantTearSheet(data) {
+      if (!data || !data.tear_sheet) return;
+      const ts = data.tear_sheet;
+
+      // Update KPI Badges
+      const sharpeEl = document.getElementById('kpi-sharpe');
+      sharpeEl.innerText = ts.sharpe_ratio.toFixed(2);
+      sharpeEl.style.color = ts.sharpe_ratio >= 1.5 ? 'var(--green)' : ts.sharpe_ratio >= 0.8 ? 'var(--cyan)' : '#f87171';
+
+      document.getElementById('kpi-sortino').innerText = ts.sortino_ratio.toFixed(2);
+      document.getElementById('kpi-calmar').innerText = ts.calmar_ratio.toFixed(2);
+      
+      const cagrEl = document.getElementById('kpi-cagr');
+      cagrEl.innerText = (ts.cagr_pct >= 0 ? '+' : '') + ts.cagr_pct.toFixed(1) + '%';
+      cagrEl.style.color = ts.cagr_pct >= 0 ? 'var(--green)' : 'var(--red)';
+
+      const netPnlEl = document.getElementById('kpi-net-pnl');
+      netPnlEl.innerText = 'Net PnL: $' + data.net_pnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      netPnlEl.style.color = data.net_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+
+      document.getElementById('kpi-mdd').innerText = '-' + ts.max_drawdown_pct.toFixed(2) + '%';
+      document.getElementById('kpi-mdd-dur').innerText = 'Duration: ' + ts.max_drawdown_duration + ' bars';
+      document.getElementById('kpi-vol').innerText = ts.annualized_vol_pct.toFixed(1) + '%';
+
+      document.getElementById('kpi-var95').innerText = '-' + ts.var_95_pct.toFixed(2) + '%';
+      document.getElementById('kpi-var99').innerText = '-' + ts.var_99_pct.toFixed(2) + '%';
+      document.getElementById('kpi-cvar95').innerText = '-' + ts.cvar_95_pct.toFixed(2) + '%';
+
+      const alphaEl = document.getElementById('kpi-alpha');
+      alphaEl.innerText = (ts.alpha_annualized_pct >= 0 ? '+' : '') + ts.alpha_annualized_pct.toFixed(1) + '%';
+      alphaEl.style.color = ts.alpha_annualized_pct >= 0 ? 'var(--green)' : 'var(--red)';
+      document.getElementById('kpi-beta').innerText = ts.beta.toFixed(2);
+      document.getElementById('kpi-bmk-ret').innerText = (ts.benchmark_return_pct >= 0 ? '+' : '') + ts.benchmark_return_pct.toFixed(1) + '%';
+
+      document.getElementById('kpi-winrate').innerText = ts.win_rate_pct.toFixed(1) + '%';
+      document.getElementById('kpi-win-loss-count').innerText = ts.winning_trades + ' Wins / ' + ts.losing_trades + ' Losses';
+
+      document.getElementById('kpi-profit-factor').innerText = isFinite(ts.profit_factor) ? ts.profit_factor.toFixed(2) : '∞';
+      document.getElementById('kpi-payoff').innerText = ts.payoff_ratio.toFixed(2);
+
+      const ruinEl = document.getElementById('kpi-ruin');
+      if (data.monte_carlo) {
+        const ruinProb = (data.monte_carlo.probability_of_ruin * 100).toFixed(1) + '%';
+        ruinEl.innerText = ruinProb;
+        ruinEl.style.color = data.monte_carlo.probability_of_ruin > 0.15 ? 'var(--red)' : 'var(--green)';
+      } else {
+        ruinEl.innerText = 'N/A';
+      }
+
+      // Render Charts
+      renderEquityCurveSVG(data.equity_curve, data.benchmark_equity, data.drawdown_curve);
+      if (data.monte_carlo) {
+        renderMonteCarloConeSVG(data.monte_carlo);
+      }
+
+      // Render Trades Ledger Table
+      renderTradesLedger(data.trades);
+    }
+
+    function renderEquityCurveSVG(equityCurve, benchmarkEquity, drawdownCurve) {
+      const container = document.getElementById('chart-equity-container');
+      if (!equityCurve || equityCurve.length < 2) return;
+
+      const n = equityCurve.length;
+      const allVals = [...equityCurve, ...(benchmarkEquity || [])];
+      const minVal = Math.min(...allVals) * 0.98;
+      const maxVal = Math.max(...allVals) * 1.02;
+      const valRange = (maxVal - minVal) || 1;
+
+      const w = 540;
+      const h = 195;
+      const padL = 50;
+      const padR = 15;
+      const padT = 15;
+      const padB = 40; // reserved bottom for drawdown underwater plot
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+
+      // Coordinate transformers
+      const getX = (i) => padL + (i / (n - 1)) * plotW;
+      const getY = (val) => padT + plotH - ((val - minVal) / valRange) * plotH;
+
+      // Build Strategy path
+      let stratD = `M ${getX(0).toFixed(1)} ${getY(equityCurve[0]).toFixed(1)}`;
+      for (let i = 1; i < n; i++) {
+        stratD += ` L ${getX(i).toFixed(1)} ${getY(equityCurve[i]).toFixed(1)}`;
+      }
+
+      // Build Benchmark path
+      let bmkD = '';
+      if (benchmarkEquity && benchmarkEquity.length === n) {
+        bmkD = `M ${getX(0).toFixed(1)} ${getY(benchmarkEquity[0]).toFixed(1)}`;
+        for (let i = 1; i < n; i++) {
+          bmkD += ` L ${getX(i).toFixed(1)} ${getY(benchmarkEquity[i]).toFixed(1)}`;
+        }
+      }
+
+      // Build Drawdown path (underwater area in padB zone)
+      let ddAreaD = '';
+      if (drawdownCurve && drawdownCurve.length === n) {
+        const ddTop = h - padB + 8;
+        const ddHeight = padB - 14;
+        const maxDd = Math.max(0.01, ...drawdownCurve);
+        ddAreaD = `M ${getX(0).toFixed(1)} ${ddTop}`;
+        for (let i = 0; i < n; i++) {
+          const ddY = ddTop + (drawdownCurve[i] / maxDd) * ddHeight;
+          ddAreaD += ` L ${getX(i).toFixed(1)} ${ddY.toFixed(1)}`;
+        }
+        ddAreaD += ` L ${getX(n - 1).toFixed(1)} ${ddTop} Z`;
+      }
+
+      const gridY1 = getY(minVal + valRange * 0.25).toFixed(1);
+      const gridY2 = getY(minVal + valRange * 0.50).toFixed(1);
+      const gridY3 = getY(minVal + valRange * 0.75).toFixed(1);
+
+      const svg = `
+        <svg viewBox="0 0 ${w} ${h}" style="width: 100%; height: 100%; display: block;" xmlns="http://www.w3.org/2000/svg">
+          <line x1="${padL}" y1="${gridY1}" x2="${w - padR}" y2="${gridY1}" stroke="#1e293b" stroke-dasharray="3,3" />
+          <line x1="${padL}" y1="${gridY2}" x2="${w - padR}" y2="${gridY2}" stroke="#1e293b" stroke-dasharray="3,3" />
+          <line x1="${padL}" y1="${gridY3}" x2="${w - padR}" y2="${gridY3}" stroke="#1e293b" stroke-dasharray="3,3" />
+          
+          <text x="${padL - 6}" y="${gridY1}" fill="#64748b" font-size="8" font-family="monospace" text-anchor="end">$${Math.round(minVal + valRange * 0.25).toLocaleString()}</text>
+          <text x="${padL - 6}" y="${gridY2}" fill="#64748b" font-size="8" font-family="monospace" text-anchor="end">$${Math.round(minVal + valRange * 0.50).toLocaleString()}</text>
+          <text x="${padL - 6}" y="${gridY3}" fill="#64748b" font-size="8" font-family="monospace" text-anchor="end">$${Math.round(minVal + valRange * 0.75).toLocaleString()}</text>
+
+          <!-- Benchmark line -->
+          ${bmkD ? `<path d="${bmkD}" fill="none" stroke="#64748b" stroke-width="1.2" stroke-dasharray="4,4" opacity="0.8" />` : ''}
+
+          <!-- Strategy equity line -->
+          <path d="${stratD}" fill="none" stroke="#00e5ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+
+          <!-- Drawdown separator & underwater bars -->
+          <line x1="${padL}" y1="${h - padB + 8}" x2="${w - padR}" y2="${h - padB + 8}" stroke="#334155" stroke-width="1" />
+          <text x="${padL - 6}" y="${h - 10}" fill="#ef4444" font-size="8" font-family="monospace" text-anchor="end">DD%</text>
+          ${ddAreaD ? `<path d="${ddAreaD}" fill="#ef4444" opacity="0.35" />` : ''}
+        </svg>
+      `;
+      container.innerHTML = svg;
+    }
+
+    function renderMonteCarloConeSVG(mc) {
+      const container = document.getElementById('chart-monte-carlo-container');
+      if (!mc || !mc.percentile_fan || !mc.percentile_fan.p50) return;
+
+      const p5 = mc.percentile_fan.p5;
+      const p25 = mc.percentile_fan.p25;
+      const p50 = mc.percentile_fan.p50;
+      const p75 = mc.percentile_fan.p75;
+      const p95 = mc.percentile_fan.p95;
+      const n = p50.length;
+
+      const minVal = Math.min(...p5) * 0.97;
+      const maxVal = Math.max(...p95) * 1.03;
+      const valRange = (maxVal - minVal) || 1;
+
+      const w = 540;
+      const h = 195;
+      const padL = 50;
+      const padR = 15;
+      const padT = 15;
+      const padB = 25;
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+
+      const getX = (i) => padL + (i / (n - 1)) * plotW;
+      const getY = (val) => padT + plotH - ((val - minVal) / valRange) * plotH;
+
+      // Outer Fan (p5 to p95)
+      let outerD = `M ${getX(0).toFixed(1)} ${getY(p95[0]).toFixed(1)}`;
+      for (let i = 1; i < n; i++) outerD += ` L ${getX(i).toFixed(1)} ${getY(p95[i]).toFixed(1)}`;
+      for (let i = n - 1; i >= 0; i--) outerD += ` L ${getX(i).toFixed(1)} ${getY(p5[i]).toFixed(1)}`;
+      outerD += ' Z';
+
+      // Inner Core (p25 to p75)
+      let innerD = `M ${getX(0).toFixed(1)} ${getY(p75[0]).toFixed(1)}`;
+      for (let i = 1; i < n; i++) innerD += ` L ${getX(i).toFixed(1)} ${getY(p75[i]).toFixed(1)}`;
+      for (let i = n - 1; i >= 0; i--) innerD += ` L ${getX(i).toFixed(1)} ${getY(p25[i]).toFixed(1)}`;
+      innerD += ' Z';
+
+      // Median line (p50)
+      let medD = `M ${getX(0).toFixed(1)} ${getY(p50[0]).toFixed(1)}`;
+      for (let i = 1; i < n; i++) medD += ` L ${getX(i).toFixed(1)} ${getY(p50[i]).toFixed(1)}`;
+
+      const yMid = getY(minVal + valRange * 0.50).toFixed(1);
+
+      const svg = `
+        <svg viewBox="0 0 ${w} ${h}" style="width: 100%; height: 100%; display: block;" xmlns="http://www.w3.org/2000/svg">
+          <line x1="${padL}" y1="${yMid}" x2="${w - padR}" y2="${yMid}" stroke="#1e293b" stroke-dasharray="3,3" />
+          
+          <text x="${padL - 6}" y="${padT + 10}" fill="#64748b" font-size="8" font-family="monospace" text-anchor="end">$${Math.round(maxVal).toLocaleString()}</text>
+          <text x="${padL - 6}" y="${yMid}" fill="#64748b" font-size="8" font-family="monospace" text-anchor="end">$${Math.round(minVal + valRange * 0.50).toLocaleString()}</text>
+          <text x="${padL - 6}" y="${h - padB}" fill="#64748b" font-size="8" font-family="monospace" text-anchor="end">$${Math.round(minVal).toLocaleString()}</text>
+
+          <!-- Outer 5th-95th percentile band -->
+          <path d="${outerD}" fill="#ef4444" opacity="0.18" />
+
+          <!-- Inner 25th-75th core band -->
+          <path d="${innerD}" fill="#06b6d4" opacity="0.32" />
+
+          <!-- Median 50th percentile path -->
+          <path d="${medD}" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" />
+
+          <text x="${padL + 10}" y="${padT + 12}" fill="#fbbf24" font-size="9" font-family="monospace" font-weight="bold">Median Terminal: $${Math.round(mc.median_terminal_equity).toLocaleString()}</text>
+          <text x="${w - padR - 10}" y="${padT + 12}" fill="${mc.probability_of_ruin > 0.1 ? '#ef4444' : '#10b981'}" font-size="9" font-family="monospace" font-weight="bold" text-anchor="end">P(Ruin &gt; 20%): ${(mc.probability_of_ruin * 100).toFixed(1)}%</text>
+        </svg>
+      `;
+      container.innerHTML = svg;
+    }
+
+    function renderTradesLedger(trades) {
+      const tbody = document.getElementById('table-quant-trades');
+      const countEl = document.getElementById('quant-trades-count');
+      if (!trades || trades.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--text-dim); padding: 12px;">No roundtrip trades triggered during backtest window.</td></tr>';
+        if (countEl) countEl.innerText = '0';
+        return;
+      }
+
+      if (countEl) countEl.innerText = trades.length;
+      let rows = '';
+      trades.slice(-50).reverse().forEach((t, idx) => {
+        const sideColor = t.side === 'BUY' ? 'var(--green)' : 'var(--red)';
+        const pnlColor = t.net_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+        const retColor = t.pnl_pct >= 0 ? 'var(--green)' : 'var(--red)';
+        const retSign = t.pnl_pct >= 0 ? '+' : '';
+
+        rows += `
+          <tr>
+            <td style="color: var(--text-dim); font-size: 0.65rem;">#${trades.length - idx}</td>
+            <td style="color: ${sideColor}; font-weight: 700;">${t.side}</td>
+            <td style="color: var(--text-dim); font-size: 0.65rem;">${t.entry_time || '--'}</td>
+            <td style="color: var(--text-dim); font-size: 0.65rem;">${t.exit_time || '--'}</td>
+            <td>$${t.entry_price.toFixed(2)}</td>
+            <td>$${t.exit_price.toFixed(2)}</td>
+            <td>${t.shares.toLocaleString()}</td>
+            <td style="color: ${t.gross_pnl >= 0 ? 'var(--green)' : 'var(--red)'};">$${t.gross_pnl.toFixed(2)}</td>
+            <td style="color: ${pnlColor}; font-weight: 700;">$${t.net_pnl.toFixed(2)}</td>
+            <td style="color: ${retColor}; font-weight: 700;">${retSign}${t.pnl_pct.toFixed(2)}%</td>
+            <td><span style="background: rgba(148, 163, 184, 0.12); padding: 1px 5px; border-radius: 3px; font-size: 0.62rem; color: #94a3b8;">${t.exit_reason}</span></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rows;
     }
 
     // CLOCK
