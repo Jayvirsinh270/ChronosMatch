@@ -20,7 +20,7 @@
 #include "arena.h"
 #include "order_map.h"
 
-#define MAX_PRICE_LEVELS 1024
+#define MAX_PRICE_LEVELS 4096
 
 typedef struct {
     uint64_t trade_id;
@@ -49,6 +49,7 @@ typedef struct {
     /* Pre-allocated pool of PriceLevels to avoid malloc during trading */
     PriceLevel  level_pool[MAX_PRICE_LEVELS];
     size_t      level_pool_used;
+    PriceLevel* level_free_head; /* O(1) free-list for recycled empty PriceLevels */
 
     /* Trade execution metrics */
     uint64_t    next_trade_id;
@@ -71,6 +72,13 @@ void order_book_destroy(OrderBook* book);
  * Returns true if successfully unlinked and recycled, false if not found.
  */
 bool order_book_cancel_order(OrderBook* book, uint64_t order_id);
+
+/**
+ * Cull unexecuted background simulated orders (client_id != 1)
+ * that have become stale or crossed (bids > max_bid or asks < min_ask).
+ * Returns total count of culled orders.
+ */
+size_t order_book_cull_stale(OrderBook* book, int64_t max_bid, int64_t min_ask);
 
 /**
  * Process an incoming Limit Order:

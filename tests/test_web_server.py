@@ -79,3 +79,19 @@ def test_web_server_market_order_crossing_spread():
     assert snap["total_trades"] > 0
     assert len(snap["recent_trades"]) > 0
     assert snap["recent_trades"][0]["quantity"] > 0
+
+
+def test_web_server_l2_depth_ladder_persistence():
+    """Verify that asks and bids in Level 2 depth ladder remain populated over continuous trading ticks."""
+    server = WebTradingServer(db_path=":memory:")
+    sym = server.active_symbol
+
+    for tick in range(1, 301):
+        server.replayer.step_market_tick(sym)
+        snap = server.get_snapshot()
+        l2 = snap["l2"]
+        bids = l2["bids"]
+        asks = l2["asks"]
+        assert len(asks) > 0, f"Asks vanished at tick {tick}"
+        assert len(bids) > 0, f"Bids vanished at tick {tick}"
+        assert snap["best_ask"] >= snap["best_bid"], f"Crossed book at tick {tick}"

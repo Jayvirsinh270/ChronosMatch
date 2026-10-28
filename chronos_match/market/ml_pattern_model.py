@@ -214,39 +214,37 @@ class LightMarketPatternModel:
         except Exception:
             pass  # Never crash the constructor; keep defaults
 
-    def _gnb_score_regime(self) -> Optional[str]:
+    def _gnb_regime_probabilities(self) -> Optional[Dict[str, float]]:
         """
-        Score current price/RSI/momentum state against GNB Gaussian parameters.
-        Returns the predicted regime string, or None if GNB unavailable.
-        This is called every 5 ticks to re-anchor the Bayesian posterior.
+        Score current price/RSI/momentum state against GNB Gaussian parameters pre-trained
+        on 2.65M historical bars across 1,465 stocks.
+        Returns normalized posterior probabilities for each regime.
         """
         if self._gnb_params is None or len(self.prices) < 15:
             return None
 
-        # Build approximate feature vector from online state
+        # Build approximate feature vector from online state with exact training scales
         cur_p = self.prices[-1]
-        mean_p = sum(self.prices) / max(1, len(self.prices))
         prices_list = list(self.prices)
-        mom5 = (prices_list[-1] - prices_list[-min(5, len(prices_list))]) / max(0.01, prices_list[-min(5, len(prices_list))]) * 100
-        mom10 = (prices_list[-1] - prices_list[-min(10, len(prices_list))]) / max(0.01, prices_list[-min(10, len(prices_list))]) * 100
+        mom5 = max(-35.0, min(35.0, (prices_list[-1] - prices_list[-min(5, len(prices_list))]) / max(0.01, prices_list[-min(5, len(prices_list))]) * 100.0))
+        mom10 = max(-50.0, min(50.0, (prices_list[-1] - prices_list[-min(10, len(prices_list))]) / max(0.01, prices_list[-min(10, len(prices_list))]) * 100.0))
 
-        rsi_feat = self.rsi
-        macd_feat = self.predicted_drift * 1000 * 100  # Proxy: predicted drift
-        bb_feat = self.bollinger_bandwidth * 100
-        atr_ratio = max(0.5, self._compute_rolling_volatility() / max(1e-6, self.baseline_vol))
-        vol_ratio = (sum(self.volumes) / max(1, len(self.volumes))) / max(1, self.volumes[-1]) if self.volumes else 1.0
-        vol10 = self._compute_rolling_volatility() * math.sqrt(252) * 100
+        rsi_feat = max(1.0, min(99.0, self.rsi))
+        macd_feat = max(-25.0, min(25.0, self.predicted_drift * 1000.0))
+        bb_feat = max(0.2, min(50.0, self.bollinger_bandwidth))
+        atr_ratio = max(0.1, min(6.0, self._compute_rolling_volatility() / max(1e-6, self.baseline_vol)))
+        vol_ratio = max(0.05, min(10.0, (sum(self.volumes) / max(1, len(self.volumes))) / max(1, self.volumes[-1])) if self.volumes else 1.0)
+        vol10 = max(1.0, min(180.0, self._compute_rolling_volatility() * math.sqrt(252) * 100.0))
         p_accel = 0.0
         if len(prices_list) >= 3:
-            p_accel = (prices_list[-1] - 2 * prices_list[-2] + prices_list[-3]) / max(0.01, cur_p) * 1000
+            p_acc = (prices_list[-1] - 2 * prices_list[-2] + prices_list[-3]) / max(0.01, cur_p) * 1000.0
+            p_accel = max(-30.0, min(30.0, p_acc))
 
         feat = [rsi_feat, macd_feat, bb_feat, atr_ratio, mom5, mom10, vol_ratio, vol10, p_accel]
 
         # Compute log-posterior for each regime
-        best_regime = None
-        best_log_p = float("-inf")
         counts_total = sum(p["count"] for p in self._gnb_params.values())
-
+        log_probs = {}
         for regime, params in self._gnb_params.items():
             prior = math.log(max(1e-10, params["count"] / max(1, counts_total)))
             ll = prior
@@ -256,14 +254,25 @@ class LightMarketPatternModel:
                 if j >= len(means):
                     break
                 mu = means[j]
-                var = variances[j]
-                ll -= 0.5 * math.log(2 * math.pi * var + 1e-30)
-                ll -= (x - mu) ** 2 / (2 * var + 1e-30)
-            if ll > best_log_p:
-                best_log_p = ll
-                best_regime = regime
+                var = max(1e-4, variances[j])
+                ll -= 0.5 * math.log(2.0 * math.pi * var)
+                ll -= ((x - mu) ** 2) / (2.0 * var)
+            log_probs[regime] = ll
 
-        return best_regime
+        max_ll = max(log_probs.values())
+        exp_vals = {k: math.exp(v - max_ll) for k, v in log_probs.items()}
+        total_exp = sum(exp_vals.values()) or 1.0
+        return {k: round(v / total_exp, 4) for k, v in exp_vals.items()}
+
+    def _gnb_score_regime(self) -> Optional[str]:
+        """
+        Score current state against pre-trained GNB Gaussian parameters.
+        Returns the winning regime string.
+        """
+        probs = self._gnb_regime_probabilities()
+        if not probs:
+            return None
+        return max(probs, key=probs.get)
 
     def update_order_book_depth(
         self,
@@ -434,15 +443,13 @@ class LightMarketPatternModel:
 
         target_probs = {k: v / sum_exp for k, v in exp_scores}
 
-        # Every 5 ticks, get GNB pre-trained signal and blend it in (20% weight)
-        if self.tick_counter % 5 == 0:
-            gnb_regime = self._gnb_score_regime()
-            if gnb_regime and gnb_regime in target_probs:
-                # Nudge the GNB-predicted regime probability upward
-                gnb_alpha = 0.20
+        # Every 2 ticks, blend GNB pre-trained Gaussian posterior probabilities smoothly (35% weight)
+        if self.tick_counter % 2 == 0:
+            gnb_probs = self._gnb_regime_probabilities()
+            if gnb_probs:
+                gnb_alpha = 0.35
                 for k in target_probs:
-                    target_probs[k] *= (1.0 - gnb_alpha)
-                target_probs[gnb_regime] = target_probs.get(gnb_regime, 0.0) + gnb_alpha
+                    target_probs[k] = (1.0 - gnb_alpha) * target_probs[k] + gnb_alpha * gnb_probs.get(k, 0.25)
 
         # Apply exponential smoothing (hysteresis) to prevent flickers
         alpha = 0.35

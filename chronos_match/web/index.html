@@ -943,6 +943,9 @@
             <span>L: <strong class="num" id="hud-l">--</strong></span>
             <span>C: <strong class="num" id="hud-c" style="color: var(--green);">--</strong></span>
             <span>VOL: <strong class="num" id="hud-v">--</strong></span>
+            <span style="color: var(--border); margin: 0 4px;">|</span>
+            <span>AI PATTERN: <strong id="hud-pattern" style="color: #60a5fa; font-weight: 700;">SCANNING...</strong></span>
+            <span>REGIME: <strong id="hud-regime" style="color: var(--green); font-weight: 700;">BALANCED</strong></span>
           </div>
           <canvas id="priceCanvas"></canvas>
         </div>
@@ -1061,26 +1064,113 @@
 
           <!-- ── TAB 4: AI & PATTERNS ── -->
           <div id="pane-ml" style="display: none;">
-            <div class="card-grid">
+            <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px;">
               <div class="stat-card">
                 <div class="stat-title">Market Regime</div>
-                <div class="stat-value" id="ml-regime" style="color: #60a5fa;">TRENDING_BULL</div>
-                <div class="stat-sub" id="ml-regime-conf">Confidence: 89.2%</div>
+                <div class="stat-value" id="ml-regime" style="color: #60a5fa; font-size: 14px;">BALANCED_CONSOLIDATION</div>
+                <div class="stat-sub" id="ml-regime-conf">Confidence: 85.0%</div>
               </div>
               <div class="stat-card">
                 <div class="stat-title">Order Flow Imbalance (OFI)</div>
-                <div class="stat-value" id="ml-ofi" style="color: var(--green);">+0.64</div>
-                <div class="stat-sub">Aggressive Buying Delta</div>
+                <div class="stat-value" id="ml-ofi" style="color: var(--green); font-size: 15px;">+0 shs</div>
+                <div class="stat-sub" id="ml-vpin">VPIN Toxicity: 18.0%</div>
               </div>
               <div class="stat-card">
                 <div class="stat-title">Candlestick Pattern</div>
-                <div class="stat-value" id="ml-pattern" style="font-size: 12px;">BULLISH_ENGULFING</div>
-                <div class="stat-sub">Detected at active bar</div>
+                <div class="stat-value" id="ml-pattern" style="font-size: 13px; color: #fbbf24;">SCANNING...</div>
+                <div class="stat-sub" id="ml-pattern-sentiment" style="color: #94a3b8; font-size: 10px;">Normal Bar Action</div>
               </div>
               <div class="stat-card">
-                <div class="stat-title">Feature Store SNR</div>
-                <div class="stat-value" id="ml-snr">3.82 SNR</div>
-                <div class="stat-sub">Signal Information Ratio: 1.45</div>
+                <div class="stat-title">AI Trade Setup</div>
+                <div class="stat-value" id="ml-signal" style="font-size: 13px; color: var(--green);">NEUTRAL</div>
+                <div class="stat-sub" id="ml-target-sl">Target: -- | Stop: --</div>
+              </div>
+            </div>
+
+            <!-- Deep Quantitative Microstructure & Probabilities Breakdown -->
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Bayesian Regime Posterior Distribution (Pre-Trained 2.65M Bars)</span>
+                <span id="ml-accuracy-badge" style="font-size: 10px; padding: 2px 6px; border-radius: 3px; background: rgba(59,130,246,0.15); color: #60a5fa; font-family: monospace;">Model Accuracy: 65.0%</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; font-size: 11px; font-family: monospace;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="color: #94a3b8;">Consolidation:</span>
+                    <span id="prob-consol" style="color: #38bdf8;">70%</span>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.08); height: 4px; border-radius: 2px; overflow: hidden;">
+                    <div id="bar-consol" style="background: #38bdf8; width: 70%; height: 100%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="color: #94a3b8;">Bull Breakout:</span>
+                    <span id="prob-bull" style="color: var(--green);">10%</span>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.08); height: 4px; border-radius: 2px; overflow: hidden;">
+                    <div id="bar-bull" style="background: var(--green); width: 10%; height: 100%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="color: #94a3b8;">Bear Impulse:</span>
+                    <span id="prob-bear" style="color: var(--red);">10%</span>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.08); height: 4px; border-radius: 2px; overflow: hidden;">
+                    <div id="bar-bear" style="background: var(--red); width: 10%; height: 100%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="color: #94a3b8;">Vol Chop:</span>
+                    <span id="prob-chop" style="color: #eab308;">10%</span>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.08); height: 4px; border-radius: 2px; overflow: hidden;">
+                    <div id="bar-chop" style="background: #eab308; width: 10%; height: 100%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Microstructure Indicators & Decision Drivers -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 11px;">
+                <div style="font-weight: 700; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase;">Microstructure Edge & Indicators</div>
+                <div style="display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                  <span style="color: #64748b;">Stoikov Micro-Price:</span>
+                  <span id="ml-micro" class="num" style="color: #fff;">$0.00 (+0.00)</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                  <span style="color: #64748b;">RSI Momentum (14):</span>
+                  <span id="ml-rsi" class="num" style="color: #38bdf8;">50.0</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                  <span style="color: #64748b;">Bollinger Bandwidth:</span>
+                  <span id="ml-bb" class="num" style="color: #e2e8f0;">0.50%</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 3px 0;">
+                  <span style="color: #64748b;">Suggested Action:</span>
+                  <span id="ml-action" style="color: #fbbf24; font-weight: 600;">MARKET_MAKING</span>
+                </div>
+              </div>
+
+              <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 11px;">
+                <div style="font-weight: 700; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase;">Top AI Decision Drivers</div>
+                <div id="ml-drivers-list" style="display: flex; flex-direction: column; gap: 4px; color: #cbd5e1;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="color: var(--green);">●</span>
+                    <span>Two-Sided Order Book in Equilibrium</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="color: #60a5fa;">●</span>
+                    <span>Pre-trained GNB Gaussian Posterior Alignment</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="color: #eab308;">●</span>
+                    <span>Wilder's RSI Momentum in Neutral Zone</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1549,11 +1639,16 @@
       if (data.total_volume !== undefined) {
         document.getElementById('hdr-vol').innerText = data.total_volume.toLocaleString();
       }
-      if (data.best_bid && data.best_ask) {
-        const spread = Math.max(0.0, data.best_ask - data.best_bid);
-        const bps = data.best_bid > 0 ? (spread / data.best_bid) * 10000 : 0;
+      const bBid = data.best_bid || 0;
+      const bAsk = data.best_ask || 0;
+      if (bBid > 0 && bAsk > 0) {
+        const spread = Math.max(0.0, bAsk - bBid);
+        const bps = (spread / bBid) * 10000;
         document.getElementById('hdr-spread').innerText = `$${spread.toFixed(2)} (${bps.toFixed(1)} bps)`;
         document.getElementById('ob-spread-val').innerText = `$${spread.toFixed(2)}`;
+      } else if (data.spread !== undefined && data.spread > 0) {
+        document.getElementById('hdr-spread').innerText = `$${data.spread.toFixed(2)}`;
+        document.getElementById('ob-spread-val').innerText = `$${data.spread.toFixed(2)}`;
       }
 
       // 3. Account Balances
@@ -1582,9 +1677,118 @@
 
       // 7. Pattern Radar & Regime
       if (data.pattern) {
-        document.getElementById('ml-pattern').innerText = data.pattern.name || 'ENGULFING';
+        const pEl = document.getElementById('ml-pattern');
+        const hudPEl = document.getElementById('hud-pattern');
+        if (pEl) pEl.innerText = data.pattern.name || 'NORMAL_BAR';
+        if (hudPEl) hudPEl.innerText = data.pattern.name || 'NORMAL_BAR';
+
+        const sentEl = document.getElementById('ml-pattern-sentiment');
+        if (sentEl) {
+          sentEl.innerText = (data.pattern.sentiment || 'NEUTRAL') + (data.pattern.description ? ' - ' + data.pattern.description : '');
+          sentEl.style.color = data.pattern.sentiment === 'BULLISH' ? 'var(--green)' : (data.pattern.sentiment === 'BEARISH' ? 'var(--red)' : '#94a3b8');
+        }
       }
-      if (data.ml_impact && data.ml_impact.current_regime) {
+
+      if (data.ml_pattern) {
+        const ml = data.ml_pattern;
+        const regEl = document.getElementById('ml-regime');
+        const hudREl = document.getElementById('hud-regime');
+        if (regEl) {
+          regEl.innerText = ml.regime;
+          regEl.style.color = ml.regime.includes('BULL') ? 'var(--green)' : (ml.regime.includes('BEAR') ? 'var(--red)' : (ml.regime.includes('CHOP') ? '#eab308' : '#60a5fa'));
+        }
+        if (hudREl) {
+          hudREl.innerText = ml.regime;
+          hudREl.style.color = ml.regime.includes('BULL') ? 'var(--green)' : (ml.regime.includes('BEAR') ? 'var(--red)' : (ml.regime.includes('CHOP') ? '#eab308' : '#38bdf8'));
+        }
+
+        const confEl = document.getElementById('ml-regime-conf');
+        if (confEl) confEl.innerText = `Confidence: ${(ml.confidence * 100).toFixed(1)}%`;
+
+        const ofiEl = document.getElementById('ml-ofi');
+        if (ofiEl) {
+          const ofiVal = ml.ofi_score || 0;
+          ofiEl.innerText = (ofiVal >= 0 ? '+' : '') + Math.round(ofiVal).toLocaleString() + ' shs';
+          ofiEl.style.color = ofiVal >= 0 ? 'var(--green)' : 'var(--red)';
+        }
+
+        const vpinEl = document.getElementById('ml-vpin');
+        if (vpinEl) vpinEl.innerText = `VPIN Toxicity: ${((ml.vpin_toxicity || 0.15) * 100).toFixed(1)}%`;
+
+        const sigEl = document.getElementById('ml-signal');
+        if (sigEl) {
+          sigEl.innerText = ml.signal || 'NEUTRAL';
+          sigEl.style.color = ml.signal.includes('BUY') ? 'var(--green)' : (ml.signal.includes('SELL') ? 'var(--red)' : '#fbbf24');
+        }
+
+        const tslEl = document.getElementById('ml-target-sl');
+        if (tslEl) {
+          if (ml.target_price && ml.target_price > 0 && ml.stop_loss && ml.stop_loss > 0) {
+            tslEl.innerText = `Tgt: $${ml.target_price.toFixed(2)} | Stop: $${ml.stop_loss.toFixed(2)} (${ml.risk_reward_ratio || 1.0} R:R)`;
+          } else {
+            tslEl.innerText = 'Consolidation Equilibrium';
+          }
+        }
+
+        const microEl = document.getElementById('ml-micro');
+        if (microEl) {
+          const dSign = (ml.micro_price_delta || 0) >= 0 ? '+' : '';
+          microEl.innerText = `$${(ml.micro_price || 0).toFixed(2)} (${dSign}$${(ml.micro_price_delta || 0).toFixed(2)})`;
+        }
+
+        const rsiEl = document.getElementById('ml-rsi');
+        if (rsiEl) {
+          const rsiVal = ml.rsi || 50;
+          rsiEl.innerText = rsiVal.toFixed(1);
+          rsiEl.style.color = rsiVal > 70 ? 'var(--red)' : (rsiVal < 30 ? 'var(--green)' : '#38bdf8');
+        }
+
+        const bbEl = document.getElementById('ml-bb');
+        if (bbEl) bbEl.innerText = `${(ml.bollinger_bandwidth || 0.5).toFixed(2)}%`;
+
+        const actEl = document.getElementById('ml-action');
+        if (actEl) actEl.innerText = ml.suggested_action || 'MARKET_MAKING';
+
+        // Update probability bars
+        if (ml.regime_probabilities) {
+          const probs = ml.regime_probabilities;
+          const pConsol = (probs['BALANCED_CONSOLIDATION'] || 0) * 100;
+          const pBull = (probs['MOMENTUM_BREAKOUT_BULL'] || 0) * 100;
+          const pBear = (probs['MOMENTUM_BREAKOUT_BEAR'] || 0) * 100;
+          const pChop = (probs['VOLATILITY_EXPANSION_CHOP'] || 0) * 100;
+
+          const pCEl = document.getElementById('prob-consol');
+          const pBUEl = document.getElementById('prob-bull');
+          const pBEL = document.getElementById('prob-bear');
+          const pCHEl = document.getElementById('prob-chop');
+          if (pCEl) pCEl.innerText = `${pConsol.toFixed(0)}%`;
+          if (pBUEl) pBUEl.innerText = `${pBull.toFixed(0)}%`;
+          if (pBEL) pBEL.innerText = `${pBear.toFixed(0)}%`;
+          if (pCHEl) pCHEl.innerText = `${pChop.toFixed(0)}%`;
+
+          const bCEl = document.getElementById('bar-consol');
+          const bBUEl = document.getElementById('bar-bull');
+          const bBEL = document.getElementById('bar-bear');
+          const bCHEl = document.getElementById('bar-chop');
+          if (bCEl) bCEl.style.width = `${Math.min(100, pConsol)}%`;
+          if (bBUEl) bBUEl.style.width = `${Math.min(100, pBull)}%`;
+          if (bBEL) bBEL.style.width = `${Math.min(100, pBear)}%`;
+          if (bCHEl) bCHEl.style.width = `${Math.min(100, pChop)}%`;
+        }
+
+        // Top decision drivers
+        if (ml.top_drivers && ml.top_drivers.length > 0) {
+          const dList = document.getElementById('ml-drivers-list');
+          if (dList) {
+            dList.innerHTML = ml.top_drivers.map(d => `
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #60a5fa;">●</span>
+                <span>${d}</span>
+              </div>
+            `).join('');
+          }
+        }
+      } else if (data.ml_impact && data.ml_impact.current_regime) {
         document.getElementById('ml-regime').innerText = data.ml_impact.current_regime;
       }
     }
@@ -1607,30 +1811,38 @@
       document.getElementById('bar-ask-depth').style.width = askPct + '%';
 
       // Asks (Take top 8)
-      askList.innerHTML = asks.slice(0, 8).map(a => {
-        const pct = Math.min(100, Math.round((a.volume / maxAskVol) * 100));
-        return `
-          <div class="ob-row ask" onclick="fillPrice(${a.price})">
-            <div class="ob-depth-bar" style="width: ${pct}%;"></div>
-            <span style="color: var(--red);">${a.price.toFixed(2)}</span>
-            <span style="text-align: right;">${a.volume.toLocaleString()}</span>
-            <span style="text-align: right; color: var(--text-dim);">${a.order_count || 1}</span>
-          </div>
-        `;
-      }).join('');
+      if (!asks || asks.length === 0) {
+        askList.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 8px 0; font-size: 11px;">Awaiting ask liquidity...</div>`;
+      } else {
+        askList.innerHTML = asks.slice(0, 8).map(a => {
+          const pct = Math.min(100, Math.round((a.volume / maxAskVol) * 100));
+          return `
+            <div class="ob-row ask" onclick="fillPrice(${a.price})">
+              <div class="ob-depth-bar" style="width: ${pct}%;"></div>
+              <span style="color: var(--red);">${a.price.toFixed(2)}</span>
+              <span style="text-align: right;">${a.volume.toLocaleString()}</span>
+              <span style="text-align: right; color: var(--text-dim);">${a.order_count || 1}</span>
+            </div>
+          `;
+        }).join('');
+      }
 
       // Bids (Take top 8)
-      bidList.innerHTML = bids.slice(0, 8).map(b => {
-        const pct = Math.min(100, Math.round((b.volume / maxBidVol) * 100));
-        return `
-          <div class="ob-row bid" onclick="fillPrice(${b.price})">
-            <div class="ob-depth-bar" style="width: ${pct}%;"></div>
-            <span style="color: var(--green);">${b.price.toFixed(2)}</span>
-            <span style="text-align: right;">${b.volume.toLocaleString()}</span>
-            <span style="text-align: right; color: var(--text-dim);">${b.order_count || 1}</span>
-          </div>
-        `;
-      }).join('');
+      if (!bids || bids.length === 0) {
+        bidList.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 8px 0; font-size: 11px;">Awaiting bid liquidity...</div>`;
+      } else {
+        bidList.innerHTML = bids.slice(0, 8).map(b => {
+          const pct = Math.min(100, Math.round((b.volume / maxBidVol) * 100));
+          return `
+            <div class="ob-row bid" onclick="fillPrice(${b.price})">
+              <div class="ob-depth-bar" style="width: ${pct}%;"></div>
+              <span style="color: var(--green);">${b.price.toFixed(2)}</span>
+              <span style="text-align: right;">${b.volume.toLocaleString()}</span>
+              <span style="text-align: right; color: var(--text-dim);">${b.order_count || 1}</span>
+            </div>
+          `;
+        }).join('');
+      }
     }
 
     function fillPrice(price) {

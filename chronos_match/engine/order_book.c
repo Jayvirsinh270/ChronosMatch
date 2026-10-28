@@ -11,6 +11,7 @@ void order_book_init(OrderBook* book, OrderArena* arena) {
     book->arena = arena;
     book->next_trade_id = 1;
     book->level_pool_used = 0;
+    book->level_free_head = NULL;
     order_map_init(&book->order_map, 65536);
 }
 
@@ -23,10 +24,15 @@ void order_book_destroy(OrderBook* book) {
 /* --- Internal Price Level Pool & Ladder Management --- */
 
 static PriceLevel* allocate_level(OrderBook* book, int64_t price) {
-    if (book->level_pool_used >= MAX_PRICE_LEVELS) {
+    PriceLevel* level = NULL;
+    if (book->level_free_head != NULL) {
+        level = book->level_free_head;
+        book->level_free_head = level->next_level;
+    } else if (book->level_pool_used < MAX_PRICE_LEVELS) {
+        level = &book->level_pool[book->level_pool_used++];
+    } else {
         return NULL;
     }
-    PriceLevel* level = &book->level_pool[book->level_pool_used++];
     price_level_init(level, price);
     return level;
 }
@@ -122,8 +128,9 @@ static void unlink_bid_level(OrderBook* book, PriceLevel* level) {
         level->next_level->prev_level = level->prev_level;
     }
 
-    level->next_level = NULL;
     level->prev_level = NULL;
+    level->next_level = book->level_free_head;
+    book->level_free_head = level;
 }
 
 static void unlink_ask_level(OrderBook* book, PriceLevel* level) {
@@ -137,8 +144,9 @@ static void unlink_ask_level(OrderBook* book, PriceLevel* level) {
         level->next_level->prev_level = level->prev_level;
     }
 
-    level->next_level = NULL;
     level->prev_level = NULL;
+    level->next_level = book->level_free_head;
+    book->level_free_head = level;
 }
 
 /* --- Core Price-Time Priority Matching Engine --- */
@@ -212,7 +220,12 @@ size_t order_book_process_limit(
                 PriceLevel* bid_level = get_or_create_bid_level(book, price);
                 if (bid_level != NULL) {
                     price_level_append(bid_level, node);
-                    order_map_insert(&book->order_map, order_id, node, bid_level);
+                    if (!order_map_insert(&book->order_map, order_id, node, bid_level)) {
+                        price_level_remove(bid_level, node);
+                        arena_free(book->arena, node);
+                    }
+                } else {
+                    arena_free(book->arena, node);
                 }
             }
         }
@@ -270,7 +283,12 @@ size_t order_book_process_limit(
                 PriceLevel* ask_level = get_or_create_ask_level(book, price);
                 if (ask_level != NULL) {
                     price_level_append(ask_level, node);
-                    order_map_insert(&book->order_map, order_id, node, ask_level);
+                    if (!order_map_insert(&book->order_map, order_id, node, ask_level)) {
+                        price_level_remove(ask_level, node);
+                        arena_free(book->arena, node);
+                    }
+                } else {
+                    arena_free(book->arena, node);
                 }
             }
         }
@@ -301,6 +319,58 @@ bool order_book_cancel_order(OrderBook* book, uint64_t order_id) {
     arena_free(book->arena, node);
     order_map_remove(&book->order_map, order_id);
     return true;
+}
+
+size_t order_book_cull_stale(OrderBook* book, int64_t max_bid, int64_t min_ask) {
+    if (!book) return 0;
+    size_t culled = 0;
+
+    /* 1. Cull bids above max_bid */
+    if (max_bid > 0) {
+        while (book->best_bid != NULL && book->best_bid->price > max_bid) {
+            PriceLevel* level = book->best_bid;
+            while (level->head != NULL) {
+                OrderNode* node = level->head;
+                /* Preserve active user interactive orders (client_id 1) */
+                if (node->client_id == 1) {
+                    break;
+                }
+                order_map_remove(&book->order_map, node->order_id);
+                price_level_remove(level, node);
+                arena_free(book->arena, node);
+                culled++;
+            }
+            if (price_level_is_empty(level)) {
+                unlink_bid_level(book, level);
+            } else {
+                break;
+            }
+        }
+    }
+
+    /* 2. Cull asks below min_ask */
+    if (min_ask > 0) {
+        while (book->best_ask != NULL && book->best_ask->price < min_ask) {
+            PriceLevel* level = book->best_ask;
+            while (level->head != NULL) {
+                OrderNode* node = level->head;
+                if (node->client_id == 1) {
+                    break;
+                }
+                order_map_remove(&book->order_map, node->order_id);
+                price_level_remove(level, node);
+                arena_free(book->arena, node);
+                culled++;
+            }
+            if (price_level_is_empty(level)) {
+                unlink_ask_level(book, level);
+            } else {
+                break;
+            }
+        }
+    }
+
+    return culled;
 }
 
 size_t order_book_get_l2_bids(const OrderBook* book, L2Level* out_levels, size_t max_depth) {

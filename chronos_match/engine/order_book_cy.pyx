@@ -57,6 +57,7 @@ cdef extern from "order_book.h" nogil:
 
     size_t order_book_get_l2_bids(const OrderBook* book, L2Level* out_levels, size_t max_depth)
     size_t order_book_get_l2_asks(const OrderBook* book, L2Level* out_levels, size_t max_depth)
+    size_t order_book_cull_stale(OrderBook* book, int64_t max_bid, int64_t min_ask)
 
 cdef class FastOrderBook:
     """
@@ -233,6 +234,18 @@ cdef class FastOrderBook:
         with nogil:
             result = order_book_cancel_order(book, order_id)
         return bool(result)
+
+    def cull_stale(self, int64_t max_bid, int64_t min_ask) -> int:
+        """
+        Cull unexecuted background simulated orders outside valid market bounds
+        to ensure the order book never crosses or retains stale out-of-market levels.
+        """
+        cdef size_t culled = 0
+        cdef OrderBook* book = self._book
+        if book != NULL:
+            with nogil:
+                culled = order_book_cull_stale(book, max_bid, min_ask)
+        return culled
 
     def benchmark_cancellations(self, size_t count) -> float:
         """

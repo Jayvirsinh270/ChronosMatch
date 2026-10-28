@@ -320,3 +320,31 @@ def test_institutional_wave_and_fractal_candlestick_dynamics():
 
 
 
+
+
+def test_gnb_posterior_probabilities_and_realistic_candlesticks():
+    """Verify calibrated GNB posterior probabilities and authentic candlestick geometry."""
+    model = LightMarketPatternModel(symbol="NVDA", base_price=130.0)
+    for i in range(20):
+        model.record_trade(price=130.0 + (i % 3) * 0.1, quantity=200, side=1 if i % 2 == 0 else 2)
+
+    probs = model._gnb_regime_probabilities()
+    assert probs is not None
+    assert len(probs) == 4
+    total = sum(probs.values())
+    assert abs(total - 1.0) < 0.05
+    assert all(0.0 <= p <= 1.0 for p in probs.values())
+
+    # Test server snapshot serialization
+    from chronos_match.web.server import WebTradingServer
+    server = WebTradingServer(db_path=":memory:")
+    snap = server.get_snapshot()
+
+    assert "ml_pattern" in snap
+    assert snap["ml_pattern"] is not None
+    assert "regime" in snap["ml_pattern"]
+    assert "confidence" in snap["ml_pattern"]
+    assert "ofi_score" in snap["ml_pattern"]
+    assert "regime_probabilities" in snap["ml_pattern"]
+    assert "top_drivers" in snap["ml_pattern"]
+    assert len(snap["ml_pattern"]["top_drivers"]) >= 3

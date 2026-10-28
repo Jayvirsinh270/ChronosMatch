@@ -6,6 +6,7 @@ Lightweight ML Market Pattern recognition, persistent market data storage,
 and autonomous multi-participant algorithmic trading.
 """
 
+from collections import deque
 from dataclasses import dataclass
 import random
 import time
@@ -65,9 +66,18 @@ class HistoricalMarketReplayer:
         self.live_candle: Dict[str, Dict[str, Any]] = {}
         self.candle_interval_sec: float = 5.0
         self.last_candle_time: Dict[str, float] = {}
+        self.sim_orders_queue: Dict[str, deque] = {}
 
         # Initialize default stock
         self.bind_stock(self.active_ticker)
+
+    def _track_sim_order(self, venue: SingleSymbolVenue, symbol: str, order_id: int):
+        """Track simulated background orders and cancel oldest to prevent stale order build-up."""
+        q = self.sim_orders_queue.setdefault(symbol, deque())
+        q.append(order_id)
+        while len(q) > 300:
+            old_id = q.popleft()
+            venue.book.cancel_order(old_id)
 
     def bind_stock(self, ticker: str) -> SingleSymbolVenue:
         """
@@ -244,27 +254,29 @@ class HistoricalMarketReplayer:
             )
             self.wave_states[sym] = w_state
 
-        # Dynamic drift guided by ML regime prediction and Institutional Wave Momentum
+        # Dynamic drift guided by ML regime prediction, Stoikov micro-price, and Institutional Wave Momentum
+        micro_bias = (pattern_model.micro_price_delta / max(1.0, cur_mid)) * 0.25
+
         if w_state.phase == "BULL_IMPULSE":
-            drift = max(0.00015, (w_state.atr * 0.08 / cur_mid)) + pred.predicted_drift * 0.8
+            drift = max(0.00015, (w_state.atr * 0.08 / cur_mid)) + pred.predicted_drift * 0.8 + micro_bias
             vol_mult = 1.3
             if cur_mid >= w_state.swing_high:
-                drift = -0.00030
+                drift = -0.00025
         elif w_state.phase == "BULL_PULLBACK":
-            drift = -max(0.00015, (w_state.atr * 0.07 / cur_mid))
+            drift = -max(0.00012, (w_state.atr * 0.05 / cur_mid)) + micro_bias * 0.5
             vol_mult = 0.85
             if cur_mid <= w_state.swing_low:
-                drift = 0.00030
+                drift = 0.00025
         elif w_state.phase == "BEAR_IMPULSE":
-            drift = -max(0.00018, (w_state.atr * 0.09 / cur_mid)) + pred.predicted_drift * 0.8
+            drift = -max(0.00018, (w_state.atr * 0.09 / cur_mid)) + pred.predicted_drift * 0.8 + micro_bias
             vol_mult = 1.4
             if cur_mid <= w_state.swing_low:
-                drift = 0.00030
+                drift = 0.00025
         elif w_state.phase == "BEAR_PULLBACK":
-            drift = max(0.00015, (w_state.atr * 0.06 / cur_mid))
+            drift = max(0.00012, (w_state.atr * 0.05 / cur_mid)) + micro_bias * 0.5
             vol_mult = 0.85
         elif w_state.phase == "REVERSAL_BOUNCE":
-            drift = max(0.00025, (w_state.atr * 0.12 / cur_mid))
+            drift = max(0.00025, (w_state.atr * 0.12 / cur_mid)) + micro_bias
             vol_mult = 1.5
         elif regime == MarketRegime.VOLATILITY_EXPANSION_CHOP:
             drift = 0.0004 if random.random() < 0.5 else -0.0004
@@ -272,7 +284,7 @@ class HistoricalMarketReplayer:
         else:  # RANGE_CONSOLIDATION / BALANCED
             range_mid = (w_state.swing_high + w_state.swing_low) / 2.0
             deviation = (cur_mid - range_mid) / max(1.0, w_state.atr)
-            drift = -0.00035 * deviation + pred.predicted_drift * 0.3
+            drift = -0.00030 * deviation + pred.predicted_drift * 0.3 + micro_bias * 0.5
             vol_mult = 1.0
 
         # Authentic tick volatility shock
@@ -293,6 +305,14 @@ class HistoricalMarketReplayer:
 
         # 2. Market Maker Quoting
         if algo_mgr and algo_mgr.market_maker.active:
+            # Cancel prior resting MM quotes to prevent stale quote build-up
+            if algo_mgr.market_maker.active_bid_id:
+                venue.book.cancel_order(algo_mgr.market_maker.active_bid_id)
+                algo_mgr.market_maker.active_bid_id = None
+            if algo_mgr.market_maker.active_ask_id:
+                venue.book.cancel_order(algo_mgr.market_maker.active_ask_id)
+                algo_mgr.market_maker.active_ask_id = None
+
             res_p, bid_p, ask_p = algo_mgr.market_maker.compute_quotes(
                 mid_price=effective_mid,
                 volatility=impact.daily_volatility * pred.spread_multiplier,
@@ -311,6 +331,7 @@ class HistoricalMarketReplayer:
                 symbol_id=venue.info.symbol_id,
             )
             venue.total_orders += 1
+            algo_mgr.market_maker.active_bid_id = bid_oid
 
             ask_oid = self.router.allocate_order_id()
             self.router.client_order_registry[ask_oid] = algo_mgr.market_maker.bot_id
@@ -323,6 +344,7 @@ class HistoricalMarketReplayer:
                 symbol_id=venue.info.symbol_id,
             )
             venue.total_orders += 1
+            algo_mgr.market_maker.active_ask_id = ask_oid
 
         # 3. Momentum Bot Evaluation
         if algo_mgr and algo_mgr.momentum_bot.active:
@@ -415,10 +437,24 @@ class HistoricalMarketReplayer:
         target_bid = round(effective_mid - half_spread, 2)
         target_ask = round(effective_mid + half_spread, 2)
 
-        # Replenish top-of-book liquidity levels if disconnected or exhausted
-        if best_bid_p <= 0 or abs(best_bid_p - target_bid) > half_spread * 2.5:
-            for lvl in range(3):
+        # Cull stale background simulated orders that would cross or distort the spread
+        venue.book.cull_stale(
+            max_bid=to_fixed_price(target_bid),
+            min_ask=to_fixed_price(target_ask),
+        )
+        best_bid_p = from_fixed_price(venue.book.best_bid_price)
+        best_ask_p = from_fixed_price(venue.book.best_ask_price)
+
+        # Replenish top-of-book liquidity levels if disconnected, exhausted, or thin
+        l2_snap = venue.book.get_l2_snapshot(8)
+        num_bids = len(l2_snap.get("bids", []))
+        num_asks = len(l2_snap.get("asks", []))
+
+        if best_bid_p <= 0 or abs(best_bid_p - target_bid) > half_spread * 2.5 or num_bids < 6:
+            for lvl in range(8):
                 p_lvl = round(target_bid - lvl * tick * 2, 2)
+                if p_lvl <= 0:
+                    break
                 b_oid = self.router.allocate_order_id()
                 self.router.client_order_registry[b_oid] = 99
                 venue.book.add_limit_order(
@@ -429,11 +465,12 @@ class HistoricalMarketReplayer:
                     side=int(OrderSide.BUY),
                     symbol_id=venue.info.symbol_id,
                 )
+                self._track_sim_order(venue, sym, b_oid)
                 venue.total_orders += 1
-            best_bid_p = target_bid
+            best_bid_p = from_fixed_price(venue.book.best_bid_price) or target_bid
 
-        if best_ask_p <= 0 or abs(best_ask_p - target_ask) > half_spread * 2.5:
-            for lvl in range(3):
+        if best_ask_p <= 0 or abs(best_ask_p - target_ask) > half_spread * 2.5 or num_asks < 6:
+            for lvl in range(8):
                 p_lvl = round(target_ask + lvl * tick * 2, 2)
                 a_oid = self.router.allocate_order_id()
                 self.router.client_order_registry[a_oid] = 99
@@ -445,8 +482,9 @@ class HistoricalMarketReplayer:
                     side=int(OrderSide.SELL),
                     symbol_id=venue.info.symbol_id,
                 )
+                self._track_sim_order(venue, sym, a_oid)
                 venue.total_orders += 1
-            best_ask_p = target_ask
+            best_ask_p = from_fixed_price(venue.book.best_ask_price) or target_ask
 
         # Regulate trading aggression based on market state and active wave phase
         if w_state and w_state.phase in ("BULL_IMPULSE", "REVERSAL_BOUNCE"):
@@ -487,10 +525,14 @@ class HistoricalMarketReplayer:
                 offset = random.choice([1, 2, 3]) * tick * spread_mult
                 order_p = round((best_bid_p - offset) if side == OrderSide.BUY else (best_ask_p + offset), 2)
 
+            if order_p <= 0:
+                order_p = target_bid if side == OrderSide.BUY else target_ask
+
             qty = random.choice([100, 200, 300, 500, 1000 if regime == MarketRegime.VOLATILITY_EXPANSION_CHOP else 150])
 
             oid = self.router.allocate_order_id()
             self.router.client_order_registry[oid] = 99  # External market participant
+            self._track_sim_order(venue, sym, oid)
 
             matches = venue.book.add_limit_order(
                 order_id=oid,
@@ -664,40 +706,68 @@ class HistoricalMarketReplayer:
                     )
                     self.wave_states[sym] = w_state
 
-                # Advance wave duration and handle structural market cycle transitions
+                # Check ML model regime and latest pattern context to drive next wave phase
+                latest_pat = self.latest_pattern.get(sym)
+                regime_enum = pred.regime if pred else MarketRegime.BALANCED_CONSOLIDATION
+                rsi_val = pattern_model.rsi if pattern_model else 50.0
+
                 w_state.bars_remaining -= 1
                 if w_state.bars_remaining <= 0:
                     w_state.cycle_count += 1
                     if w_state.phase == "BULL_IMPULSE":
-                        # After impulse rally, pull back (65%) or consolidate (35%)
-                        w_state.phase = "BULL_PULLBACK" if random.random() < 0.65 else "RANGE_CONSOLIDATION"
-                        w_state.bars_remaining = random.randint(2, 4) if w_state.phase == "BULL_PULLBACK" else random.randint(3, 6)
+                        # If RSI is high (>65) or wave duration expired, enter shallow pullback (stair-step rally)
+                        w_state.phase = "BULL_PULLBACK" if rsi_val > 62 else "RANGE_CONSOLIDATION"
+                        w_state.bars_remaining = random.randint(2, 4)
                         w_state.swing_high = max(w_state.swing_high, bar["high"])
+                        w_state.swing_low = max(tick * 5, bar["close"] - w_state.atr * random.uniform(0.9, 1.4))
                     elif w_state.phase == "BULL_PULLBACK":
-                        # Retracement exhausted -> bounce or resume impulse
-                        w_state.phase = "REVERSAL_BOUNCE" if random.random() < 0.45 else "BULL_IMPULSE"
-                        w_state.bars_remaining = random.randint(1, 2) if w_state.phase == "REVERSAL_BOUNCE" else random.randint(3, 5)
-                        w_state.swing_low = min(w_state.swing_low, bar["low"])
-                    elif w_state.phase == "RANGE_CONSOLIDATION":
-                        # Breakout from range
-                        if random.random() < 0.55:
+                        # Retracement exhausted: if bullish pattern formed or regime bull -> resume rally!
+                        if regime_enum == MarketRegime.MOMENTUM_BREAKOUT_BULL or (latest_pat and latest_pat.sentiment == "BULLISH"):
                             w_state.phase = "BULL_IMPULSE"
                             w_state.bars_remaining = random.randint(3, 6)
-                            w_state.swing_high = bar["close"] + w_state.atr * 2.8
+                            w_state.swing_high = bar["close"] + w_state.atr * random.uniform(2.2, 3.2)
+                        elif random.random() < 0.40:
+                            w_state.phase = "REVERSAL_BOUNCE"
+                            w_state.bars_remaining = random.randint(1, 2)
+                            w_state.swing_high = bar["close"] + w_state.atr * random.uniform(1.8, 2.5)
+                        else:
+                            w_state.phase = "RANGE_CONSOLIDATION"
+                            w_state.bars_remaining = random.randint(3, 5)
+                    elif w_state.phase == "RANGE_CONSOLIDATION":
+                        # Breakout dynamically guided by ML regime prediction
+                        if regime_enum == MarketRegime.MOMENTUM_BREAKOUT_BULL or (latest_pat and latest_pat.sentiment == "BULLISH"):
+                            w_state.phase = "BULL_IMPULSE"
+                            w_state.bars_remaining = random.randint(3, 6)
+                            w_state.swing_high = bar["close"] + w_state.atr * random.uniform(2.2, 3.2)
+                        elif regime_enum == MarketRegime.MOMENTUM_BREAKOUT_BEAR or (latest_pat and latest_pat.sentiment == "BEARISH"):
+                            w_state.phase = "BEAR_IMPULSE"
+                            w_state.bars_remaining = random.randint(3, 5)
+                            w_state.swing_low = max(tick * 5, bar["close"] - w_state.atr * random.uniform(2.2, 3.2))
+                        elif rsi_val > 54:
+                            w_state.phase = "BULL_IMPULSE"
+                            w_state.bars_remaining = random.randint(3, 5)
+                            w_state.swing_high = bar["close"] + w_state.atr * random.uniform(2.0, 3.0)
                         else:
                             w_state.phase = "BEAR_IMPULSE"
                             w_state.bars_remaining = random.randint(3, 5)
-                            w_state.swing_low = bar["close"] - w_state.atr * 2.8
+                            w_state.swing_low = max(tick * 5, bar["close"] - w_state.atr * random.uniform(2.0, 3.0))
                     elif w_state.phase == "BEAR_IMPULSE":
-                        w_state.phase = "BEAR_PULLBACK" if random.random() < 0.60 else "REVERSAL_BOUNCE"
-                        w_state.bars_remaining = random.randint(2, 3) if w_state.phase == "BEAR_PULLBACK" else random.randint(1, 2)
+                        w_state.phase = "BEAR_PULLBACK" if rsi_val < 38 else "RANGE_CONSOLIDATION"
+                        w_state.bars_remaining = random.randint(2, 4)
                         w_state.swing_low = min(w_state.swing_low, bar["low"])
+                        w_state.swing_high = bar["close"] + w_state.atr * random.uniform(0.9, 1.4)
                     elif w_state.phase == "BEAR_PULLBACK":
-                        w_state.phase = "RANGE_CONSOLIDATION" if random.random() < 0.50 else "BEAR_IMPULSE"
-                        w_state.bars_remaining = random.randint(3, 5)
+                        if regime_enum == MarketRegime.MOMENTUM_BREAKOUT_BEAR or (latest_pat and latest_pat.sentiment == "BEARISH"):
+                            w_state.phase = "BEAR_IMPULSE"
+                            w_state.bars_remaining = random.randint(3, 5)
+                            w_state.swing_low = max(tick * 5, bar["close"] - w_state.atr * random.uniform(2.0, 3.0))
+                        else:
+                            w_state.phase = "RANGE_CONSOLIDATION"
+                            w_state.bars_remaining = random.randint(3, 5)
                     else:  # REVERSAL_BOUNCE
                         w_state.phase = "BULL_IMPULSE"
                         w_state.bars_remaining = random.randint(4, 7)
+                        w_state.swing_high = bar["close"] + w_state.atr * random.uniform(2.2, 3.2)
 
                 atr = w_state.atr
 
@@ -752,11 +822,13 @@ class HistoricalMarketReplayer:
                     bar["high"] = round(max(bar["open"], bar["close"]) + wick_u, 2)
                     bar["low"] = round(max(tick, min(bar["open"], bar["close"]) - wick_l), 2)
                 else:
-                    # Active traded bars: expand wicks naturally according to ATR
-                    wick_u = round(max(tick * 2, atr * random.uniform(0.15, 0.40)), 2)
-                    wick_l = round(max(tick * 2, atr * random.uniform(0.15, 0.40)), 2)
-                    bar["high"] = round(max(bar["high"], max(bar["open"], bar["close"]) + wick_u), 2)
-                    bar["low"] = round(max(tick, min(bar["low"], min(bar["open"], bar["close"]) - wick_l)), 2)
+                    # Active traded bars: preserve authentic traded extremes from matched order flow
+                    bar["high"] = max(bar["high"], max(bar["open"], bar["close"]))
+                    bar["low"] = min(bar["low"], min(bar["open"], bar["close"]))
+                    # If high == low (single flat tick executed), add slight natural 1-2 tick spread
+                    if bar["high"] == bar["low"]:
+                        bar["high"] = round(bar["high"] + tick * random.choice([0, 1]), 2)
+                        bar["low"] = round(max(tick, bar["low"] - tick * random.choice([0, 1])), 2)
                     bar["volume"] = max(bar["volume"], random.randint(8000, 35000))
 
                 self.current_mid[sym] = bar["close"]
