@@ -1378,16 +1378,16 @@
     (function () {
       'use strict';
 
-      // Determine API and WebSocket Base URLs (Supports http://, https://, and file:///)
+      // 1. Connection Resolution (Handles http, https, and direct file:/// opening)
       const isFileProto = window.location.protocol === 'file:';
       const apiBase = isFileProto ? 'http://127.0.0.1:8000' : '';
       const wsHost = (isFileProto || !window.location.host) ? '127.0.0.1:8000' : window.location.host;
       const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${wsProto}//${wsHost}/ws`;
 
-      // State Management
+      // 2. State Management
       const state = {
-        symbol: 'NVDA',
+        symbol: 'BTC-USD',
         userSelectedSymbol: false,
         theme: localStorage.getItem('chronos_theme') || 'light',
         activeTab: 'orders',
@@ -1399,7 +1399,7 @@
         orderType: 'LIMIT',
         botActive: true,
         botSpeed: 'medium',
-        marketPrice: 130.0,
+        marketPrice: 65000.0,
         candles: [],
         openOrders: [],
         holdings: {},
@@ -1409,7 +1409,17 @@
         hoveredBar: null,
       };
 
-      // Normalization Helper for Symbol Matching (e.g., 'NVDA' matches 'NVDA-USD')
+      // 3. Formatters & Helpers
+      const fmtCurrency = (n) => {
+        if (n === null || n === undefined || isNaN(n)) return '$0.00';
+        return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+
+      const fmtNumber = (n) => {
+        if (n === null || n === undefined || isNaN(n)) return '0';
+        return Number(n).toLocaleString('en-US');
+      };
+
       function normalizeSym(s) {
         if (!s) return '';
         return String(s).toUpperCase().replace(/[-_/]/g, '').replace('USDT', '').replace('USD', '');
@@ -1421,36 +1431,43 @@
         return normalizeSym(s1) === normalizeSym(s2);
       }
 
-      // Theme Management
+      // 4. Cached DOM References
+      let canvas = null;
+      let ctx = null;
+      let priceInput = null;
+      let qtyInput = null;
+      let submitBtn = null;
+      let botToggleBtn = null;
+      let orderToast = null;
+      let themeToggleBtn = null;
+
+      function initDomElements() {
+        canvas = document.getElementById('candlestickCanvas');
+        if (canvas) {
+          ctx = canvas.getContext('2d');
+        }
+        priceInput = document.getElementById('orderPrice');
+        qtyInput = document.getElementById('orderQty');
+        submitBtn = document.getElementById('submitOrderBtn');
+        botToggleBtn = document.getElementById('botToggleBtn');
+        orderToast = document.getElementById('orderToast');
+        themeToggleBtn = document.getElementById('themeToggleBtn');
+      }
+
+      // 5. Theme Application
       function applyTheme(theme) {
         state.theme = theme;
         document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('chronos_theme', theme);
-        const btn = document.getElementById('themeToggleBtn');
-        if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
-        renderChart();
-      }
-      applyTheme(state.theme);
-
-      const themeBtn = document.getElementById('themeToggleBtn');
-      if (themeBtn) {
-        themeBtn.addEventListener('click', () => {
-          applyTheme(state.theme === 'dark' ? 'light' : 'dark');
-        });
+        try { localStorage.setItem('chronos_theme', theme); } catch (e) {}
+        if (themeToggleBtn) {
+          themeToggleBtn.textContent = theme === 'dark' ? '🌙' : '☀️';
+        }
+        if (canvas && ctx) {
+          renderChart();
+        }
       }
 
-      // Formatters
-      const fmtCurrency = (n) => {
-        if (n === null || n === undefined || isNaN(n)) return '$0.00';
-        return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      };
-
-      const fmtNumber = (n) => {
-        if (n === null || n === undefined || isNaN(n)) return '0';
-        return Number(n).toLocaleString('en-US');
-      };
-
-      // Highlight Active Symbol Pill in Header
+      // 6. Highlight Active Symbol Pill in Header
       function highlightActiveSymbol(sym) {
         document.querySelectorAll('#symbolNav .symbol-pill').forEach(pill => {
           const pSym = pill.dataset.sym;
@@ -1462,7 +1479,6 @@
         const titleEl = document.getElementById('marketSymTitle');
         if (titleEl) titleEl.textContent = cleanTitle;
 
-        const submitBtn = document.getElementById('submitOrderBtn');
         if (submitBtn) submitBtn.textContent = `${state.side === 'BUY' ? 'Buy' : 'Sell'} ${sym}`;
 
         const baseUnit = (sym || 'UNITS').split('-')[0].toUpperCase();
@@ -1470,13 +1486,9 @@
         if (unitSuffix) unitSuffix.textContent = baseUnit;
       }
 
-      // ========================================================================
-      // CANVAS CANDLESTICK & VOLUME CHART
-      // ========================================================================
-      const canvas = document.getElementById('candlestickCanvas');
-      const ctx = canvas.getContext('2d');
-
+      // 7. Candlestick Canvas Rendering
       function resizeCanvas() {
+        if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
         if (rect.width > 0 && rect.height > 0) {
@@ -1485,7 +1497,6 @@
         }
         renderChart();
       }
-      window.addEventListener('resize', resizeCanvas);
 
       function calculateIndicators(candles) {
         if (!candles || candles.length === 0) return { vwap: [], ema20: [] };
@@ -1512,6 +1523,7 @@
       }
 
       function renderChart() {
+        if (!canvas || !ctx) return;
         const rect = canvas.getBoundingClientRect();
         const w = rect.width;
         const h = rect.height;
@@ -1567,7 +1579,7 @@
         const barSpacing = (w - rightMargin) / n;
         const barWidth = Math.max(2, Math.min(14, barSpacing * 0.72));
 
-        // 1. Grid Lines & Axis
+        // 1. Grid & Price Ticks
         ctx.strokeStyle = gridColor;
         ctx.lineWidth = 1;
         ctx.fillStyle = textMuted;
@@ -1586,7 +1598,7 @@
           ctx.fillText(p.toFixed(2), w - rightMargin + 8, y + 4);
         }
 
-        // 2. Indicators (VWAP & EMA)
+        // 2. Indicators
         const indicators = calculateIndicators(candles);
         const dispVwap = indicators.vwap.slice(-maxDisplayBars);
         const dispEma = indicators.ema20.slice(-maxDisplayBars);
@@ -1617,7 +1629,7 @@
           ctx.stroke();
         }
 
-        // 3. Bars / Candles
+        // 3. Candles & Volume
         for (let i = 0; i < n; i++) {
           const c = displayCandles[i];
           const x = i * barSpacing + barSpacing / 2;
@@ -1631,7 +1643,7 @@
             : (isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(220, 38, 38, 0.25)');
           ctx.fillRect(x - barWidth / 2, vy, barWidth, h - bottomMargin - vy);
 
-          // Candlestick Body & Wicks
+          // Candle
           if (state.chartType === 'candles') {
             const openY = getY(c.open);
             const closeY = getY(c.close);
@@ -1650,7 +1662,6 @@
             ctx.fillStyle = color;
             ctx.fillRect(x - barWidth / 2, topY, barWidth, bodyHeight);
           } else {
-            // Line Chart Mode
             if (i === 0) {
               ctx.beginPath();
               ctx.strokeStyle = state.marketPrice >= displayCandles[0].close ? bullColor : bearColor;
@@ -1662,7 +1673,6 @@
             if (i === n - 1) ctx.stroke();
           }
 
-          // X-Axis Labels
           if (i % 8 === 0 || i === n - 1) {
             ctx.fillStyle = textMuted;
             ctx.font = '10px JetBrains Mono';
@@ -1672,7 +1682,7 @@
           }
         }
 
-        // 4. Latest Price Dashed Line & Badge
+        // 4. Latest Price Tag
         const latestCandle = displayCandles[n - 1];
         if (latestCandle) {
           const curY = getY(latestCandle.close);
@@ -1695,7 +1705,7 @@
           ctx.fillText(latestCandle.close.toFixed(2), w - rightMargin / 2, curY + 4);
         }
 
-        // 5. Crosshair Overlay
+        // 5. Crosshair
         if (state.hoveredBar !== null && state.hoveredBar >= 0 && state.hoveredBar < n) {
           const c = displayCandles[state.hoveredBar];
           const x = state.hoveredBar * barSpacing + barSpacing / 2;
@@ -1718,82 +1728,27 @@
         }
       }
 
-      // Crosshair Hover
-      canvas.addEventListener('mousemove', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const rightMargin = 70;
-        const maxDisplayBars = 65;
-        const displayCandles = state.candles.slice(-maxDisplayBars);
-        const n = displayCandles.length;
-        if (n === 0) return;
-
-        const barSpacing = (rect.width - rightMargin) / n;
-        const idx = Math.floor(x / barSpacing);
-        if (idx >= 0 && idx < n) {
-          state.hoveredBar = idx;
-          updateChartHud(displayCandles[idx]);
-          renderChart();
-        }
-      });
-
-      canvas.addEventListener('mouseleave', () => {
-        state.hoveredBar = null;
-        const last = state.candles[state.candles.length - 1];
-        if (last) updateChartHud(last);
-        renderChart();
-      });
-
       function updateChartHud(c) {
         if (!c) return;
-        document.getElementById('hudDate').textContent = c.date || '--';
-        document.getElementById('hudO').textContent = c.open ? c.open.toFixed(2) : '--';
-        document.getElementById('hudH').textContent = c.high ? c.high.toFixed(2) : '--';
-        document.getElementById('hudL').textContent = c.low ? c.low.toFixed(2) : '--';
+        const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setTxt('hudDate', c.date || '--');
+        setTxt('hudO', c.open ? c.open.toFixed(2) : '--');
+        setTxt('hudH', c.high ? c.high.toFixed(2) : '--');
+        setTxt('hudL', c.low ? c.low.toFixed(2) : '--');
         const closeEl = document.getElementById('hudC');
-        closeEl.textContent = c.close ? c.close.toFixed(2) : '--';
-        closeEl.className = 'hud-val ' + (c.close >= c.open ? 'up' : 'down');
-        document.getElementById('hudVol').textContent = fmtNumber(c.volume);
+        if (closeEl) {
+          closeEl.textContent = c.close ? c.close.toFixed(2) : '--';
+          closeEl.className = 'hud-val ' + (c.close >= c.open ? 'up' : 'down');
+        }
+        setTxt('hudVol', fmtNumber(c.volume));
       }
 
-      // Chart Controls
-      document.querySelectorAll('#tfGroup .chart-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('#tfGroup .chart-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          state.timeframe = btn.dataset.tf;
-          document.getElementById('chartTimeframeTag').textContent = `(${btn.textContent} Bars)`;
-        });
-      });
-
-      document.querySelectorAll('#typeGroup .chart-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('#typeGroup .chart-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          state.chartType = btn.dataset.type;
-          renderChart();
-        });
-      });
-
-      document.getElementById('toggleVwapBtn').addEventListener('click', function () {
-        state.showVwap = !state.showVwap;
-        this.classList.toggle('active', state.showVwap);
-        renderChart();
-      });
-
-      document.getElementById('toggleEmaBtn').addEventListener('click', function () {
-        state.showEma = !state.showEma;
-        this.classList.toggle('active', state.showEma);
-        renderChart();
-      });
-
-      // ========================================================================
-      // LEVEL 2 ORDER BOOK DEPTH LADDER (NO VANISHING BUG)
-      // ========================================================================
+      // 8. Level 2 Order Book Depth Ladder
       function renderLevel2Depth(l2) {
         if (!l2) return;
         const asksEl = document.getElementById('depthAsks');
         const bidsEl = document.getElementById('depthBids');
+        if (!asksEl || !bidsEl) return;
 
         const bids = (l2.bids || []).slice(0, 7);
         const asks = (l2.asks || []).slice(0, 7).reverse();
@@ -1841,147 +1796,153 @@
           const mid = (bestBid + bestAsk) / 2;
           const spread = Math.abs(bestAsk - bestBid);
           const spreadPct = (spread / mid) * 100;
-          document.getElementById('depthMid').textContent = fmtCurrency(mid);
-          document.getElementById('depthSpread').textContent = `Spread: $${spread.toFixed(2)} (${spreadPct.toFixed(2)}%)`;
-          document.getElementById('statSpread').textContent = `$${spread.toFixed(2)}`;
+          const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+          setTxt('depthMid', fmtCurrency(mid));
+          setTxt('depthSpread', `Spread: $${spread.toFixed(2)} (${spreadPct.toFixed(2)}%)`);
+          setTxt('statSpread', `$${spread.toFixed(2)}`);
         }
       }
 
       window.setOrderPrice = (price) => {
-        const pInput = document.getElementById('orderPrice');
-        if (pInput) {
-          pInput.value = price.toFixed(2);
+        if (priceInput) {
+          priceInput.value = price.toFixed(2);
           updateOrderSummary();
         }
       };
 
-      // ========================================================================
-      // AI MARKET INTELLIGENCE & PATTERN RADAR
-      // ========================================================================
+      // 9. AI Market Intelligence
       function updateAiMarketIntelligence(snap) {
         const pat = snap.pattern;
         const mlPat = snap.ml_pattern;
         const lastP = snap.last_price || state.marketPrice || 100;
 
-        // Candlestick Pattern
+        const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
         if (pat && pat.name) {
-          document.getElementById('aiPatternName').textContent = pat.name;
-          document.getElementById('aiPatternDesc').textContent = pat.description || 'Detected high-probability price action formation.';
-          document.getElementById('hudPattern').textContent = pat.name;
+          setTxt('aiPatternName', pat.name);
+          setTxt('aiPatternDesc', pat.description || 'Detected high-probability price action formation.');
+          setTxt('hudPattern', pat.name);
           const conf = Math.round((pat.confidence || 0.82) * 100);
-          document.getElementById('aiConfidenceBadge').textContent = `Confidence: ${conf}%`;
+          setTxt('aiConfidenceBadge', `Confidence: ${conf}%`);
         } else {
-          document.getElementById('aiPatternName').textContent = 'Consolidation Wave';
-          document.getElementById('aiPatternDesc').textContent = 'Balanced institutional liquidity; awaiting breakout trigger.';
-          document.getElementById('hudPattern').textContent = 'Consolidation';
+          setTxt('aiPatternName', 'Consolidation Wave');
+          setTxt('aiPatternDesc', 'Balanced institutional liquidity; awaiting breakout trigger.');
+          setTxt('hudPattern', 'Consolidation');
         }
 
-        // Market Regime
         const condEl = document.getElementById('aiCondition');
         const condDescEl = document.getElementById('aiConditionDesc');
         const regime = mlPat ? mlPat.regime : 'BALANCED_CONSOLIDATION';
 
-        if (regime === 'MOMENTUM_BREAKOUT_BULL') {
-          condEl.innerHTML = '<span style="color: var(--bull);">▲</span><span>Bullish Breakout</span>';
-          condDescEl.textContent = 'Aggressive buyers pushing prices through resistance with rising volume.';
-        } else if (regime === 'MOMENTUM_BREAKOUT_BEAR') {
-          condEl.innerHTML = '<span style="color: var(--bear);">▼</span><span>Bearish Expansion</span>';
-          condDescEl.textContent = 'Heavy seller distribution; lower-low price action dominant.';
-        } else if (regime === 'VOLATILITY_EXPANSION_CHOP') {
-          condEl.innerHTML = '<span style="color: var(--accent);">⚡</span><span>High Volatility</span>';
-          condDescEl.textContent = 'Elevated true range; expect quick wick sweeps across the book.';
-        } else {
-          condEl.innerHTML = '<span style="color: var(--text-secondary);">◼</span><span>Balanced Consolidation</span>';
-          condDescEl.textContent = 'Mean-reverting institutional bracket; tight spread and stable order book.';
+        if (condEl && condDescEl) {
+          if (regime === 'MOMENTUM_BREAKOUT_BULL') {
+            condEl.innerHTML = '<span style="color: var(--bull);">▲</span><span>Bullish Breakout</span>';
+            condDescEl.textContent = 'Aggressive buyers pushing prices through resistance with rising volume.';
+          } else if (regime === 'MOMENTUM_BREAKOUT_BEAR') {
+            condEl.innerHTML = '<span style="color: var(--bear);">▼</span><span>Bearish Expansion</span>';
+            condDescEl.textContent = 'Heavy seller distribution; lower-low price action dominant.';
+          } else if (regime === 'VOLATILITY_EXPANSION_CHOP') {
+            condEl.innerHTML = '<span style="color: var(--accent);">⚡</span><span>High Volatility</span>';
+            condDescEl.textContent = 'Elevated true range; expect quick wick sweeps across the book.';
+          } else {
+            condEl.innerHTML = '<span style="color: var(--text-secondary);">◼</span><span>Balanced Consolidation</span>';
+            condDescEl.textContent = 'Mean-reverting institutional bracket; tight spread and stable order book.';
+          }
         }
 
-        // Actionable Trade Setup
         const isBull = regime === 'MOMENTUM_BREAKOUT_BULL' || (pat && pat.sentiment === 'BULLISH');
         const targetMult = isBull ? 1.018 : 0.982;
         const stopMult = isBull ? 0.992 : 1.008;
         const targetP = lastP * targetMult;
         const stopP = lastP * stopMult;
 
-        document.getElementById('aiTradeSetup').innerHTML = `Target: <span style="color: ${isBull ? 'var(--bull)' : 'var(--bear)'};">$${targetP.toFixed(2)}</span>`;
-        document.getElementById('aiSetupDetails').textContent = `Stop: $${stopP.toFixed(2)} | R:R Ratio 1 : 2.3`;
+        const setupEl = document.getElementById('aiTradeSetup');
+        if (setupEl) setupEl.innerHTML = `Target: <span style="color: ${isBull ? 'var(--bull)' : 'var(--bear)'};">$${targetP.toFixed(2)}</span>`;
+        setTxt('aiSetupDetails', `Stop: $${stopP.toFixed(2)} | R:R Ratio 1 : 2.3`);
 
-        // Order Flow Pressure Meter
         const bidVol = snap.total_bid_vol || 5000;
         const askVol = snap.total_ask_vol || 4500;
         const total = bidVol + askVol || 1;
         const buyPct = Math.round((bidVol / total) * 100);
         const sellPct = 100 - buyPct;
 
-        document.getElementById('aiBuyerPct').textContent = `${buyPct}% Buyers`;
-        document.getElementById('aiSellerPct').textContent = `${sellPct}% Sellers`;
-        document.getElementById('aiPressureFillBuy').style.width = `${buyPct}%`;
-        document.getElementById('aiPressureFillSell').style.width = `${sellPct}%`;
+        setTxt('aiBuyerPct', `${buyPct}% Buyers`);
+        setTxt('aiSellerPct', `${sellPct}% Sellers`);
+        const fillBuy = document.getElementById('aiPressureFillBuy');
+        const fillSell = document.getElementById('aiPressureFillSell');
+        if (fillBuy) fillBuy.style.width = `${buyPct}%`;
+        if (fillSell) fillSell.style.width = `${sellPct}%`;
       }
 
-      // ========================================================================
-      // PORTFOLIO & ORDERS TABLES
-      // ========================================================================
+      // 10. Portfolio Tables
       function updatePortfolioTables(snap) {
         const openOrders = snap.open_orders || [];
-        document.getElementById('tabOrderCount').textContent = openOrders.length;
+        const countEl = document.getElementById('tabOrderCount');
+        if (countEl) countEl.textContent = openOrders.length;
         const ordersBody = document.getElementById('ordersBody');
 
-        if (openOrders.length === 0) {
-          ordersBody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No active open orders</td></tr>';
-        } else {
-          ordersBody.innerHTML = openOrders.map(o => `
-            <tr>
-              <td class="mono">#${o.order_id}</td>
-              <td class="mono font-bold">${o.symbol || state.symbol}</td>
-              <td><span class="mono font-bold" style="color: ${o.side === 'BUY' ? 'var(--bull)' : 'var(--bear)'};">${o.side}</span></td>
-              <td>${o.type || 'LIMIT'}</td>
-              <td class="mono">${fmtCurrency(o.price)}</td>
-              <td class="mono">${fmtNumber(o.quantity)}</td>
-              <td class="mono">${fmtNumber(o.filled || 0)}</td>
-              <td><span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: var(--bg-subtle);">${o.status || 'ACTIVE'}</span></td>
-              <td><button class="cancel-btn" onclick="window.cancelOrder(${o.order_id})">Cancel</button></td>
-            </tr>
-          `).join('');
+        if (ordersBody) {
+          if (openOrders.length === 0) {
+            ordersBody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No active open orders</td></tr>';
+          } else {
+            ordersBody.innerHTML = openOrders.map(o => `
+              <tr>
+                <td class="mono">#${o.order_id}</td>
+                <td class="mono font-bold">${o.symbol || state.symbol}</td>
+                <td><span class="mono font-bold" style="color: ${o.side === 'BUY' ? 'var(--bull)' : 'var(--bear)'};">${o.side}</span></td>
+                <td>${o.type || 'LIMIT'}</td>
+                <td class="mono">${fmtCurrency(o.price)}</td>
+                <td class="mono">${fmtNumber(o.quantity)}</td>
+                <td class="mono">${fmtNumber(o.filled || 0)}</td>
+                <td><span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: var(--bg-subtle);">${o.status || 'ACTIVE'}</span></td>
+                <td><button class="cancel-btn" onclick="window.cancelOrder(${o.order_id})">Cancel</button></td>
+              </tr>
+            `).join('');
+          }
         }
 
         const holdingsBody = document.getElementById('holdingsBody');
-        const pos = snap.account && snap.account.positions ? snap.account.positions : {};
-        const posKeys = Object.keys(pos).filter(k => pos[k] !== 0);
+        if (holdingsBody) {
+          const pos = snap.account && snap.account.positions ? snap.account.positions : {};
+          const posKeys = Object.keys(pos).filter(k => pos[k] !== 0);
 
-        if (posKeys.length === 0) {
-          holdingsBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No open asset positions</td></tr>';
-        } else {
-          holdingsBody.innerHTML = posKeys.map(k => {
-            const qty = pos[k];
-            const p = state.marketPrice || 100;
-            const val = qty * p;
-            return `
-              <tr>
-                <td class="mono font-bold">${k}</td>
-                <td class="mono">${fmtNumber(qty)}</td>
-                <td class="mono">${fmtCurrency(p)}</td>
-                <td class="mono">${fmtCurrency(val)}</td>
-                <td class="mono" style="color: var(--bull);">+$0.00 (0.0%)</td>
-              </tr>
-            `;
-          }).join('');
+          if (posKeys.length === 0) {
+            holdingsBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No open asset positions</td></tr>';
+          } else {
+            holdingsBody.innerHTML = posKeys.map(k => {
+              const qty = pos[k];
+              const p = state.marketPrice || 100;
+              const val = qty * p;
+              return `
+                <tr>
+                  <td class="mono font-bold">${k}</td>
+                  <td class="mono">${fmtNumber(qty)}</td>
+                  <td class="mono">${fmtCurrency(p)}</td>
+                  <td class="mono">${fmtCurrency(val)}</td>
+                  <td class="mono" style="color: var(--bull);">+$0.00 (0.0%)</td>
+                </tr>
+              `;
+            }).join('');
+          }
         }
 
         const tradesBody = document.getElementById('tradesBody');
-        const recTrades = snap.recent_trades || [];
-        if (recTrades.length === 0) {
-          tradesBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No recent executions</td></tr>';
-        } else {
-          tradesBody.innerHTML = recTrades.slice(0, 10).map(t => `
-            <tr>
-              <td class="mono text-muted">${t.time || '--'}</td>
-              <td class="mono">${t.symbol || state.symbol}</td>
-              <td class="mono" style="color: ${t.side === 'BUY' ? 'var(--bull)' : 'var(--bear)'}; font-weight: 700;">${t.side}</td>
-              <td class="mono">${fmtCurrency(t.price)}</td>
-              <td class="mono">${fmtNumber(t.quantity)}</td>
-              <td class="mono">${fmtCurrency(t.price * t.quantity)}</td>
-            </tr>
-          `).join('');
+        if (tradesBody) {
+          const recTrades = snap.recent_trades || [];
+          if (recTrades.length === 0) {
+            tradesBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No recent executions</td></tr>';
+          } else {
+            tradesBody.innerHTML = recTrades.slice(0, 10).map(t => `
+              <tr>
+                <td class="mono text-muted">${t.time || '--'}</td>
+                <td class="mono">${t.symbol || state.symbol}</td>
+                <td class="mono" style="color: ${t.side === 'BUY' ? 'var(--bull)' : 'var(--bear)'}; font-weight: 700;">${t.side}</td>
+                <td class="mono">${fmtCurrency(t.price)}</td>
+                <td class="mono">${fmtNumber(t.quantity)}</td>
+                <td class="mono">${fmtCurrency(t.price * t.quantity)}</td>
+              </tr>
+            `).join('');
+          }
         }
       }
 
@@ -1993,7 +1954,7 @@
             body: JSON.stringify({ order_id: orderId, symbol: state.symbol }),
           });
           const data = await res.json();
-          if (data.success) {
+          if (data && data.success) {
             showToast('Order #' + orderId + ' cancelled successfully', 'success');
             fetchSnapshot();
           }
@@ -2002,254 +1963,70 @@
         }
       };
 
-      // Table Tabs Switcher
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          const tab = btn.dataset.tab;
-          document.getElementById('tblOrders').style.display = tab === 'orders' ? 'table' : 'none';
-          document.getElementById('tblHoldings').style.display = tab === 'holdings' ? 'table' : 'none';
-          document.getElementById('tblTrades').style.display = tab === 'trades' ? 'table' : 'none';
-        });
-      });
-
-      // ========================================================================
-      // ORDER ENTRY FORM LOGIC
-      // ========================================================================
-      const sideBuyBtn = document.getElementById('btnSideBuy');
-      const sideSellBtn = document.getElementById('btnSideSell');
-      const typeLimitBtn = document.getElementById('btnTypeLimit');
-      const typeMarketBtn = document.getElementById('btnTypeMarket');
-      const submitBtn = document.getElementById('submitOrderBtn');
-      const priceInput = document.getElementById('orderPrice');
-      const qtyInput = document.getElementById('orderQty');
-
-      sideBuyBtn.addEventListener('click', () => {
-        state.side = 'BUY';
-        sideBuyBtn.classList.add('active');
-        sideSellBtn.classList.remove('active');
-        submitBtn.className = 'submit-order-btn buy';
-        submitBtn.textContent = `Buy ${state.symbol}`;
-        updateOrderSummary();
-      });
-
-      sideSellBtn.addEventListener('click', () => {
-        state.side = 'SELL';
-        sideSellBtn.classList.add('active');
-        sideBuyBtn.classList.remove('active');
-        submitBtn.className = 'submit-order-btn sell';
-        submitBtn.textContent = `Sell ${state.symbol}`;
-        updateOrderSummary();
-      });
-
-      typeLimitBtn.addEventListener('click', () => {
-        state.orderType = 'LIMIT';
-        typeLimitBtn.classList.add('active');
-        typeMarketBtn.classList.remove('active');
-        document.getElementById('priceGroup').style.display = 'flex';
-        updateOrderSummary();
-      });
-
-      typeMarketBtn.addEventListener('click', () => {
-        state.orderType = 'MARKET';
-        typeMarketBtn.classList.add('active');
-        typeLimitBtn.classList.remove('active');
-        document.getElementById('priceGroup').style.display = 'none';
-        updateOrderSummary();
-      });
-
-      document.getElementById('fillMidPriceBtn').addEventListener('click', () => {
-        priceInput.value = state.marketPrice.toFixed(2);
-        updateOrderSummary();
-      });
-
-      // Quick Percent Allocators
-      document.querySelectorAll('.pct-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const pct = parseFloat(btn.dataset.pct);
-          const p = state.orderType === 'LIMIT' ? (parseFloat(priceInput.value) || state.marketPrice) : state.marketPrice;
-          if (p <= 0) return;
-
-          if (state.side === 'BUY') {
-            const availCash = state.account.cash_balance || 100000;
-            const targetDollars = availCash * pct;
-            const shares = Math.max(1, Math.floor(targetDollars / p));
-            qtyInput.value = shares;
-          } else {
-            const holding = (state.account.positions && state.account.positions[state.symbol]) || 0;
-            const shares = Math.max(1, Math.floor(holding * pct));
-            qtyInput.value = shares;
-          }
-          updateOrderSummary();
-        });
-      });
-
-      priceInput.addEventListener('input', updateOrderSummary);
-      qtyInput.addEventListener('input', updateOrderSummary);
-
+      // 11. Order Summary & Toast
       function updateOrderSummary() {
-        const p = state.orderType === 'LIMIT' ? (parseFloat(priceInput.value) || 0) : state.marketPrice;
-        const q = parseFloat(qtyInput.value) || 0;
+        const p = state.orderType === 'LIMIT'
+          ? (parseFloat(priceInput ? priceInput.value : 0) || state.marketPrice)
+          : state.marketPrice;
+        const q = parseFloat(qtyInput ? qtyInput.value : 10) || 0;
         const total = p * q;
-        document.getElementById('summaryEstVal').textContent = fmtCurrency(total);
-        document.getElementById('summaryTotal').textContent = fmtCurrency(total);
+        const estVal = document.getElementById('summaryEstVal');
+        const totVal = document.getElementById('summaryTotal');
+        if (estVal) estVal.textContent = fmtCurrency(total);
+        if (totVal) totVal.textContent = fmtCurrency(total);
       }
 
       function showToast(msg, type = 'success') {
-        const toast = document.getElementById('orderToast');
+        const toast = orderToast || document.getElementById('orderToast');
+        if (!toast) return;
         toast.textContent = msg;
         toast.className = 'order-toast ' + type;
-        setTimeout(() => { toast.className = 'order-toast'; }, 3500);
+        setTimeout(() => { if (toast) toast.className = 'order-toast'; }, 3500);
       }
-
-      submitBtn.addEventListener('click', async () => {
-        const p = state.orderType === 'LIMIT' ? parseFloat(priceInput.value) : state.marketPrice;
-        const q = parseInt(qtyInput.value, 10);
-
-        if (!q || q <= 0) {
-          showToast('Please enter a valid quantity', 'error');
-          return;
-        }
-
-        if (state.orderType === 'LIMIT' && (!p || p <= 0)) {
-          showToast('Please specify a limit price', 'error');
-          return;
-        }
-
-        try {
-          submitBtn.disabled = true;
-          submitBtn.textContent = 'Routing Order...';
-
-          const res = await fetch(`${apiBase}/api/order`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              symbol: state.symbol,
-              side: state.side,
-              order_type: state.orderType,
-              price: p,
-              quantity: q,
-            }),
-          });
-          const data = await res.json();
-          if (data.success) {
-            const fillMsg = data.total_filled > 0
-              ? `Executed ${data.total_filled} shares @ $${data.price.toFixed(2)}`
-              : `Limit Order #${data.order_id} placed on the book`;
-            showToast(fillMsg, 'success');
-            fetchSnapshot();
-          } else {
-            showToast(`Order Rejected: ${data.reject_reason || 'Policy check failed'}`, 'error');
-          }
-        } catch (e) {
-          showToast('Execution error: Network disconnected', 'error');
-        } finally {
-          submitBtn.disabled = false;
-          submitBtn.textContent = `${state.side === 'BUY' ? 'Buy' : 'Sell'} ${state.symbol}`;
-        }
-      });
-
-      // ========================================================================
-      // SYMBOL SWITCHING & SIMULATION CONTROLS
-      // ========================================================================
-      document.querySelectorAll('#symbolNav .symbol-pill').forEach(pill => {
-        pill.addEventListener('click', async () => {
-          const sym = pill.dataset.sym;
-          state.userSelectedSymbol = true;
-          state.symbol = sym;
-          highlightActiveSymbol(sym);
-
-          try {
-            await fetch(`${apiBase}/api/symbol/select`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ symbol: sym }),
-            });
-            fetchSnapshot();
-          } catch (e) {
-            console.error('Error switching symbol:', e);
-          }
-        });
-      });
-
-      // Bot Simulation Play / Pause
-      const botToggleBtn = document.getElementById('botToggleBtn');
-      botToggleBtn.addEventListener('click', async () => {
-        try {
-          const res = await fetch(`${apiBase}/api/bot/toggle`, { method: 'POST' });
-          const data = await res.json();
-          state.botActive = (data.bot_active !== undefined) ? data.bot_active : data.active;
-          updateBotControls();
-        } catch (e) {
-          console.error('Error toggling bot:', e);
-        }
-      });
 
       function updateBotControls() {
-        document.getElementById('botIcon').textContent = state.botActive ? '⏸' : '▶';
-        document.getElementById('botLabel').textContent = state.botActive ? 'Pause Sim' : 'Resume Sim';
-        botToggleBtn.classList.toggle('active', state.botActive);
+        const icon = document.getElementById('botIcon');
+        const label = document.getElementById('botLabel');
+        if (icon) icon.textContent = state.botActive ? '⏸' : '▶';
+        if (label) label.textContent = state.botActive ? 'Pause Sim' : 'Resume Sim';
+        if (botToggleBtn) botToggleBtn.classList.toggle('active', state.botActive);
       }
 
-      // Bot Speed Selection
-      document.querySelectorAll('.sim-controls button[data-speed]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const spd = btn.dataset.speed;
-          document.querySelectorAll('.sim-controls button[data-speed]').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          try {
-            await fetch(`${apiBase}/api/bot/speed`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ speed: spd }),
-            });
-          } catch (e) {
-            console.error('Error setting bot speed:', e);
-          }
-        });
-      });
-
-      // ========================================================================
-      // REAL-TIME WEBSOCKET & SNAPSHOT INGESTION
-      // ========================================================================
+      // 12. Apply Snapshot Data
       function applySnapshot(snap) {
         if (!snap) return;
 
-        // Auto-adopt server symbol on first snapshot if user hasn't explicitly chosen one
         const incomingSym = snap.symbol || snap.active_symbol;
         if (!state.userSelectedSymbol && incomingSym && !matchesSymbol(state.symbol, incomingSym)) {
           state.symbol = incomingSym;
           highlightActiveSymbol(state.symbol);
         }
 
-        // Market Price & Stats
         state.marketPrice = snap.last_price || state.marketPrice;
-        document.getElementById('marketPrice').textContent = fmtCurrency(state.marketPrice);
-        document.getElementById('statHigh').textContent = fmtCurrency(snap.high_24h || state.marketPrice * 1.015);
-        document.getElementById('statLow').textContent = fmtCurrency(snap.low_24h || state.marketPrice * 0.985);
-        document.getElementById('statVwap').textContent = fmtCurrency(snap.vwap || state.marketPrice);
-        document.getElementById('statVol').textContent = fmtNumber(snap.total_volume || 14250);
+        const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
-        // Price input placeholder update if empty
-        if (!priceInput.value) {
+        setTxt('marketPrice', fmtCurrency(state.marketPrice));
+        setTxt('statHigh', fmtCurrency(snap.high_24h || state.marketPrice * 1.015));
+        setTxt('statLow', fmtCurrency(snap.low_24h || state.marketPrice * 0.985));
+        setTxt('statVwap', fmtCurrency(snap.vwap || state.marketPrice));
+        setTxt('statVol', fmtNumber(snap.total_volume || 14250));
+
+        if (priceInput && (!priceInput.value || parseFloat(priceInput.value) === 0)) {
           priceInput.value = state.marketPrice.toFixed(2);
           updateOrderSummary();
         }
 
-        // Account / Cash
         if (snap.account) {
           state.account = snap.account;
           const cash = snap.account.cash_balance || 100000;
           const equity = snap.account.equity || cash;
-          document.getElementById('hdrCash').textContent = fmtCurrency(cash);
-          document.getElementById('hdrEquity').textContent = fmtCurrency(equity);
-          document.getElementById('availCashText').textContent = `Avail: ${fmtCurrency(cash)}`;
+          setTxt('hdrCash', fmtCurrency(cash));
+          setTxt('hdrEquity', fmtCurrency(equity));
+          setTxt('availCashText', `Avail: ${fmtCurrency(cash)}`);
           const held = (snap.account.positions && snap.account.positions[state.symbol]) || 0;
-          document.getElementById('currentHoldingsLabel').textContent = `Holding: ${fmtNumber(held)}`;
+          setTxt('currentHoldingsLabel', `Holding: ${fmtNumber(held)}`);
         }
 
-        // Candlesticks
         if (snap.candles && snap.candles.length > 0) {
           state.candles = snap.candles;
           const last = state.candles[state.candles.length - 1];
@@ -2257,22 +2034,17 @@
           renderChart();
         }
 
-        // Level 2 Depth
         if (snap.l2) {
           state.l2 = snap.l2;
           renderLevel2Depth(snap.l2);
         }
 
-        // Simulation status sync
         if (snap.bot_active !== undefined) {
           state.botActive = snap.bot_active;
           updateBotControls();
         }
 
-        // AI Intelligence & Radar
         updateAiMarketIntelligence(snap);
-
-        // Portfolio Tables
         updatePortfolioTables(snap);
       }
 
@@ -2301,7 +2073,6 @@
             try {
               const snap = JSON.parse(event.data);
               const incoming = snap.symbol || snap.active_symbol;
-              // Accept snapshot if matching or if user hasn't selected another symbol
               if (matchesSymbol(incoming, state.symbol) || !state.userSelectedSymbol) {
                 applySnapshot(snap);
               }
@@ -2314,30 +2085,314 @@
             setTimeout(initWebSocket, 2000);
           };
 
-          ws.onerror = (err) => {
+          ws.onerror = () => {
             ws.close();
           };
         } catch (err) {
-          console.warn('[ChronosMatch] WebSocket initialization skipped, using REST polling fallback.');
+          console.warn('[ChronosMatch] WebSocket connection skipped, using REST polling.');
         }
       }
 
-      // Initial Bootstrap
-      window.addEventListener('load', () => {
+      // 13. Bind All Event Listeners Once DOM Is Ready
+      function initApp() {
+        initDomElements();
+        applyTheme(state.theme);
+
+        if (themeToggleBtn) {
+          themeToggleBtn.addEventListener('click', () => {
+            applyTheme(state.theme === 'dark' ? 'light' : 'dark');
+          });
+        }
+
+        // Crosshair Hover
+        if (canvas) {
+          canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const rightMargin = 70;
+            const maxDisplayBars = 65;
+            const displayCandles = state.candles.slice(-maxDisplayBars);
+            const n = displayCandles.length;
+            if (n === 0) return;
+
+            const barSpacing = (rect.width - rightMargin) / n;
+            const idx = Math.floor(x / barSpacing);
+            if (idx >= 0 && idx < n) {
+              state.hoveredBar = idx;
+              updateChartHud(displayCandles[idx]);
+              renderChart();
+            }
+          });
+
+          canvas.addEventListener('mouseleave', () => {
+            state.hoveredBar = null;
+            const last = state.candles[state.candles.length - 1];
+            if (last) updateChartHud(last);
+            renderChart();
+          });
+        }
+
+        // Timeframe Buttons
+        document.querySelectorAll('#tfGroup .chart-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('#tfGroup .chart-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.timeframe = btn.dataset.tf;
+            const tag = document.getElementById('chartTimeframeTag');
+            if (tag) tag.textContent = `(${btn.textContent} Bars)`;
+          });
+        });
+
+        // Type Buttons
+        document.querySelectorAll('#typeGroup .chart-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('#typeGroup .chart-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.chartType = btn.dataset.type;
+            renderChart();
+          });
+        });
+
+        // Indicator Toggles
+        const vwapBtn = document.getElementById('toggleVwapBtn');
+        if (vwapBtn) {
+          vwapBtn.addEventListener('click', function () {
+            state.showVwap = !state.showVwap;
+            this.classList.toggle('active', state.showVwap);
+            renderChart();
+          });
+        }
+
+        const emaBtn = document.getElementById('toggleEmaBtn');
+        if (emaBtn) {
+          emaBtn.addEventListener('click', function () {
+            state.showEma = !state.showEma;
+            this.classList.toggle('active', state.showEma);
+            renderChart();
+          });
+        }
+
+        // Table Tabs
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const tab = btn.dataset.tab;
+            const setDisp = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? 'table' : 'none'; };
+            setDisp('tblOrders', tab === 'orders');
+            setDisp('tblHoldings', tab === 'holdings');
+            setDisp('tblTrades', tab === 'trades');
+          });
+        });
+
+        // Buy / Sell Tabs
+        const sideBuyBtn = document.getElementById('btnSideBuy');
+        const sideSellBtn = document.getElementById('btnSideSell');
+        if (sideBuyBtn) {
+          sideBuyBtn.addEventListener('click', () => {
+            state.side = 'BUY';
+            sideBuyBtn.classList.add('active');
+            if (sideSellBtn) sideSellBtn.classList.remove('active');
+            if (submitBtn) {
+              submitBtn.className = 'submit-order-btn buy';
+              submitBtn.textContent = `Buy ${state.symbol}`;
+            }
+            updateOrderSummary();
+          });
+        }
+        if (sideSellBtn) {
+          sideSellBtn.addEventListener('click', () => {
+            state.side = 'SELL';
+            sideSellBtn.classList.add('active');
+            if (sideBuyBtn) sideBuyBtn.classList.remove('active');
+            if (submitBtn) {
+              submitBtn.className = 'submit-order-btn sell';
+              submitBtn.textContent = `Sell ${state.symbol}`;
+            }
+            updateOrderSummary();
+          });
+        }
+
+        // Limit / Market Tabs
+        const typeLimitBtn = document.getElementById('btnTypeLimit');
+        const typeMarketBtn = document.getElementById('btnTypeMarket');
+        const priceGroup = document.getElementById('priceGroup');
+        if (typeLimitBtn) {
+          typeLimitBtn.addEventListener('click', () => {
+            state.orderType = 'LIMIT';
+            typeLimitBtn.classList.add('active');
+            if (typeMarketBtn) typeMarketBtn.classList.remove('active');
+            if (priceGroup) priceGroup.style.display = 'flex';
+            updateOrderSummary();
+          });
+        }
+        if (typeMarketBtn) {
+          typeMarketBtn.addEventListener('click', () => {
+            state.orderType = 'MARKET';
+            typeMarketBtn.classList.add('active');
+            if (typeLimitBtn) typeLimitBtn.classList.remove('active');
+            if (priceGroup) priceGroup.style.display = 'none';
+            updateOrderSummary();
+          });
+        }
+
+        // Mid Price Autofill
+        const midBtn = document.getElementById('fillMidPriceBtn');
+        if (midBtn) {
+          midBtn.addEventListener('click', () => {
+            if (priceInput) {
+              priceInput.value = state.marketPrice.toFixed(2);
+              updateOrderSummary();
+            }
+          });
+        }
+
+        // Percentage Allocators
+        document.querySelectorAll('.pct-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const pct = parseFloat(btn.dataset.pct);
+            const p = state.orderType === 'LIMIT'
+              ? (parseFloat(priceInput ? priceInput.value : 0) || state.marketPrice)
+              : state.marketPrice;
+            if (p <= 0) return;
+
+            if (state.side === 'BUY') {
+              const availCash = state.account.cash_balance || 100000;
+              const targetDollars = availCash * pct;
+              const shares = Math.max(1, Math.floor(targetDollars / p));
+              if (qtyInput) qtyInput.value = shares;
+            } else {
+              const holding = (state.account.positions && state.account.positions[state.symbol]) || 0;
+              const shares = Math.max(1, Math.floor(holding * pct));
+              if (qtyInput) qtyInput.value = shares;
+            }
+            updateOrderSummary();
+          });
+        });
+
+        if (priceInput) priceInput.addEventListener('input', updateOrderSummary);
+        if (qtyInput) qtyInput.addEventListener('input', updateOrderSummary);
+
+        // Submit Order
+        if (submitBtn) {
+          submitBtn.addEventListener('click', async () => {
+            const p = state.orderType === 'LIMIT' ? parseFloat(priceInput ? priceInput.value : 0) : state.marketPrice;
+            const q = parseInt(qtyInput ? qtyInput.value : 0, 10);
+
+            if (!q || q <= 0) {
+              showToast('Please enter a valid quantity', 'error');
+              return;
+            }
+            if (state.orderType === 'LIMIT' && (!p || p <= 0)) {
+              showToast('Please specify a limit price', 'error');
+              return;
+            }
+
+            try {
+              submitBtn.disabled = true;
+              submitBtn.textContent = 'Routing Order...';
+
+              const res = await fetch(`${apiBase}/api/order`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  symbol: state.symbol,
+                  side: state.side,
+                  order_type: state.orderType,
+                  price: p,
+                  quantity: q,
+                }),
+              });
+              const data = await res.json();
+              if (data && data.success) {
+                const fillMsg = data.total_filled > 0
+                  ? `Executed ${data.total_filled} units @ $${data.price.toFixed(2)}`
+                  : `Limit Order #${data.order_id} placed on the book`;
+                showToast(fillMsg, 'success');
+                fetchSnapshot();
+              } else {
+                showToast(`Order Rejected: ${(data && data.reject_reason) || 'Policy check failed'}`, 'error');
+              }
+            } catch (e) {
+              showToast('Execution error: Network disconnected', 'error');
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.textContent = `${state.side === 'BUY' ? 'Buy' : 'Sell'} ${state.symbol}`;
+            }
+          });
+        }
+
+        // Symbol Switcher Pills
+        document.querySelectorAll('#symbolNav .symbol-pill').forEach(pill => {
+          pill.addEventListener('click', async () => {
+            const sym = pill.dataset.sym;
+            state.userSelectedSymbol = true;
+            state.symbol = sym;
+            highlightActiveSymbol(sym);
+
+            try {
+              await fetch(`${apiBase}/api/symbol/select`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: sym }),
+              });
+              fetchSnapshot();
+            } catch (e) {
+              console.error('Error switching symbol:', e);
+            }
+          });
+        });
+
+        // Bot Simulation Toggle
+        if (botToggleBtn) {
+          botToggleBtn.addEventListener('click', async () => {
+            try {
+              const res = await fetch(`${apiBase}/api/bot/toggle`, { method: 'POST' });
+              const data = await res.json();
+              state.botActive = (data.bot_active !== undefined) ? data.bot_active : data.active;
+              updateBotControls();
+            } catch (e) {
+              console.error('Error toggling bot:', e);
+            }
+          });
+        }
+
+        // Bot Speed Selection
+        document.querySelectorAll('.sim-controls button[data-speed]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const spd = btn.dataset.speed;
+            document.querySelectorAll('.sim-controls button[data-speed]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            try {
+              await fetch(`${apiBase}/api/bot/speed`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ speed: spd }),
+              });
+            } catch (e) {
+              console.error('Error setting bot speed:', e);
+            }
+          });
+        });
+
+        // Resize Canvas & Start Data Streaming
         resizeCanvas();
         fetchSnapshot();
         initWebSocket();
-      });
 
-      // Periodic REST Fallback Poll every 1.5s
-      setInterval(fetchSnapshot, 1500);
+        // 1.5s REST fallback poll
+        setInterval(fetchSnapshot, 1500);
+      }
 
-      // Initial direct call
-      resizeCanvas();
-      fetchSnapshot();
-      initWebSocket();
+      // Initial Bootstrap: Call immediately if DOM is ready, or on DOMContentLoaded
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+      } else {
+        initApp();
+      }
 
     })();
+  
   </script>
 </body>
 </html>
