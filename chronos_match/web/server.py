@@ -706,6 +706,7 @@ async def api_tickers():
     return server.router.get_all_tickers()
 
 
+@app.post("/api/symbol")
 @app.post("/api/symbol/select")
 async def api_select_symbol(req: SymbolSelectRequest):
     """Switch active market symbol."""
@@ -714,7 +715,7 @@ async def api_select_symbol(req: SymbolSelectRequest):
     except KeyError:
         venue = server.replayer.bind_stock(req.symbol)
     server.active_symbol = venue.info.ticker
-    return {"active_symbol": server.active_symbol}
+    return {"active_symbol": server.active_symbol, "symbol": venue.info.ticker}
 
 
 @app.post("/api/cancel")
@@ -745,7 +746,11 @@ async def api_toggle_bot():
     if server.bot_active:
         if server._bot_task is None or server._bot_task.done():
             server._bot_task = asyncio.create_task(_bot_simulation_loop())
-    return {"bot_active": server.bot_active, "speed": server.bot_speed}
+    return {
+        "bot_active": server.bot_active,
+        "active": server.bot_active,
+        "speed": server.bot_speed,
+    }
 
 
 async def _bot_simulation_loop():

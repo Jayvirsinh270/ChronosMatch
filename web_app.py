@@ -18,7 +18,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="ChronosMatch Web Trading Terminal")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host interface (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port to listen on (default: 8000)")
-    parser.add_argument("--symbol", type=str, default="NVDA-USD", help="Initial active stock ticker (default: NVDA-USD)")
+    parser.add_argument("--symbol", type=str, default="BTC-USD", help="Initial active stock ticker (default: BTC-USD)")
     parser.add_argument("--no-browser", action="store_true", help="Do not automatically open web browser")
     return parser.parse_args()
 

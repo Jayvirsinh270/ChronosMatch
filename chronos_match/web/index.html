@@ -1378,9 +1378,17 @@
     (function () {
       'use strict';
 
+      // Determine API and WebSocket Base URLs (Supports http://, https://, and file:///)
+      const isFileProto = window.location.protocol === 'file:';
+      const apiBase = isFileProto ? 'http://127.0.0.1:8000' : '';
+      const wsHost = (isFileProto || !window.location.host) ? '127.0.0.1:8000' : window.location.host;
+      const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProto}//${wsHost}/ws`;
+
       // State Management
       const state = {
-        symbol: 'BTC-USD',
+        symbol: 'NVDA',
+        userSelectedSymbol: false,
         theme: localStorage.getItem('chronos_theme') || 'light',
         activeTab: 'orders',
         timeframe: '1m',
@@ -1391,7 +1399,7 @@
         orderType: 'LIMIT',
         botActive: true,
         botSpeed: 'medium',
-        marketPrice: 0,
+        marketPrice: 130.0,
         candles: [],
         openOrders: [],
         holdings: {},
@@ -1401,7 +1409,19 @@
         hoveredBar: null,
       };
 
-      // Apply Initial Theme
+      // Normalization Helper for Symbol Matching (e.g., 'NVDA' matches 'NVDA-USD')
+      function normalizeSym(s) {
+        if (!s) return '';
+        return String(s).toUpperCase().replace(/[-_/]/g, '').replace('USDT', '').replace('USD', '');
+      }
+
+      function matchesSymbol(s1, s2) {
+        if (!s1 || !s2) return false;
+        if (s1 === s2) return true;
+        return normalizeSym(s1) === normalizeSym(s2);
+      }
+
+      // Theme Management
       function applyTheme(theme) {
         state.theme = theme;
         document.documentElement.setAttribute('data-theme', theme);
@@ -1412,9 +1432,12 @@
       }
       applyTheme(state.theme);
 
-      document.getElementById('themeToggleBtn').addEventListener('click', () => {
-        applyTheme(state.theme === 'dark' ? 'light' : 'dark');
-      });
+      const themeBtn = document.getElementById('themeToggleBtn');
+      if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+          applyTheme(state.theme === 'dark' ? 'light' : 'dark');
+        });
+      }
 
       // Formatters
       const fmtCurrency = (n) => {
@@ -1427,6 +1450,26 @@
         return Number(n).toLocaleString('en-US');
       };
 
+      // Highlight Active Symbol Pill in Header
+      function highlightActiveSymbol(sym) {
+        document.querySelectorAll('#symbolNav .symbol-pill').forEach(pill => {
+          const pSym = pill.dataset.sym;
+          const isMatch = matchesSymbol(pSym, sym);
+          pill.classList.toggle('active', isMatch);
+        });
+
+        const cleanTitle = (sym || '').replace('-', ' / ');
+        const titleEl = document.getElementById('marketSymTitle');
+        if (titleEl) titleEl.textContent = cleanTitle;
+
+        const submitBtn = document.getElementById('submitOrderBtn');
+        if (submitBtn) submitBtn.textContent = `${state.side === 'BUY' ? 'Buy' : 'Sell'} ${sym}`;
+
+        const baseUnit = (sym || 'UNITS').split('-')[0].toUpperCase();
+        const unitSuffix = document.getElementById('qtyUnitSuffix');
+        if (unitSuffix) unitSuffix.textContent = baseUnit;
+      }
+
       // ========================================================================
       // CANVAS CANDLESTICK & VOLUME CHART
       // ========================================================================
@@ -1436,9 +1479,10 @@
       function resizeCanvas() {
         const rect = canvas.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
+        if (rect.width > 0 && rect.height > 0) {
+          canvas.width = Math.round(rect.width * dpr);
+          canvas.height = Math.round(rect.height * dpr);
+        }
         renderChart();
       }
       window.addEventListener('resize', resizeCanvas);
@@ -1446,7 +1490,6 @@
       function calculateIndicators(candles) {
         if (!candles || candles.length === 0) return { vwap: [], ema20: [] };
 
-        // VWAP Calculation
         let cumVol = 0;
         let cumTypicalVol = 0;
         const vwap = candles.map(c => {
@@ -1456,7 +1499,6 @@
           return cumVol > 0 ? cumTypicalVol / cumVol : c.close;
         });
 
-        // EMA 20 Calculation
         const k = 2 / (20 + 1);
         const ema20 = [];
         let prevEma = candles[0].close;
@@ -1470,11 +1512,13 @@
       }
 
       function renderChart() {
-        if (!canvas.width || !canvas.height) return;
         const rect = canvas.getBoundingClientRect();
         const w = rect.width;
         const h = rect.height;
+        if (!w || !h) return;
 
+        const dpr = window.devicePixelRatio || 1;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, w, h);
 
         const isDark = state.theme === 'dark';
@@ -1494,18 +1538,15 @@
           return;
         }
 
-        // Layout Dimensions
         const rightMargin = 70;
         const bottomMargin = 26;
         const volumeHeight = h * 0.18;
         const chartAreaHeight = h - bottomMargin - volumeHeight;
 
-        // Viewport: Show up to last 75 bars
         const maxDisplayBars = 65;
         const displayCandles = candles.slice(-maxDisplayBars);
         const n = displayCandles.length;
 
-        // Determine Min and Max Prices
         let minPrice = Infinity;
         let maxPrice = -Infinity;
         let maxVol = 0;
@@ -1516,19 +1557,17 @@
           if (c.volume > maxVol) maxVol = c.volume;
         }
 
-        // Add 6% padding to price range
         const pricePadding = (maxPrice - minPrice) * 0.06 || 1;
         minPrice -= pricePadding;
         maxPrice += pricePadding;
         const priceRange = maxPrice - minPrice;
 
-        // Coordinate transforms
         const getY = (p) => chartAreaHeight - ((p - minPrice) / priceRange) * chartAreaHeight;
         const getVolY = (v) => h - bottomMargin - (v / (maxVol || 1)) * (volumeHeight - 8);
         const barSpacing = (w - rightMargin) / n;
         const barWidth = Math.max(2, Math.min(14, barSpacing * 0.72));
 
-        // 1. Draw Grid Lines & Y-Axis Labels
+        // 1. Grid Lines & Axis
         ctx.strokeStyle = gridColor;
         ctx.lineWidth = 1;
         ctx.fillStyle = textMuted;
@@ -1547,7 +1586,7 @@
           ctx.fillText(p.toFixed(2), w - rightMargin + 8, y + 4);
         }
 
-        // 2. Draw Indicators (VWAP & EMA)
+        // 2. Indicators (VWAP & EMA)
         const indicators = calculateIndicators(candles);
         const dispVwap = indicators.vwap.slice(-maxDisplayBars);
         const dispEma = indicators.ema20.slice(-maxDisplayBars);
@@ -1578,7 +1617,7 @@
           ctx.stroke();
         }
 
-        // 3. Draw Candlesticks & Volume Bars
+        // 3. Bars / Candles
         for (let i = 0; i < n; i++) {
           const c = displayCandles[i];
           const x = i * barSpacing + barSpacing / 2;
@@ -1587,7 +1626,9 @@
 
           // Volume Bar
           const vy = getVolY(c.volume);
-          ctx.fillStyle = isGreen ? (isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(5, 150, 105, 0.25)') : (isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(220, 38, 38, 0.25)');
+          ctx.fillStyle = isGreen
+            ? (isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(5, 150, 105, 0.25)')
+            : (isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(220, 38, 38, 0.25)');
           ctx.fillRect(x - barWidth / 2, vy, barWidth, h - bottomMargin - vy);
 
           // Candlestick Body & Wicks
@@ -1597,7 +1638,6 @@
             const highY = getY(c.high);
             const lowY = getY(c.low);
 
-            // Wick
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.2;
             ctx.beginPath();
@@ -1605,7 +1645,6 @@
             ctx.lineTo(x, lowY);
             ctx.stroke();
 
-            // Body
             const topY = Math.min(openY, closeY);
             const bodyHeight = Math.max(1.5, Math.abs(openY - closeY));
             ctx.fillStyle = color;
@@ -1623,7 +1662,7 @@
             if (i === n - 1) ctx.stroke();
           }
 
-          // X-Axis Date/Time Labels (Every 8 bars)
+          // X-Axis Labels
           if (i % 8 === 0 || i === n - 1) {
             ctx.fillStyle = textMuted;
             ctx.font = '10px JetBrains Mono';
@@ -1646,9 +1685,8 @@
           ctx.moveTo(0, curY);
           ctx.lineTo(w - rightMargin, curY);
           ctx.stroke();
-          ctx.setLineDash([]); // Reset dash
+          ctx.setLineDash([]);
 
-          // Badge on Right Margin
           ctx.fillStyle = badgeColor;
           ctx.fillRect(w - rightMargin + 4, curY - 9, rightMargin - 8, 18);
           ctx.fillStyle = '#FFFFFF';
@@ -1667,13 +1705,11 @@
           ctx.setLineDash([2, 2]);
           ctx.lineWidth = 1;
 
-          // Vertical
           ctx.beginPath();
           ctx.moveTo(x, 0);
           ctx.lineTo(x, h - bottomMargin);
           ctx.stroke();
 
-          // Horizontal
           ctx.beginPath();
           ctx.moveTo(0, y);
           ctx.lineTo(w - rightMargin, y);
@@ -1682,7 +1718,7 @@
         }
       }
 
-      // Crosshair Mouse Interaction
+      // Crosshair Hover
       canvas.addEventListener('mousemove', (e) => {
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -1696,8 +1732,7 @@
         const idx = Math.floor(x / barSpacing);
         if (idx >= 0 && idx < n) {
           state.hoveredBar = idx;
-          const c = displayCandles[idx];
-          updateChartHud(c);
+          updateChartHud(displayCandles[idx]);
           renderChart();
         }
       });
@@ -1721,7 +1756,7 @@
         document.getElementById('hudVol').textContent = fmtNumber(c.volume);
       }
 
-      // Chart Toolbar Controls
+      // Chart Controls
       document.querySelectorAll('#tfGroup .chart-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('#tfGroup .chart-btn').forEach(b => b.classList.remove('active'));
@@ -1760,12 +1795,9 @@
         const asksEl = document.getElementById('depthAsks');
         const bidsEl = document.getElementById('depthBids');
 
-        // Bids: Sorted descending by price (highest buy price first)
         const bids = (l2.bids || []).slice(0, 7);
-        // Asks: Sorted ascending by price, displayed top-to-bottom descending
         const asks = (l2.asks || []).slice(0, 7).reverse();
 
-        // Calculate max cumulative volume for clean proportional bars
         let maxCum = 0;
         let cum = 0;
         for (const b of bids) { cum += b.volume; }
@@ -1775,7 +1807,6 @@
         if (cum > maxCum) maxCum = cum;
         if (maxCum === 0) maxCum = 1;
 
-        // Render Asks
         let askCum = 0;
         asksEl.innerHTML = asks.map(a => {
           askCum += a.volume;
@@ -1790,7 +1821,6 @@
           `;
         }).join('');
 
-        // Render Bids
         let bidCum = 0;
         bidsEl.innerHTML = bids.map(b => {
           bidCum += b.volume;
@@ -1805,7 +1835,6 @@
           `;
         }).join('');
 
-        // Mid Market Spread Indicator
         const bestBid = bids.length > 0 ? bids[0].price : 0;
         const bestAsk = asks.length > 0 ? asks[asks.length - 1].price : 0;
         if (bestBid > 0 && bestAsk > 0) {
@@ -1819,8 +1848,11 @@
       }
 
       window.setOrderPrice = (price) => {
-        document.getElementById('orderPrice').value = price.toFixed(2);
-        updateOrderSummary();
+        const pInput = document.getElementById('orderPrice');
+        if (pInput) {
+          pInput.value = price.toFixed(2);
+          updateOrderSummary();
+        }
       };
 
       // ========================================================================
@@ -1831,7 +1863,7 @@
         const mlPat = snap.ml_pattern;
         const lastP = snap.last_price || state.marketPrice || 100;
 
-        // 1. Candlestick Pattern
+        // Candlestick Pattern
         if (pat && pat.name) {
           document.getElementById('aiPatternName').textContent = pat.name;
           document.getElementById('aiPatternDesc').textContent = pat.description || 'Detected high-probability price action formation.';
@@ -1844,7 +1876,7 @@
           document.getElementById('hudPattern').textContent = 'Consolidation';
         }
 
-        // 2. Market Regime & Condition
+        // Market Regime
         const condEl = document.getElementById('aiCondition');
         const condDescEl = document.getElementById('aiConditionDesc');
         const regime = mlPat ? mlPat.regime : 'BALANCED_CONSOLIDATION';
@@ -1863,7 +1895,7 @@
           condDescEl.textContent = 'Mean-reverting institutional bracket; tight spread and stable order book.';
         }
 
-        // 3. Actionable Trade Setup
+        // Actionable Trade Setup
         const isBull = regime === 'MOMENTUM_BREAKOUT_BULL' || (pat && pat.sentiment === 'BULLISH');
         const targetMult = isBull ? 1.018 : 0.982;
         const stopMult = isBull ? 0.992 : 1.008;
@@ -1873,7 +1905,7 @@
         document.getElementById('aiTradeSetup').innerHTML = `Target: <span style="color: ${isBull ? 'var(--bull)' : 'var(--bear)'};">$${targetP.toFixed(2)}</span>`;
         document.getElementById('aiSetupDetails').textContent = `Stop: $${stopP.toFixed(2)} | R:R Ratio 1 : 2.3`;
 
-        // 4. Order Flow Pressure Meter
+        // Order Flow Pressure Meter
         const bidVol = snap.total_bid_vol || 5000;
         const askVol = snap.total_ask_vol || 4500;
         const total = bidVol + askVol || 1;
@@ -1890,7 +1922,6 @@
       // PORTFOLIO & ORDERS TABLES
       // ========================================================================
       function updatePortfolioTables(snap) {
-        // 1. Open Orders
         const openOrders = snap.open_orders || [];
         document.getElementById('tabOrderCount').textContent = openOrders.length;
         const ordersBody = document.getElementById('ordersBody');
@@ -1913,7 +1944,6 @@
           `).join('');
         }
 
-        // 2. Holdings Table
         const holdingsBody = document.getElementById('holdingsBody');
         const pos = snap.account && snap.account.positions ? snap.account.positions : {};
         const posKeys = Object.keys(pos).filter(k => pos[k] !== 0);
@@ -1937,7 +1967,6 @@
           }).join('');
         }
 
-        // 3. Recent Trades Tape
         const tradesBody = document.getElementById('tradesBody');
         const recTrades = snap.recent_trades || [];
         if (recTrades.length === 0) {
@@ -1958,7 +1987,7 @@
 
       window.cancelOrder = async (orderId) => {
         try {
-          const res = await fetch('/api/cancel', {
+          const res = await fetch(`${apiBase}/api/cancel`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ order_id: orderId, symbol: state.symbol }),
@@ -1966,6 +1995,7 @@
           const data = await res.json();
           if (data.success) {
             showToast('Order #' + orderId + ' cancelled successfully', 'success');
+            fetchSnapshot();
           }
         } catch (e) {
           console.error('Cancel order error:', e);
@@ -2091,7 +2121,7 @@
           submitBtn.disabled = true;
           submitBtn.textContent = 'Routing Order...';
 
-          const res = await fetch('/api/order', {
+          const res = await fetch(`${apiBase}/api/order`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2108,6 +2138,7 @@
               ? `Executed ${data.total_filled} shares @ $${data.price.toFixed(2)}`
               : `Limit Order #${data.order_id} placed on the book`;
             showToast(fillMsg, 'success');
+            fetchSnapshot();
           } else {
             showToast(`Order Rejected: ${data.reject_reason || 'Policy check failed'}`, 'error');
           }
@@ -2125,17 +2156,12 @@
       document.querySelectorAll('#symbolNav .symbol-pill').forEach(pill => {
         pill.addEventListener('click', async () => {
           const sym = pill.dataset.sym;
-          if (sym === state.symbol) return;
-
-          document.querySelectorAll('#symbolNav .symbol-pill').forEach(p => p.classList.remove('active'));
-          pill.classList.add('active');
+          state.userSelectedSymbol = true;
           state.symbol = sym;
-
-          document.getElementById('marketSymTitle').textContent = sym.replace('-', ' / ');
-          document.getElementById('submitOrderBtn').textContent = `${state.side === 'BUY' ? 'Buy' : 'Sell'} ${sym}`;
+          highlightActiveSymbol(sym);
 
           try {
-            await fetch('/api/symbol', {
+            await fetch(`${apiBase}/api/symbol/select`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ symbol: sym }),
@@ -2151,9 +2177,9 @@
       const botToggleBtn = document.getElementById('botToggleBtn');
       botToggleBtn.addEventListener('click', async () => {
         try {
-          const res = await fetch('/api/bot/toggle', { method: 'POST' });
+          const res = await fetch(`${apiBase}/api/bot/toggle`, { method: 'POST' });
           const data = await res.json();
-          state.botActive = data.active;
+          state.botActive = (data.bot_active !== undefined) ? data.bot_active : data.active;
           updateBotControls();
         } catch (e) {
           console.error('Error toggling bot:', e);
@@ -2173,7 +2199,7 @@
           document.querySelectorAll('.sim-controls button[data-speed]').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           try {
-            await fetch('/api/bot/speed', {
+            await fetch(`${apiBase}/api/bot/speed`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ speed: spd }),
@@ -2189,6 +2215,13 @@
       // ========================================================================
       function applySnapshot(snap) {
         if (!snap) return;
+
+        // Auto-adopt server symbol on first snapshot if user hasn't explicitly chosen one
+        const incomingSym = snap.symbol || snap.active_symbol;
+        if (!state.userSelectedSymbol && incomingSym && !matchesSymbol(state.symbol, incomingSym)) {
+          state.symbol = incomingSym;
+          highlightActiveSymbol(state.symbol);
+        }
 
         // Market Price & Stats
         state.marketPrice = snap.last_price || state.marketPrice;
@@ -2230,6 +2263,12 @@
           renderLevel2Depth(snap.l2);
         }
 
+        // Simulation status sync
+        if (snap.bot_active !== undefined) {
+          state.botActive = snap.bot_active;
+          updateBotControls();
+        }
+
         // AI Intelligence & Radar
         updateAiMarketIntelligence(snap);
 
@@ -2239,7 +2278,8 @@
 
       async function fetchSnapshot() {
         try {
-          const res = await fetch(`/api/snapshot?symbol=${encodeURIComponent(state.symbol)}`);
+          const symParam = encodeURIComponent(state.symbol);
+          const res = await fetch(`${apiBase}/api/snapshot?symbol=${symParam}`);
           if (res.ok) {
             const data = await res.json();
             applySnapshot(data);
@@ -2250,43 +2290,52 @@
       }
 
       function initWebSocket() {
-        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${proto}//${window.location.host}/ws`;
-        const ws = new WebSocket(wsUrl);
+        try {
+          const ws = new WebSocket(wsUrl);
 
-        ws.onopen = () => {
-          console.log('[ChronosMatch] WebSocket connected');
-        };
+          ws.onopen = () => {
+            console.log('[ChronosMatch] WebSocket connected to', wsUrl);
+          };
 
-        ws.onmessage = (event) => {
-          try {
-            const snap = JSON.parse(event.data);
-            if (snap.symbol === state.symbol || snap.active_symbol === state.symbol) {
-              applySnapshot(snap);
+          ws.onmessage = (event) => {
+            try {
+              const snap = JSON.parse(event.data);
+              const incoming = snap.symbol || snap.active_symbol;
+              // Accept snapshot if matching or if user hasn't selected another symbol
+              if (matchesSymbol(incoming, state.symbol) || !state.userSelectedSymbol) {
+                applySnapshot(snap);
+              }
+            } catch (e) {
+              console.error('WS parse error:', e);
             }
-          } catch (e) {
-            console.error('WS parse error:', e);
-          }
-        };
+          };
 
-        ws.onclose = () => {
-          console.warn('[ChronosMatch] WebSocket disconnected, reconnecting in 2s...');
-          setTimeout(initWebSocket, 2000);
-        };
+          ws.onclose = () => {
+            setTimeout(initWebSocket, 2000);
+          };
 
-        ws.onerror = (err) => {
-          console.error('[ChronosMatch] WebSocket error:', err);
-          ws.close();
-        };
+          ws.onerror = (err) => {
+            ws.close();
+          };
+        } catch (err) {
+          console.warn('[ChronosMatch] WebSocket initialization skipped, using REST polling fallback.');
+        }
       }
 
       // Initial Bootstrap
+      window.addEventListener('load', () => {
+        resizeCanvas();
+        fetchSnapshot();
+        initWebSocket();
+      });
+
+      // Periodic REST Fallback Poll every 1.5s
+      setInterval(fetchSnapshot, 1500);
+
+      // Initial direct call
+      resizeCanvas();
       fetchSnapshot();
       initWebSocket();
-      resizeCanvas();
-
-      // Periodic Fallback Poll every 2.5s in case WS lags
-      setInterval(fetchSnapshot, 2500);
 
     })();
   </script>
