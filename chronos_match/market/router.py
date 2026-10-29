@@ -68,6 +68,7 @@ class SingleSymbolVenue:
         arena_capacity: int = 100_000,
     ):
         self.info = info
+        self.arena_capacity = arena_capacity
         self.book = FastOrderBook(arena_capacity=arena_capacity)
         self.policy_engine = OrderPolicyEngine(
             book=self.book,
@@ -133,6 +134,19 @@ class SingleSymbolVenue:
             self.total_orders += 1
 
         return next_id
+
+    def reseed_liquidity(self, new_center_price: float, order_id_start: int, client_order_registry: Dict[int, int]) -> int:
+        """Clear resting liquidity and re-seed orders around new_center_price."""
+        self.book = FastOrderBook(arena_capacity=self.arena_capacity)
+        self.policy_engine = OrderPolicyEngine(
+            book=self.book,
+            client_order_registry=client_order_registry,
+        )
+        self.info.initial_price = new_center_price
+        self.last_trade_price = new_center_price
+        self.high_price = new_center_price * 1.002
+        self.low_price = new_center_price * 0.998
+        return self.seed_liquidity(order_id_start, client_order_registry)
 
     def get_snapshot(self) -> Dict[str, Any]:
         """Generate real-time snapshot for this instrument."""
@@ -220,6 +234,15 @@ class MultiBookRouter:
                 client_order_registry=self.client_order_registry,
             )
         return venue
+
+    def reseed_symbol(self, ticker: str, new_price: float) -> None:
+        """Reseed venue order book around new_price."""
+        venue = self.get_venue(ticker)
+        self.order_id_counter = venue.reseed_liquidity(
+            new_center_price=new_price,
+            order_id_start=self.order_id_counter,
+            client_order_registry=self.client_order_registry,
+        )
 
     def get_venue(self, symbol: Union[int, str]) -> SingleSymbolVenue:
         """Retrieve execution venue by symbol_id (int) or ticker (str)."""

@@ -87,30 +87,127 @@ class HistoricalMarketReplayer:
         sym = ticker.strip().upper()
         self.active_ticker = sym
 
-        # Load historical candles & profile
+        # 1. Determine benchmark venue price
         try:
-            candles = self.data_loader.load_candles(sym, max_bars=300)
-            profile = self.data_loader.compute_profile(sym, lookback=60)
-            initial_p = profile["latest_price"]
-            daily_vol = profile["volatility_daily"]
-            avg_vol = profile["avg_volume"]
-            tick_size = profile["tick_size"]
-        except Exception:
-            candles = []
-            initial_p = 150.00
-            daily_vol = 0.02
-            avg_vol = 500_000
-            tick_size = 0.01
+            existing_venue = self.router.get_venue(sym)
+            target_p = existing_venue.info.initial_price
+        except KeyError:
+            target_p = None
 
-        # Create or retrieve venue
+        if target_p and target_p > 0:
+            initial_p = target_p
+            tick_size = 0.50 if "BTC" in sym else (0.10 if "ETH" in sym else 0.01)
+            daily_vol = 0.025 if any(c in sym for c in ("BTC", "ETH", "SOL")) else 0.018
+            avg_vol = 1_000_000
+        else:
+            try:
+                profile = self.data_loader.compute_profile(sym, lookback=60)
+                initial_p = profile["latest_price"]
+                daily_vol = profile["volatility_daily"]
+                avg_vol = profile["avg_volume"]
+                tick_size = profile["tick_size"]
+            except Exception:
+                initial_p = 65000.0 if "BTC" in sym else (3500.0 if "ETH" in sym else (150.0 if "SOL" in sym else 130.0))
+                daily_vol = 0.02
+                avg_vol = 500_000
+                tick_size = 0.01
+
+        # 2. Check if valid session candles are already persisted in SQLite
+        stored_raw = self.data_store.get_recent_candles(sym, limit=60)
+        if not stored_raw and "-" in sym:
+            stored_raw = self.data_store.get_recent_candles(sym.split("-")[0], limit=60)
+
+        candles: List[StockCandle] = []
+        valid_stored = False
+        if stored_raw and len(stored_raw) >= 10:
+            last_p = stored_raw[-1]["close"]
+            # Valid if stored close matches expected benchmark price within 2.5%
+            if initial_p and abs(last_p - initial_p) / initial_p <= 0.025:
+                valid_stored = True
+                for r in stored_raw:
+                    candles.append(
+                        StockCandle(
+                            date=r["date_str"],
+                            open=round(r["open"], 2),
+                            high=round(r["high"], 2),
+                            low=round(r["low"], 2),
+                            close=round(r["close"], 2),
+                            volume=int(r["volume"]),
+                            adj_close=round(r["close"], 2),
+                        )
+                    )
+                initial_p = candles[-1].close
+
+        if not valid_stored:
+            # Load from historical data loader
+            try:
+                candles = self.data_loader.load_candles(sym, max_bars=60)
+            except Exception:
+                candles = []
+
+            # Synthesize authentic candle proportions with realistic ATR
+            if candles and candles[-1].close > 0:
+                scale = initial_p / candles[-1].close
+                now_t = time.time()
+                n = len(candles)
+                atr = max(tick_size * 4, initial_p * 0.003)
+                calibrated_candles = []
+                for i, c in enumerate(candles):
+                    t_str = time.strftime("%H:%M:%S", time.localtime(now_t - (n - i) * 60))
+                    bar_o = round(c.open * scale, 2)
+                    bar_c = round(c.close * scale, 2)
+                    bar_h = round(c.high * scale, 2)
+                    bar_l = round(c.low * scale, 2)
+
+                    # Ensure realistic body and distinct shadows
+                    min_tr = atr * 0.4
+                    if (bar_h - bar_l) < min_tr:
+                        body_top = max(bar_o, bar_c)
+                        body_bot = min(bar_o, bar_c)
+                        bar_h = round(body_top + atr * 0.25, 2)
+                        bar_l = round(max(tick_size, body_bot - atr * 0.25), 2)
+
+                    calibrated_candles.append(
+                        StockCandle(
+                            date=t_str,
+                            open=bar_o,
+                            high=bar_h,
+                            low=bar_l,
+                            close=bar_c,
+                            volume=c.volume,
+                            adj_close=bar_c,
+                        )
+                    )
+                candles = calibrated_candles
+
+                # Clear old corrupted candles and persist clean calibrated session
+                try:
+                    with self.data_store._lock:
+                        cur = self.data_store.conn.cursor()
+                        cur.execute("DELETE FROM market_candles WHERE symbol = ?", (sym.upper(),))
+                        if "-" in sym:
+                            cur.execute("DELETE FROM market_candles WHERE symbol = ?", (sym.split("-")[0].upper(),))
+                        self.data_store.conn.commit()
+                except Exception:
+                    pass
+
+                for sc in candles:
+                    self.data_store.record_candle(
+                        symbol=sym,
+                        timestamp=int(now_t - (n - candles.index(sc)) * 60),
+                        date_str=sc.date,
+                        open_p=sc.open,
+                        high_p=sc.high,
+                        low_p=sc.low,
+                        close_p=sc.close,
+                        volume=sc.volume,
+                        trades_count=max(1, sc.volume // 50),
+                    )
+
+        # Create or retrieve venue and reseed liquidity centered around authentic initial_p
         try:
             venue = self.router.get_venue(sym)
-            if venue.info.initial_price and venue.info.initial_price > 0:
-                initial_p = venue.info.initial_price
-            else:
-                venue.info.initial_price = initial_p
-            if venue.last_trade_price is None:
-                venue.last_trade_price = initial_p
+            self.router.reseed_symbol(sym, initial_p)
         except KeyError:
             sym_id = len(self.router.venues_by_id) + 1
             info = SymbolInfo(
@@ -123,27 +220,6 @@ class HistoricalMarketReplayer:
                 initial_price=initial_p,
             )
             venue = self.router.register_symbol(info, seed=True)
-
-        # Calibrate historical candles so the latest bar matches venue initial_p perfectly
-        if candles and candles[-1].close > 0:
-            scale = initial_p / candles[-1].close
-            now_t = time.time()
-            n = len(candles)
-            calibrated_candles = []
-            for i, c in enumerate(candles):
-                t_str = time.strftime("%H:%M:%S", time.localtime(now_t - (n - i) * 15))
-                calibrated_candles.append(
-                    StockCandle(
-                        date=t_str,
-                        open=round(c.open * scale, 2),
-                        high=round(c.high * scale, 2),
-                        low=round(c.low * scale, 2),
-                        close=round(c.close * scale, 2),
-                        volume=c.volume,
-                        adj_close=round(c.close * scale, 2),
-                    )
-                )
-            candles = calibrated_candles
 
         self.candles_cache[sym] = candles
         self.candles_cache[venue.info.ticker] = candles
@@ -287,14 +363,15 @@ class HistoricalMarketReplayer:
             drift = -0.00030 * deviation + pred.predicted_drift * 0.3 + micro_bias * 0.5
             vol_mult = 1.0
 
-        # Authentic tick volatility shock
-        step_sigma = (daily_vol * 0.006) * vol_mult
-        shock = random.gauss(0, 1) * max(0.0001, step_sigma)
-        ofi_push = (impact.ofi / max(1000.0, impact.avg_daily_volume * 0.005)) * 0.00015
+        # Authentic tick volatility shock calibrated for high-frequency (25 ticks/sec) loop
+        drift = drift * 0.05
+        step_sigma = (daily_vol * 0.001) * vol_mult
+        shock = random.gauss(0, 1) * max(0.00005, step_sigma)
+        ofi_push = (impact.ofi / max(1000.0, impact.avg_daily_volume * 0.005)) * 0.00002
 
         new_mid = round(cur_mid * (1.0 + drift + shock + ofi_push), 2)
-        min_p = max(tick * 5, round((venue.info.initial_price or 100.0) * 0.70, 2))
-        max_p = round((venue.info.initial_price or 100.0) * 1.40, 2)
+        min_p = max(tick * 5, round((venue.info.initial_price or 100.0) * 0.90, 2))
+        max_p = round((venue.info.initial_price or 100.0) * 1.10, 2)
         new_mid = max(min_p, min(max_p, new_mid))
 
         self.current_mid[sym] = new_mid
@@ -825,10 +902,16 @@ class HistoricalMarketReplayer:
                     # Active traded bars: preserve authentic traded extremes from matched order flow
                     bar["high"] = max(bar["high"], max(bar["open"], bar["close"]))
                     bar["low"] = min(bar["low"], min(bar["open"], bar["close"]))
-                    # If high == low (single flat tick executed), add slight natural 1-2 tick spread
-                    if bar["high"] == bar["low"]:
-                        bar["high"] = round(bar["high"] + tick * random.choice([0, 1]), 2)
-                        bar["low"] = round(max(tick, bar["low"] - tick * random.choice([0, 1])), 2)
+
+                    # Ensure active bar has realistic body and upper/lower shadows
+                    min_tr = max(tick * 4, atr * 0.35)
+                    body_top = max(bar["open"], bar["close"])
+                    body_bot = min(bar["open"], bar["close"])
+
+                    # If high - low is too compressed, synthesize natural bid-ask bounce shadows
+                    if (bar["high"] - bar["low"]) < min_tr:
+                        bar["high"] = round(body_top + atr * 0.20, 2)
+                        bar["low"] = round(max(tick, body_bot - atr * 0.20), 2)
                     bar["volume"] = max(bar["volume"], random.randint(8000, 35000))
 
                 self.current_mid[sym] = bar["close"]
