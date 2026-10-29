@@ -61,25 +61,45 @@ PRIOR_TEMP = 0.35   # Temperature for smoothing prior class imbalance in decisio
 # ---------------------------------------------------------------------------
 
 def _parse_csv(filepath: str) -> List[Dict]:
-    """Parse a US-style or BSE-style OHLCV CSV. Returns list of bar dicts."""
+    """Parse a US-style, BSE-style, or Binance intraday OHLCV CSV. Returns list of bar dicts."""
     bars = []
     try:
         with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-            header = [h.strip() for h in f.readline().split(",")]
-            is_bse = "Open Price" in header or "No.of Shares" in header
+            first_line = f.readline()
+            if not first_line:
+                return []
+            parts0 = [p.strip() for p in first_line.split(",")]
+            # Detect Binance intraday (timestamp is 13-digit millisecond epoch, no text header)
+            is_binance = bool(parts0[0].isdigit() and len(parts0[0]) >= 12 and len(parts0) >= 6)
+            if is_binance:
+                try:
+                    o, h, l, c = float(parts0[1]), float(parts0[2]), float(parts0[3]), float(parts0[4])
+                    v = int(float(parts0[5])) if len(parts0) > 5 else 1000
+                    if c > 0.0001 and h > 0 and l > 0:
+                        bars.append({"o": o, "h": h, "l": l, "c": c, "v": v})
+                except (ValueError, IndexError):
+                    pass
+
+            is_bse = False
+            if not is_binance:
+                headers = [h.strip() for h in parts0]
+                is_bse = "Open Price" in headers or "No.of Shares" in headers
 
             for line in f:
                 parts = [p.strip() for p in line.split(",")]
                 if len(parts) < 5 or not parts[0]:
                     continue
                 try:
-                    if is_bse:
+                    if is_binance:
+                        o, h, l, c = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
+                        v = int(float(parts[5])) if len(parts) > 5 else 1000
+                    elif is_bse:
                         o, h, l, c = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
                         v = int(float(parts[6])) if len(parts) > 6 else 1000
                     else:
                         o, h, l, c = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
                         v = int(float(parts[6])) if len(parts) > 6 else 1000
-                    if c <= 0.20 or h <= 0 or l <= 0:
+                    if c <= 0.0001 or h <= 0 or l <= 0:
                         continue
                     bars.append({"o": o, "h": h, "l": l, "c": c, "v": v})
                 except (ValueError, IndexError):
@@ -538,18 +558,28 @@ def train(max_files: int = 1500, verbose: bool = True) -> Dict:
     if verbose:
         print(f"[ChronosML] Found {len(csv_files):,} CSV files in data root.")
 
-    # High-priority liquid mega-caps and indices to always include
+    # High-priority liquid mega-caps, crypto pairs, and indices to always include
     priority = {
         "NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "GOOGL", "META", "JPM", "BRK-B",
         "SPY", "QQQ", "IWM", "AMD", "NFLX", "BAC", "XOM", "V", "WMT", "DIS",
         "RELIANCE", "TCS", "INFY", "HDFCBANK", "500002", "500010", "500034", "500112", "500209",
+        "BTCUSDT", "ETHUSDT", "SOLUSDT",
     }
-    priority_files = [f for f in csv_files if os.path.splitext(os.path.basename(f))[0].upper() in priority]
-    other_files = [f for f in csv_files if f not in priority_files]
+    intraday_files = [f for f in csv_files if "intraday" in f.lower() or any(c in f.upper() for c in ("BTCUSDT", "ETHUSDT", "SOLUSDT"))]
+    priority_files = [f for f in csv_files if os.path.splitext(os.path.basename(f))[0].upper() in priority or f in intraday_files]
+    # Deduplicate preserving order
+    seen = set()
+    deduped_priority = []
+    for f in priority_files:
+        if f not in seen:
+            seen.add(f)
+            deduped_priority.append(f)
+    priority_files = deduped_priority
+    other_files = [f for f in csv_files if f not in seen]
 
     selected = priority_files + other_files[:max(0, max_files - len(priority_files))]
     if verbose:
-        print(f"[ChronosML] Selected {len(selected):,} files for training & out-of-sample evaluation.")
+        print(f"[ChronosML] Selected {len(selected):,} files ({len(priority_files)} high-priority/intraday) for training & evaluation.")
 
     gnb = GaussianNaiveBayes(ALL_REGIMES, len(FEATURE_NAMES))
 
@@ -582,8 +612,14 @@ def train(max_files: int = 1500, verbose: bool = True) -> Dict:
         # Collect test samples for out-of-sample validation
         test_all_samples.extend(test_samples)
 
-        # Cache profile
-        if ticker in priority or len(stock_profiles) < 300:
+        # Cache profile (map BTCUSDT-1m-2024-01-01 -> BTC-USD, BTCUSDT)
+        base_clean = ticker.split("-")[0]
+        if base_clean in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+            pair_name = base_clean.replace("USDT", "-USD")
+            prof = _compute_stock_profile(bars)
+            stock_profiles[pair_name] = prof
+            stock_profiles[base_clean] = prof
+        elif ticker in priority or len(stock_profiles) < 300:
             stock_profiles[ticker] = _compute_stock_profile(bars)
 
         if verbose and (i + 1) % 250 == 0:

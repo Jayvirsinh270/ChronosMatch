@@ -214,6 +214,7 @@ class MarketDataLoader:
     def __init__(self, data_root: str = "data"):
         self.data_root = data_root
         self._index: Dict[str, str] = {}  # ticker.upper() -> file_path
+        self._intraday_files: Dict[str, List[str]] = {}  # ticker.upper() -> list of intraday csv paths
         self._cache: Dict[str, List[StockCandle]] = {}
         self._build_index()
 
@@ -263,18 +264,39 @@ class MarketDataLoader:
                     self._index[alias] = fp
                     self._index[code] = fp
 
+        # 3. Intraday 1-minute historical datasets (Crypto BTCUSDT, ETHUSDT, SOLUSDT, etc.)
+        ds_intraday = os.path.join(self.data_root, "intraday")
+        if os.path.exists(ds_intraday):
+            for fname in sorted(os.listdir(ds_intraday)):
+                if fname.endswith(".csv"):
+                    fp = os.path.join(ds_intraday, fname)
+                    raw_sym = fname.split("-")[0].upper()
+                    aliases = [raw_sym]
+                    if raw_sym.endswith("USDT"):
+                        base = raw_sym[:-4]
+                        aliases.extend([f"{base}-USD", base])
+                    for a in aliases:
+                        if a not in self._intraday_files:
+                            self._intraday_files[a] = []
+                        self._intraday_files[a].append(fp)
+                        if a not in self._index:
+                            self._index[a] = fp
+
     def get_supported_tickers(self) -> List[str]:
         """Return list of all indexed tickers."""
         return sorted(list(self._index.keys()))
 
     def get_popular_companies(self) -> List[Dict[str, str]]:
-        """Return curated list of high-profile global companies and indices."""
+        """Return curated list of high-profile global companies, crypto pairs, and indices."""
         popular = [
             {"ticker": "NVDA", "name": "NVIDIA Corporation", "market": "US Tech / AI"},
+            {"ticker": "BTC-USD", "name": "Bitcoin / USD", "market": "Crypto Benchmark"},
+            {"ticker": "ETH-USD", "name": "Ethereum / USD", "market": "Crypto Layer 1"},
+            {"ticker": "SOL-USD", "name": "Solana / USD", "market": "Crypto Layer 1"},
             {"ticker": "AAPL", "name": "Apple Inc.", "market": "US Tech"},
+            {"ticker": "TSLA", "name": "Tesla Inc.", "market": "US EV / Auto"},
             {"ticker": "MSFT", "name": "Microsoft Corporation", "market": "US Tech"},
             {"ticker": "AMZN", "name": "Amazon.com Inc.", "market": "US Consumer / Cloud"},
-            {"ticker": "TSLA", "name": "Tesla Inc.", "market": "US EV / Auto"},
             {"ticker": "SPY", "name": "SPDR S&P 500 ETF Trust", "market": "US Equities Benchmark"},
             {"ticker": "QQQ", "name": "Invesco QQQ Trust (Nasdaq 100)", "market": "US Tech Benchmark"},
             {"ticker": "RELIANCE", "name": "Reliance Industries Ltd", "market": "India BSE / NSE"},
@@ -282,7 +304,7 @@ class MarketDataLoader:
             {"ticker": "HDFCBANK", "name": "HDFC Bank Ltd", "market": "India Banking"},
             {"ticker": "INFY", "name": "Infosys Ltd", "market": "India Tech / IT"},
         ]
-        return [p for p in popular if p["ticker"] in self._index]
+        return [p for p in popular if p["ticker"] in self._index or p["ticker"] in self._intraday_files]
 
     def load_candles(self, ticker: str, max_bars: int = 500) -> List[StockCandle]:
         """
@@ -294,7 +316,47 @@ class MarketDataLoader:
             candles = self._cache[sym]
             return candles[-max_bars:] if max_bars > 0 else candles
 
-        # Known crypto pairs should use crypto baseline prices with institutional wave dynamics
+        base_sym = sym.split("-")[0]
+
+        # 1. Check if genuine 1-minute intraday files exist (e.g. BTCUSDT, ETHUSDT, SOLUSDT)
+        if sym in self._intraday_files or base_sym in self._intraday_files:
+            file_list = self._intraday_files.get(sym) or self._intraday_files.get(base_sym, [])
+            if file_list:
+                candles: List[StockCandle] = []
+                for fp in file_list:
+                    try:
+                        with open(fp, "r", encoding="utf-8", errors="replace") as f:
+                            for line in f:
+                                parts = [p.strip() for p in line.split(",")]
+                                if len(parts) < 6 or not parts[0]:
+                                    continue
+                                try:
+                                    ts_ms = int(parts[0])
+                                    date_str = time.strftime("%Y-%m-%d %H:%M", time.gmtime(ts_ms / 1000.0))
+                                    o = float(parts[1])
+                                    h = float(parts[2])
+                                    l = float(parts[3])
+                                    c = float(parts[4])
+                                    v = int(float(parts[5]))
+                                    if c > 0.0001 and h > 0 and l > 0:
+                                        candles.append(StockCandle(
+                                            date=date_str,
+                                            open=round(o, 2),
+                                            high=round(h, 2),
+                                            low=round(l, 2),
+                                            close=round(c, 2),
+                                            volume=v,
+                                            adj_close=round(c, 2),
+                                        ))
+                                except (ValueError, IndexError):
+                                    continue
+                    except Exception:
+                        continue
+                if candles:
+                    self._cache[sym] = candles
+                    return candles[-max_bars:] if max_bars > 0 else candles
+
+        # Known crypto pairs fallback should use crypto baseline prices with institutional wave dynamics
         if sym in ("SOL-USD", "BTC-USD", "ETH-USD"):
             crypto_defaults = {"SOL-USD": 150.0, "BTC-USD": 65000.0, "ETH-USD": 3500.0}
             base_p = crypto_defaults[sym]
@@ -311,7 +373,6 @@ class MarketDataLoader:
             return candles
 
         # Resolve ticker alias (e.g. 'NVDA-USD' -> 'NVDA', 'RELIANCE-BSE' -> 'RELIANCE')
-        base_sym = sym.split("-")[0]
         if sym not in self._index and base_sym in self._index:
             sym = base_sym
 
@@ -419,8 +480,15 @@ class MarketDataLoader:
 
         avg_vol = int(sum(volumes) / len(volumes)) if volumes else 100_000
 
-        # High-priced stocks like BTC or high Indian stocks get appropriate tick sizes
-        tick_size = 0.05 if "BSE" in ticker or ticker in ("RELIANCE", "TCS") else 0.01
+        # High-priced assets like BTC or high Indian stocks get appropriate tick sizes
+        if latest_price > 10000:
+            tick_size = 0.50
+        elif latest_price > 1000:
+            tick_size = 0.10
+        elif "BSE" in ticker or ticker in ("RELIANCE", "TCS"):
+            tick_size = 0.05
+        else:
+            tick_size = 0.01
 
         return {
             "ticker": ticker.upper(),
