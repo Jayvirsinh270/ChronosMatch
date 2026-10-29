@@ -13,6 +13,7 @@ import time
 from typing import Dict, List, Optional, Any, Union
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 
@@ -656,6 +657,15 @@ async def lifespan(app_instance: FastAPI):
 server = WebTradingServer()
 app = FastAPI(title="ChronosMatch Multi-Asset Trading Terminal", lifespan=lifespan)
 
+# Allow cross-origin requests (e.g. from file:// or other local ports)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
@@ -665,11 +675,19 @@ async def favicon():
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
-    """Serve single-page trading terminal."""
+    """Serve single-page trading terminal with strict no-cache headers."""
     index_path = Path(__file__).parent / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="index.html not found")
-    return index_path.read_text(encoding="utf-8")
+    content = index_path.read_text(encoding="utf-8")
+    return HTMLResponse(
+        content=content,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.post("/api/order")
