@@ -630,6 +630,153 @@
       background: var(--text-muted);
     }
 
+    /* Pattern Radar Ribbon & Interactive Chips */
+    .pattern-ribbon {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.35rem 1rem;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.72rem;
+      overflow: hidden;
+    }
+
+    .pattern-ribbon-label {
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .pattern-chips-scroll {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      white-space: nowrap;
+      padding: 2px 0;
+    }
+
+    .pattern-chips-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .pattern-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.65rem;
+      border-radius: 14px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      border: 1px solid transparent;
+    }
+
+    .pattern-chip:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .pattern-chip.bull {
+      background: var(--bull-bg);
+      color: var(--bull);
+      border-color: var(--bull-border);
+    }
+
+    .pattern-chip.bear {
+      background: var(--bear-bg);
+      color: var(--bear);
+      border-color: var(--bear-border);
+    }
+
+    .pattern-chip.neutral {
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+      border-color: var(--border);
+    }
+
+    /* Floating Crosshair Hover Card */
+    .chart-tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 0.85rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+      z-index: 25;
+      font-size: 0.75rem;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      min-width: 175px;
+      backdrop-filter: blur(8px);
+      transition: opacity 0.1s ease;
+    }
+
+    .chart-tooltip-header {
+      font-weight: 700;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chart-tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chart-tooltip-label {
+      color: var(--text-secondary);
+    }
+
+    .chart-tooltip-val {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .chart-tooltip-pat {
+      margin-top: 0.2rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-align: center;
+      font-size: 0.72rem;
+    }
+
+    .chart-tooltip-pat.bull {
+      background: var(--bull-bg);
+      color: var(--bull);
+      border: 1px solid var(--bull-border);
+    }
+
+    .chart-tooltip-pat.bear {
+      background: var(--bear-bg);
+      color: var(--bear);
+      border: 1px solid var(--bear-border);
+    }
+
+    .chart-tooltip-pat.neutral {
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
     /* ==========================================================================
        AI MARKET INTELLIGENCE CARD (Plain English, Non-Academic)
        ========================================================================== */
@@ -1201,9 +1348,12 @@
             <div class="chart-btn-group" id="typeGroup">
               <button class="chart-btn active" data-type="candles">Candles</button>
               <button class="chart-btn" data-type="line">Line</button>
+              <button class="chart-btn" data-type="area">Area</button>
             </div>
-            <!-- Indicators -->
+            <!-- Indicators & Overlays -->
             <div class="chart-btn-group">
+              <button class="chart-btn active" id="togglePatternsBtn" title="Toggle Candlestick Pattern Badges directly on bars">Patterns</button>
+              <button class="chart-btn active" id="toggleLevelsBtn" title="Toggle 24h High / Low & Support-Resistance levels">Levels</button>
               <button class="chart-btn active" id="toggleVwapBtn">VWAP</button>
               <button class="chart-btn active" id="toggleEmaBtn">EMA</button>
             </div>
@@ -1222,6 +1372,17 @@
           </div>
         </div>
 
+        <!-- Pattern Radar Ribbon (Interactive Click-to-Inspect) -->
+        <div class="pattern-ribbon" id="patternRibbon">
+          <div class="pattern-ribbon-label">
+            <span style="color: var(--accent);">⚡</span>
+            <span>PATTERN RADAR:</span>
+          </div>
+          <div class="pattern-chips-scroll" id="patternChipsScroll">
+            <span class="pattern-chip neutral">Scanning market bars...</span>
+          </div>
+        </div>
+
         <!-- Crosshair Data HUD -->
         <div class="chart-hud mono" id="chartHud">
           <span>Date: <span class="hud-val" id="hudDate">--</span></span>
@@ -1229,6 +1390,7 @@
           <span>H: <span class="hud-val" id="hudH">--</span></span>
           <span>L: <span class="hud-val" id="hudL">--</span></span>
           <span>C: <span class="hud-val" id="hudC">--</span></span>
+          <span>Chg: <span class="hud-val" id="hudChg">--</span></span>
           <span>Vol: <span class="hud-val" id="hudVol">--</span></span>
           <span>Pattern: <span class="hud-val" id="hudPattern" style="color: var(--accent);">None</span></span>
         </div>
@@ -1236,6 +1398,7 @@
         <!-- Chart Canvas Container -->
         <div class="chart-wrapper" id="chartWrapper">
           <canvas id="candlestickCanvas"></canvas>
+          <div id="chartTooltip" class="chart-tooltip" style="display: none;"></div>
           <div class="chart-scroll-hint" id="chartScrollHint">⇄ Drag left/right for time | ⇅ Wheel or drag up/down for price</div>
           <button id="recenterPriceBtn" class="recenter-price-btn" style="display: none;" title="Re-center view on active price">
             <span>◉ Re-center Price</span>
@@ -1546,6 +1709,8 @@
         chartType: 'candles',
         showVwap: true,
         showEma: true,
+        showPatterns: true,
+        showLevels: true,
         side: 'BUY',
         orderType: 'LIMIT',
         botActive: true,
@@ -1683,6 +1848,315 @@
         return { vwap, ema20 };
       }
 
+      // 7. Multi-Timeframe Bar Aggregation & Candlestick Pattern Recognition
+      function aggregateCandles(candles, tf) {
+        if (!candles || candles.length === 0) return [];
+        let factor = 1;
+        if (tf === '5m') factor = 5;
+        else if (tf === '15m') factor = 15;
+        else if (tf === '1h') factor = 60;
+        if (factor === 1) return candles;
+
+        const aggregated = [];
+        for (let i = 0; i < candles.length; i += factor) {
+          const chunk = candles.slice(i, i + factor);
+          if (chunk.length === 0) continue;
+          let high = -Infinity;
+          let low = Infinity;
+          let vol = 0;
+          for (const c of chunk) {
+            if (c.high > high) high = c.high;
+            if (c.low < low) low = c.low;
+            vol += (c.volume || 0);
+          }
+          aggregated.push({
+            date: chunk[chunk.length - 1].date || chunk[0].date,
+            open: chunk[0].open,
+            high: high === -Infinity ? chunk[0].high : high,
+            low: low === Infinity ? chunk[0].low : low,
+            close: chunk[chunk.length - 1].close,
+            volume: vol,
+            origStartIdx: i,
+            origEndIdx: i + chunk.length - 1
+          });
+        }
+        return aggregated;
+      }
+
+      function detectCandlePattern(curr, prev, prev2) {
+        if (!curr) return null;
+        const o = curr.open;
+        const h = curr.high;
+        const l = curr.low;
+        const c = curr.close;
+        const totalRange = Math.max(1e-4, h - l);
+        const body = Math.abs(c - o);
+        const bodyRatio = body / totalRange;
+        const upperWick = (h - Math.max(o, c)) / totalRange;
+        const lowerWick = (Math.min(o, c) - l) / totalRange;
+        const isBull = c >= o;
+
+        // 1. Three-Bar Formations
+        if (prev && prev2) {
+          const o1 = prev2.open, c1 = prev2.close;
+          const o2 = prev.open, c2 = prev.close;
+
+          // Morning Star
+          if (c1 < o1 && Math.abs(c2 - o2) < Math.abs(c1 - o1) * 0.45 && c > o && c > (o1 + c1) / 2.0) {
+            return {
+              key: 'MORNING_STAR',
+              label: '▲ Morning Star',
+              sentiment: 'bull',
+              desc: 'Bullish reversal: Seller exhaustion followed by strong buyer takeover'
+            };
+          }
+          // Evening Star
+          if (c1 > o1 && Math.abs(c2 - o2) < Math.abs(c1 - o1) * 0.45 && c < o && c < (o1 + c1) / 2.0) {
+            return {
+              key: 'EVENING_STAR',
+              label: '▼ Evening Star',
+              sentiment: 'bear',
+              desc: 'Bearish reversal: Buyer exhaustion followed by institutional liquidation'
+            };
+          }
+          // Three White Soldiers
+          if (c1 > o1 && c2 > o2 && c > o && c > c2 && c2 > c1 && o > o2 && o2 > o1) {
+            return {
+              key: 'THREE_WHITE_SOLDIERS',
+              label: '▲ 3 Soldiers',
+              sentiment: 'bull',
+              desc: 'Strong bullish continuation: Systematic institutional accumulation'
+            };
+          }
+          // Three Black Crows
+          if (c1 < o1 && c2 < o2 && c < o && c < c2 && c2 < c1 && o < o2 && o2 < o1) {
+            return {
+              key: 'THREE_BLACK_CROWS',
+              label: '▼ 3 Crows',
+              sentiment: 'bear',
+              desc: 'Strong bearish continuation: Aggressive distribution and selling cascade'
+            };
+          }
+        }
+
+        // 2. Two-Bar Formations
+        if (prev) {
+          const po = prev.open, pc = prev.close;
+          const prevBody = Math.abs(pc - po);
+          const prevBear = pc < po;
+          const prevBull = pc > po;
+
+          // Bullish Engulfing
+          if (prevBear && isBull && o <= pc && c >= po && body > prevBody) {
+            return {
+              key: 'BULLISH_ENGULFING',
+              label: '▲ Bull Engulf',
+              sentiment: 'bull',
+              desc: 'Bullish engulfing: Buyers completely overpowered previous selling pressure'
+            };
+          }
+          // Bearish Engulfing
+          if (prevBull && !isBull && o >= pc && c <= po && body > prevBody) {
+            return {
+              key: 'BEARISH_ENGULFING',
+              label: '▼ Bear Engulf',
+              sentiment: 'bear',
+              desc: 'Bearish engulfing: Sellers aggressively consumed all prior resting bids'
+            };
+          }
+          // Piercing Line
+          if (prevBear && isBull && o < prev.low && c > (po + pc) / 2.0) {
+            return {
+              key: 'PIERCING_LINE',
+              label: '▲ Piercing',
+              sentiment: 'bull',
+              desc: 'Piercing line: Strong value-buying rebound after sharp down-drift'
+            };
+          }
+          // Dark Cloud Cover
+          if (prevBull && !isBull && o > prev.high && c < (po + pc) / 2.0) {
+            return {
+              key: 'DARK_CLOUD_COVER',
+              label: '▼ Dark Cloud',
+              sentiment: 'bear',
+              desc: 'Dark cloud cover: Immediate rejection of new price highs'
+            };
+          }
+        }
+
+        // 3. Single-Bar Formations
+        if (bodyRatio <= 0.10) {
+          if (lowerWick >= 0.58 && upperWick <= 0.15) {
+            return {
+              key: 'DRAGONFLY_DOJI',
+              label: '▲ Dragonfly',
+              sentiment: 'bull',
+              desc: 'Dragonfly Doji: Aggressive rejection of session lows by responsive buyers'
+            };
+          } else if (upperWick >= 0.58 && lowerWick <= 0.15) {
+            return {
+              key: 'GRAVESTONE_DOJI',
+              label: '▼ Gravestone',
+              sentiment: 'bear',
+              desc: 'Gravestone Doji: Sharp rejection of highs, sellers dominant into close'
+            };
+          } else {
+            return {
+              key: 'DOJI',
+              label: '✦ Doji',
+              sentiment: 'neutral',
+              desc: 'Doji: Market balance; open and close virtually identical'
+            };
+          }
+        }
+
+        // Hammer
+        if (lowerWick >= 0.56 && upperWick <= 0.14 && bodyRatio >= 0.12) {
+          return {
+            key: 'HAMMER',
+            label: '▲ Hammer',
+            sentiment: 'bull',
+            desc: 'Hammer: Intraday selloff violently rejected by liquidity providers'
+          };
+        }
+
+        // Shooting Star
+        if (upperWick >= 0.56 && lowerWick <= 0.14 && bodyRatio >= 0.12) {
+          return {
+            key: 'SHOOTING_STAR',
+            label: '▼ Shooting Star',
+            sentiment: 'bear',
+            desc: 'Shooting Star: Failed upside breakout; offers heavily defended'
+          };
+        }
+
+        // Marubozu
+        if (bodyRatio >= 0.85) {
+          return isBull
+            ? { key: 'BULLISH_MARUBOZU', label: '▲ Marubozu', sentiment: 'bull', desc: 'Bullish Marubozu: Extreme directional buyer expansion from open to close' }
+            : { key: 'BEARISH_MARUBOZU', label: '▼ Marubozu', sentiment: 'bear', desc: 'Bearish Marubozu: Relentless liquidation without pullback' };
+        }
+
+        return null;
+      }
+
+      function ensurePatternsDetected(candles) {
+        if (!candles || candles.length === 0) return;
+        for (let i = 0; i < candles.length; i++) {
+          const curr = candles[i];
+          if (curr.pattern !== undefined) continue;
+          const prev = i >= 1 ? candles[i - 1] : null;
+          const prev2 = i >= 2 ? candles[i - 2] : null;
+          curr.pattern = detectCandlePattern(curr, prev, prev2);
+        }
+      }
+
+      function updatePatternRibbon(candles) {
+        const scrollEl = document.getElementById('patternChipsScroll');
+        if (!scrollEl || !candles || candles.length === 0) return;
+
+        const detectedList = [];
+        for (let i = 0; i < candles.length; i++) {
+          const c = candles[i];
+          if (c.pattern) {
+            detectedList.push({ idx: i, candle: c, pat: c.pattern });
+          }
+        }
+
+        if (detectedList.length === 0) {
+          scrollEl.innerHTML = `<span class="pattern-chip neutral">Scanning market bars...</span>`;
+          return;
+        }
+
+        // Show latest 12 detected patterns
+        const recentPatterns = detectedList.slice(-12).reverse();
+        scrollEl.innerHTML = recentPatterns.map(item => {
+          const time = item.candle.date ? (item.candle.date.split(' ')[1] || item.candle.date) : '';
+          return `<button class="pattern-chip ${item.pat.sentiment}" onclick="window.jumpToPatternIndex(${item.idx})" title="${item.pat.desc}">
+            <span>${item.pat.label}</span>
+            <span style="opacity: 0.75; font-size: 0.68rem; margin-left: 4px;">${time}</span>
+          </button>`;
+        }).join('');
+      }
+
+      window.jumpToPatternIndex = function(targetIdx) {
+        const candles = state.activeCandles || state.candles;
+        if (!candles || targetIdx < 0 || targetIdx >= candles.length) return;
+        const targetCandle = candles[targetIdx];
+        const total = candles.length;
+        const visible = Math.max(15, Math.min(100, state.visibleBars || 40));
+
+        const targetEndIndex = Math.min(total, targetIdx + Math.floor(visible / 2));
+        state.scrollOffset = Math.max(0, total - targetEndIndex);
+
+        const latestPrice = candles[total - 1] ? candles[total - 1].close : state.marketPrice;
+        state.autoTrackPrice = false;
+        state.priceCenterOffset = (targetCandle.close - latestPrice);
+
+        const startIndex = Math.max(0, targetEndIndex - visible);
+        state.hoveredBar = targetIdx - startIndex;
+
+        renderChart();
+        updateChartHud(targetCandle);
+      };
+
+      function updateChartTooltip(c, mouseX, mouseY) {
+        const tooltip = document.getElementById('chartTooltip');
+        if (!tooltip) return;
+        if (!c) {
+          tooltip.style.display = 'none';
+          return;
+        }
+
+        const isUp = c.close >= c.open;
+        const delta = c.close - c.open;
+        const deltaPct = c.open > 0 ? ((delta / c.open) * 100).toFixed(2) : '0.00';
+        const deltaClass = isUp ? 'bull' : 'bear';
+        const deltaSign = delta >= 0 ? '+' : '';
+
+        let patHtml = '';
+        if (c.pattern) {
+          patHtml = `
+            <div class="tooltip-pattern ${c.pattern.sentiment}">
+              <span class="tooltip-pattern-badge">${c.pattern.label}</span>
+              <span style="font-size: 0.68rem; opacity: 0.85;">${c.pattern.desc}</span>
+            </div>
+          `;
+        }
+
+        tooltip.innerHTML = `
+          <div class="tooltip-header">
+            <span class="tooltip-time">${c.date || 'Market Bar'}</span>
+            <span class="tooltip-delta ${deltaClass}">${deltaSign}$${delta.toFixed(2)} (${deltaSign}${deltaPct}%)</span>
+          </div>
+          <div class="tooltip-grid">
+            <div class="tooltip-row"><span>Open:</span><span class="tooltip-val">${c.open.toFixed(2)}</span></div>
+            <div class="tooltip-row"><span>High:</span><span class="tooltip-val">${c.high.toFixed(2)}</span></div>
+            <div class="tooltip-row"><span>Low:</span><span class="tooltip-val">${c.low.toFixed(2)}</span></div>
+            <div class="tooltip-row"><span>Close:</span><span class="tooltip-val ${deltaClass}">${c.close.toFixed(2)}</span></div>
+            <div class="tooltip-row"><span>Volume:</span><span class="tooltip-val">${fmtNumber(c.volume)}</span></div>
+          </div>
+          ${patHtml}
+        `;
+
+        const wrapper = document.getElementById('chartWrapper');
+        if (wrapper) {
+          const wrapRect = wrapper.getBoundingClientRect();
+          let left = mouseX + 16;
+          let top = mouseY - 20;
+          if (left + 200 > wrapRect.width) {
+            left = mouseX - 210;
+          }
+          if (top < 10) top = 10;
+          if (top + 170 > wrapRect.height) {
+            top = wrapRect.height - 180;
+          }
+          tooltip.style.left = `${Math.max(10, left)}px`;
+          tooltip.style.top = `${Math.max(10, top)}px`;
+          tooltip.style.display = 'block';
+        }
+      }
+
       function renderChart() {
         if (!canvas || !ctx) return;
         const rect = canvas.getBoundingClientRect();
@@ -1702,14 +2176,20 @@
         const vwapColor = isDark ? '#A78BFA' : '#8B5CF6';
         const emaColor = isDark ? '#60A5FA' : '#3B82F6';
 
-        const candles = state.candles;
-        if (!candles || candles.length === 0) {
+        // Prepare aggregated candles and ensure pattern detection
+        const rawCandles = state.candles;
+        if (!rawCandles || rawCandles.length === 0) {
           ctx.fillStyle = textMuted;
           ctx.font = '13px Inter';
           ctx.textAlign = 'center';
           ctx.fillText('Streaming live market bars...', w / 2, h / 2);
           return;
         }
+
+        const candles = aggregateCandles(rawCandles, state.timeframe || '1m');
+        state.activeCandles = candles;
+        ensurePatternsDetected(candles);
+        updatePatternRibbon(candles);
 
         const rightMargin = 72;
         const bottomMargin = 26;
@@ -1744,7 +2224,7 @@
           ? (latestGlobalCandle ? latestGlobalCandle.close : state.marketPrice)
           : (displayCandles[displayCandles.length - 1] ? displayCandles[displayCandles.length - 1].close : state.marketPrice);
 
-        // 1. Calculate focused price span based on recent volatility so candles are NEVER squished vertically
+        // Calculate focused price span based on recent volatility so candles are NEVER squished vertically
         const sampleBars = displayCandles.slice(-15);
         let sampleAtr = 0;
         sampleBars.forEach(c => {
@@ -1758,7 +2238,7 @@
         const effectivePriceRange = Math.max(0.10, baseSpan * (state.priceZoomFactor || 1.0));
         state.lastEffectiveRange = effectivePriceRange;
 
-        // 2. Camera focus: follows active price up/down in real-time
+        // Camera focus: follows active price up/down in real-time
         let centerPrice;
         if (state.autoTrackPrice) {
           centerPrice = activePrice + (state.priceCenterOffset || 0);
@@ -1804,7 +2284,53 @@
           ctx.fillText(p.toFixed(2), w - rightMargin + 8, y + 4);
         }
 
-        // 2. Indicators & Candlesticks (clipped to chart area so off-screen candles slide out cleanly)
+        // 2. Support & Resistance (24h High & 24h Low) Levels
+        if (state.showLevels && candles.length > 0) {
+          let dayHigh = -Infinity;
+          let dayLow = Infinity;
+          for (const c of candles) {
+            if (c.high > dayHigh) dayHigh = c.high;
+            if (c.low < dayLow) dayLow = c.low;
+          }
+          if (dayHigh !== -Infinity && dayLow !== Infinity) {
+            const yHigh = getY(dayHigh);
+            const yLow = getY(dayLow);
+
+            if (yHigh >= 0 && yHigh <= chartAreaHeight) {
+              ctx.strokeStyle = isDark ? 'rgba(239, 68, 68, 0.45)' : 'rgba(220, 38, 38, 0.45)';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([4, 4]);
+              ctx.beginPath();
+              ctx.moveTo(0, yHigh);
+              ctx.lineTo(w - rightMargin, yHigh);
+              ctx.stroke();
+              ctx.setLineDash([]);
+
+              ctx.fillStyle = isDark ? '#EF4444' : '#DC2626';
+              ctx.font = '9px JetBrains Mono';
+              ctx.textAlign = 'right';
+              ctx.fillText(`24h High ${dayHigh.toFixed(2)}`, w - rightMargin - 8, yHigh - 4);
+            }
+
+            if (yLow >= 0 && yLow <= chartAreaHeight) {
+              ctx.strokeStyle = isDark ? 'rgba(16, 185, 129, 0.45)' : 'rgba(5, 150, 105, 0.45)';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([4, 4]);
+              ctx.beginPath();
+              ctx.moveTo(0, yLow);
+              ctx.lineTo(w - rightMargin, yLow);
+              ctx.stroke();
+              ctx.setLineDash([]);
+
+              ctx.fillStyle = isDark ? '#10B981' : '#059669';
+              ctx.font = '9px JetBrains Mono';
+              ctx.textAlign = 'right';
+              ctx.fillText(`24h Low ${dayLow.toFixed(2)}`, w - rightMargin - 8, yLow + 12);
+            }
+          }
+        }
+
+        // 3. Indicators & Candlesticks (clipped to chart area)
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, 0, w - rightMargin, chartAreaHeight);
@@ -1840,14 +2366,54 @@
           ctx.stroke();
         }
 
-        // 3. Candles (rendered inside clip area)
-        for (let i = 0; i < n; i++) {
-          const c = displayCandles[i];
-          const x = i * barSpacing + barSpacing / 2;
-          const isGreen = c.close >= c.open;
-          const color = isGreen ? bullColor : bearColor;
+        // 4. Bars Rendering (Candles / Line / Area)
+        if (state.chartType === 'area') {
+          ctx.beginPath();
+          for (let i = 0; i < n; i++) {
+            const x = i * barSpacing + barSpacing / 2;
+            const y = getY(displayCandles[i].close);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = displayCandles[n - 1].close >= displayCandles[0].close ? bullColor : bearColor;
+          ctx.lineWidth = 2;
+          ctx.stroke();
 
-          if (state.chartType === 'candles') {
+          // Fill Gradient
+          const lastX = (n - 1) * barSpacing + barSpacing / 2;
+          const firstX = barSpacing / 2;
+          ctx.lineTo(lastX, chartAreaHeight);
+          ctx.lineTo(firstX, chartAreaHeight);
+          ctx.closePath();
+          const grad = ctx.createLinearGradient(0, 0, 0, chartAreaHeight);
+          if (displayCandles[n - 1].close >= displayCandles[0].close) {
+            grad.addColorStop(0, isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(5, 150, 105, 0.25)');
+            grad.addColorStop(1, isDark ? 'rgba(16, 185, 129, 0.0)' : 'rgba(5, 150, 105, 0.0)');
+          } else {
+            grad.addColorStop(0, isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(220, 38, 38, 0.25)');
+            grad.addColorStop(1, isDark ? 'rgba(239, 68, 68, 0.0)' : 'rgba(220, 38, 38, 0.0)');
+          }
+          ctx.fillStyle = grad;
+          ctx.fill();
+        } else if (state.chartType === 'line') {
+          ctx.beginPath();
+          for (let i = 0; i < n; i++) {
+            const x = i * barSpacing + barSpacing / 2;
+            const y = getY(displayCandles[i].close);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = displayCandles[n - 1].close >= displayCandles[0].close ? bullColor : bearColor;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else {
+          // Candlestick mode
+          for (let i = 0; i < n; i++) {
+            const c = displayCandles[i];
+            const x = i * barSpacing + barSpacing / 2;
+            const isGreen = c.close >= c.open;
+            const color = isGreen ? bullColor : bearColor;
+
             const openY = getY(c.open);
             const closeY = getY(c.close);
             const highY = getY(c.high);
@@ -1872,21 +2438,97 @@
 
             ctx.fillStyle = color;
             ctx.fillRect(x - barWidth / 2, topY, barWidth, bodyHeight);
-          } else {
-            if (i === 0) {
-              ctx.beginPath();
-              ctx.strokeStyle = state.marketPrice >= displayCandles[0].close ? bullColor : bearColor;
-              ctx.lineWidth = 2;
-              ctx.moveTo(x, getY(c.close));
-            } else {
-              ctx.lineTo(x, getY(c.close));
-            }
-            if (i === n - 1) ctx.stroke();
           }
         }
+
+        // 5. On-Chart Candlestick Pattern Badges (rendered clearly over wicks)
+        if (state.showPatterns) {
+          for (let i = 0; i < n; i++) {
+            const c = displayCandles[i];
+            if (!c.pattern) continue;
+
+            const pat = c.pattern;
+            const x = i * barSpacing + barSpacing / 2;
+            const isBullPat = pat.sentiment === 'bull';
+            const isBearPat = pat.sentiment === 'bear';
+            const badgeColor = isBullPat ? bullColor : (isBearPat ? bearColor : textMuted);
+            const badgeBg = isBullPat
+              ? (isDark ? 'rgba(16, 185, 129, 0.22)' : 'rgba(5, 150, 105, 0.16)')
+              : (isBearPat
+                ? (isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(220, 38, 38, 0.16)')
+                : (isDark ? 'rgba(148, 163, 184, 0.22)' : 'rgba(100, 116, 139, 0.16)'));
+
+            ctx.font = 'bold 9px JetBrains Mono';
+            const badgeText = pat.label;
+            const textWidth = ctx.measureText(badgeText).width;
+            const badgeW = textWidth + 10;
+            const badgeH = 16;
+            const badgeX = x - badgeW / 2;
+            let badgeY;
+
+            if (isBullPat) {
+              const lowY = getY(c.low);
+              badgeY = Math.min(chartAreaHeight - badgeH - 2, lowY + 12);
+              ctx.strokeStyle = badgeColor;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(x, lowY + 1);
+              ctx.lineTo(x, badgeY);
+              ctx.stroke();
+            } else {
+              const highY = getY(c.high);
+              badgeY = Math.max(2, highY - 14 - badgeH);
+              ctx.strokeStyle = badgeColor;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(x, highY - 1);
+              ctx.lineTo(x, badgeY + badgeH);
+              ctx.stroke();
+            }
+
+            ctx.fillStyle = badgeBg;
+            ctx.strokeStyle = badgeColor;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+            } else {
+              ctx.rect(badgeX, badgeY, badgeW, badgeH);
+            }
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = badgeColor;
+            ctx.textAlign = 'center';
+            ctx.fillText(badgeText, x, badgeY + 11.5);
+          }
+        }
+
+        // 6. Live Active Candle Pulsing Halo
+        if (state.scrollOffset === 0 && n > 0) {
+          const activeCandle = displayCandles[n - 1];
+          const activeX = (n - 1) * barSpacing + barSpacing / 2;
+          const activeY = getY(activeCandle.close);
+          const isUp = activeCandle.close >= activeCandle.open;
+          const pulseColor = isUp ? bullColor : bearColor;
+
+          if (activeY >= 0 && activeY <= chartAreaHeight) {
+            ctx.strokeStyle = pulseColor;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(activeX, activeY, 6, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = pulseColor;
+            ctx.beginPath();
+            ctx.arc(activeX, activeY, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
         ctx.restore();
 
-        // 4. Volume Bars & Time Labels (rendered in bottom section)
+        // 7. Volume Bars & Time Labels (rendered in bottom section)
         for (let i = 0; i < n; i++) {
           const c = displayCandles[i];
           const x = i * barSpacing + barSpacing / 2;
@@ -1907,7 +2549,7 @@
           }
         }
 
-        // 5. Latest Price Tag & Off-Screen Indicators
+        // 8. Latest Price Tag & Off-Screen Indicators
         if (latestGlobalCandle) {
           const curY = getY(latestGlobalCandle.close);
           const isUp = latestGlobalCandle.close >= latestGlobalCandle.open;
@@ -1945,7 +2587,7 @@
           }
         }
 
-        // 6. Update Status Buttons
+        // 9. Update Status Buttons
         const recenterBtn = document.getElementById('recenterPriceBtn');
         if (recenterBtn) {
           recenterBtn.style.display = (!state.autoTrackPrice || Math.abs(state.priceCenterOffset || 0) > effectivePriceRange * 0.25) ? 'inline-flex' : 'none';
@@ -1957,7 +2599,7 @@
           focusIndicator.classList.toggle('off', !state.autoTrackPrice);
         }
 
-        // 5. Crosshair
+        // 10. Crosshair
         if (state.hoveredBar !== null && state.hoveredBar >= 0 && state.hoveredBar < n) {
           const c = displayCandles[state.hoveredBar];
           const x = state.hoveredBar * barSpacing + barSpacing / 2;
@@ -1987,33 +2629,33 @@
         setTxt('hudO', c.open ? c.open.toFixed(2) : '--');
         setTxt('hudH', c.high ? c.high.toFixed(2) : '--');
         setTxt('hudL', c.low ? c.low.toFixed(2) : '--');
+
         const closeEl = document.getElementById('hudC');
         if (closeEl) {
           closeEl.textContent = c.close ? c.close.toFixed(2) : '--';
           closeEl.className = 'hud-val ' + (c.close >= c.open ? 'up' : 'down');
         }
+
+        const chgEl = document.getElementById('hudChg');
+        if (chgEl && c.open) {
+          const delta = c.close - c.open;
+          const deltaPct = ((delta / c.open) * 100).toFixed(2);
+          const sign = delta >= 0 ? '+' : '';
+          chgEl.textContent = `${sign}$${delta.toFixed(2)} (${sign}${deltaPct}%)`;
+          chgEl.className = 'hud-val ' + (delta >= 0 ? 'up' : 'down');
+        }
+
         setTxt('hudVol', fmtNumber(c.volume));
 
-        // Pattern heuristic for individual bar inspection
         const patEl = document.getElementById('hudPattern');
         if (patEl) {
-          const body = Math.abs(c.close - c.open);
-          const range = c.high - c.low;
-          let patName = 'Normal Bar';
-          if (range > 0) {
-            const upperWick = c.high - Math.max(c.open, c.close);
-            const lowerWick = Math.min(c.open, c.close) - c.low;
-            if (lowerWick >= body * 1.8 && upperWick <= body * 0.5) {
-              patName = 'Hammer (Bullish Reversal)';
-            } else if (upperWick >= body * 1.8 && lowerWick <= body * 0.5) {
-              patName = 'Shooting Star (Bearish)';
-            } else if (body <= range * 0.12) {
-              patName = 'Doji (Market Indecision)';
-            } else if (body >= range * 0.8) {
-              patName = c.close >= c.open ? 'Bullish Marubozu' : 'Bearish Marubozu';
-            }
+          if (c.pattern) {
+            patEl.textContent = `${c.pattern.label} (${c.pattern.desc})`;
+            patEl.className = 'hud-val ' + (c.pattern.sentiment === 'bull' ? 'up' : (c.pattern.sentiment === 'bear' ? 'down' : ''));
+          } else {
+            patEl.textContent = 'None';
+            patEl.className = 'hud-val';
           }
-          patEl.textContent = patName;
         }
       }
 
@@ -2303,9 +2945,10 @@
 
         if (snap.candles && snap.candles.length > 0) {
           state.candles = snap.candles;
-          const last = state.candles[state.candles.length - 1];
-          if (!state.hoveredBar && last) updateChartHud(last);
           renderChart();
+          const displayList = state.activeCandles || state.candles;
+          const last = displayList[displayList.length - 1];
+          if (!state.hoveredBar && last) updateChartHud(last);
         }
 
         if (snap.l2) {
@@ -2445,25 +3088,34 @@
             const y = e.clientY - rect.top;
             if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
               state.hoveredBar = null;
+              updateChartTooltip(null);
               return;
             }
 
             const rightMargin = 72;
-            const totalCandles = state.candles.length;
+            const candles = state.activeCandles || state.candles;
+            const totalCandles = candles.length;
             const visibleCount = Math.max(15, Math.min(100, state.visibleBars || 40));
             const numVisible = Math.min(totalCandles, visibleCount);
             const endIndex = totalCandles - (state.scrollOffset || 0);
             const startIndex = Math.max(0, endIndex - numVisible);
-            const displayCandles = state.candles.slice(startIndex, endIndex);
+            const displayCandles = candles.slice(startIndex, endIndex);
             const n = displayCandles.length;
-            if (n === 0) return;
+            if (n === 0) {
+              updateChartTooltip(null);
+              return;
+            }
 
             const barSpacing = (rect.width - rightMargin) / n;
             const idx = Math.floor(x / barSpacing);
             if (idx >= 0 && idx < n) {
               state.hoveredBar = idx;
-              updateChartHud(displayCandles[idx]);
+              const targetCandle = displayCandles[idx];
+              updateChartHud(targetCandle);
+              updateChartTooltip(targetCandle, x, y);
               renderChart();
+            } else {
+              updateChartTooltip(null);
             }
           });
 
@@ -2481,7 +3133,9 @@
           canvas.addEventListener('mouseleave', () => {
             if (!isPointerDown) {
               state.hoveredBar = null;
-              const last = state.candles[state.candles.length - 1];
+              updateChartTooltip(null);
+              const candles = state.activeCandles || state.candles;
+              const last = candles[candles.length - 1];
               if (last) updateChartHud(last);
               renderChart();
             }
@@ -2588,6 +3242,7 @@
             state.timeframe = btn.dataset.tf;
             const tag = document.getElementById('chartTimeframeTag');
             if (tag) tag.textContent = `(${btn.textContent} Bars)`;
+            renderChart();
           });
         });
 
@@ -2601,7 +3256,25 @@
           });
         });
 
-        // Indicator Toggles
+        // Indicator & Overlay Toggles
+        const patternsBtn = document.getElementById('togglePatternsBtn');
+        if (patternsBtn) {
+          patternsBtn.addEventListener('click', function () {
+            state.showPatterns = !state.showPatterns;
+            this.classList.toggle('active', state.showPatterns);
+            renderChart();
+          });
+        }
+
+        const levelsBtn = document.getElementById('toggleLevelsBtn');
+        if (levelsBtn) {
+          levelsBtn.addEventListener('click', function () {
+            state.showLevels = !state.showLevels;
+            this.classList.toggle('active', state.showLevels);
+            renderChart();
+          });
+        }
+
         const vwapBtn = document.getElementById('toggleVwapBtn');
         if (vwapBtn) {
           vwapBtn.addEventListener('click', function () {
