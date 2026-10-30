@@ -522,12 +522,73 @@
       width: 100%;
       height: 420px;
       background: var(--bg-surface);
+      overflow: hidden;
+      user-select: none;
     }
 
     #candlestickCanvas {
       width: 100%;
       height: 100%;
       display: block;
+      cursor: crosshair;
+    }
+
+    #candlestickCanvas.dragging {
+      cursor: grabbing !important;
+    }
+
+    #candlestickCanvas.resizing-y {
+      cursor: ns-resize !important;
+    }
+
+    .jump-live-btn {
+      position: absolute;
+      bottom: 34px;
+      right: 84px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #FFFFFF;
+      background: var(--accent);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+      cursor: pointer;
+      z-index: 10;
+      transition: all 0.2s ease;
+    }
+
+    .jump-live-btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10B981;
+      animation: pulse-live 1.5s infinite;
+    }
+
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .chart-scroll-hint {
+      position: absolute;
+      top: 8px;
+      left: 14px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      pointer-events: none;
+      opacity: 0.7;
     }
 
     /* ==========================================================================
@@ -1107,6 +1168,12 @@
               <button class="chart-btn active" id="toggleVwapBtn">VWAP</button>
               <button class="chart-btn active" id="toggleEmaBtn">EMA</button>
             </div>
+            <!-- Zoom & Pan Controls -->
+            <div class="chart-btn-group" id="zoomGroup">
+              <button class="chart-btn" id="btnZoomIn" title="Zoom In (Bigger candles)">+</button>
+              <button class="chart-btn" id="btnZoomOut" title="Zoom Out (More candles)">−</button>
+              <button class="chart-btn" id="btnResetView" title="Reset to Live View">⟲ Reset</button>
+            </div>
           </div>
         </div>
 
@@ -1122,8 +1189,13 @@
         </div>
 
         <!-- Chart Canvas Container -->
-        <div class="chart-wrapper">
+        <div class="chart-wrapper" id="chartWrapper">
           <canvas id="candlestickCanvas"></canvas>
+          <div class="chart-scroll-hint" id="chartScrollHint">⇄ Scroll or Drag to explore history</div>
+          <button id="jumpLiveBtn" class="jump-live-btn" style="display: none;">
+            <span class="live-dot"></span>
+            <span>Jump to Live ⇥</span>
+          </button>
         </div>
       </div>
 
@@ -1438,6 +1510,13 @@
         account: { cash_balance: 100000, equity: 100000, positions: {} },
         l2: generateInitialL2(65000),
         hoveredBar: null,
+        // Chart Viewport & Interaction State
+        visibleBars: 40,
+        scrollOffset: 0,
+        priceZoomFactor: 1.0,
+        priceCenterOffset: 0.0,
+        lastMinP: 0,
+        lastMaxP: 0,
       };
 
       // 3. Formatters & Helpers
@@ -1581,15 +1660,34 @@
           return;
         }
 
-        const rightMargin = 70;
+        const rightMargin = 72;
         const bottomMargin = 26;
-        const volumeHeight = h * 0.18;
+        const volumeHeight = h * 0.17;
         const chartAreaHeight = h - bottomMargin - volumeHeight;
 
-        const maxDisplayBars = 65;
-        const displayCandles = candles.slice(-maxDisplayBars);
-        const n = displayCandles.length;
+        // Viewport window calculation:
+        const totalCandles = candles.length;
+        const visibleCount = Math.max(15, Math.min(100, state.visibleBars || 40));
+        const numVisible = Math.min(totalCandles, visibleCount);
 
+        // Clamp scrollOffset
+        const maxScroll = Math.max(0, totalCandles - numVisible);
+        state.scrollOffset = Math.max(0, Math.min(maxScroll, state.scrollOffset || 0));
+
+        // When scrollOffset is 0, we view the latest live bars
+        const endIndex = totalCandles - state.scrollOffset;
+        const startIndex = Math.max(0, endIndex - numVisible);
+        const displayCandles = candles.slice(startIndex, endIndex);
+        const n = displayCandles.length;
+        if (n === 0) return;
+
+        // Update Jump to Live button visibility
+        const jumpLiveBtn = document.getElementById('jumpLiveBtn');
+        if (jumpLiveBtn) {
+          jumpLiveBtn.style.display = state.scrollOffset > 0 ? 'inline-flex' : 'none';
+        }
+
+        // Compute high, low, volume for ONLY the currently visible window:
         let minPrice = Infinity;
         let maxPrice = -Infinity;
         let maxVol = 0;
@@ -1600,16 +1698,30 @@
           if (c.volume > maxVol) maxVol = c.volume;
         }
 
-        // Ensure 10-12% breathing room top and bottom so wicks never touch boundaries
-        const pricePadding = Math.max((maxPrice - minPrice) * 0.12, minPrice * 0.001);
-        minPrice -= pricePadding;
-        maxPrice += pricePadding;
+        // Breathing room & min range guarantee
+        if (maxPrice - minPrice < 0.10) {
+          const mid = (maxPrice + minPrice) / 2 || 100;
+          minPrice = mid * 0.995;
+          maxPrice = mid * 1.005;
+        }
+
+        let rawRange = maxPrice - minPrice;
+        let centerPrice = (maxPrice + minPrice) / 2 + (state.priceCenterOffset || 0);
+
+        // 12% top and bottom padding so wicks breathe freely
+        const pad = Math.max(rawRange * 0.12, centerPrice * 0.001);
+        const zoom = state.priceZoomFactor || 1.0;
+        minPrice = centerPrice - (rawRange / 2 + pad) * zoom;
+        maxPrice = centerPrice + (rawRange / 2 + pad) * zoom;
         const priceRange = Math.max(0.01, maxPrice - minPrice);
+
+        state.lastMinP = minPrice;
+        state.lastMaxP = maxPrice;
 
         const getY = (p) => chartAreaHeight - ((p - minPrice) / priceRange) * chartAreaHeight;
         const getVolY = (v) => h - bottomMargin - (v / (maxVol || 1)) * (volumeHeight - 8);
         const barSpacing = (w - rightMargin) / n;
-        const barWidth = Math.max(3, Math.min(15, barSpacing * 0.72));
+        const barWidth = Math.max(4, Math.min(22, barSpacing * 0.72));
 
         // 1. Grid & Price Ticks
         ctx.strokeStyle = gridColor;
@@ -1618,7 +1730,7 @@
         ctx.font = '11px JetBrains Mono';
         ctx.textAlign = 'left';
 
-        const priceSteps = 5;
+        const priceSteps = 6;
         for (let i = 0; i <= priceSteps; i++) {
           const p = minPrice + (priceRange / priceSteps) * i;
           const y = getY(p);
@@ -1630,10 +1742,10 @@
           ctx.fillText(p.toFixed(2), w - rightMargin + 8, y + 4);
         }
 
-        // 2. Indicators
+        // 2. Indicators (sliced to current viewport)
         const indicators = calculateIndicators(candles);
-        const dispVwap = indicators.vwap.slice(-maxDisplayBars);
-        const dispEma = indicators.ema20.slice(-maxDisplayBars);
+        const dispVwap = indicators.vwap.slice(startIndex, endIndex);
+        const dispEma = indicators.ema20.slice(startIndex, endIndex);
 
         if (state.showVwap && dispVwap.length > 0) {
           ctx.strokeStyle = vwapColor;
@@ -1684,14 +1796,14 @@
 
             let bodyHeight = Math.abs(openY - closeY);
             let topY = Math.min(openY, closeY);
-            if (bodyHeight < 3.0) {
-              bodyHeight = 3.0; // Clear visible solid body
+            if (bodyHeight < 3.5) {
+              bodyHeight = 3.5; // Clear visible solid body
               topY = topY - 1.0;
             }
 
             // Ensure wicks extend clearly beyond body
-            const wickTop = Math.min(highY, topY - 1.5);
-            const wickBottom = Math.max(lowY, topY + bodyHeight + 1.5);
+            const wickTop = Math.min(highY, topY - 2.0);
+            const wickBottom = Math.max(lowY, topY + bodyHeight + 2.0);
 
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.5;
@@ -1714,36 +1826,38 @@
             if (i === n - 1) ctx.stroke();
           }
 
-          if (i % 8 === 0 || i === n - 1) {
+          if (i % Math.max(1, Math.round(n / 6)) === 0 || i === n - 1) {
             ctx.fillStyle = textMuted;
             ctx.font = '10px JetBrains Mono';
             ctx.textAlign = 'center';
-            const timeStr = c.date ? c.date.split(' ')[1] || c.date : '';
+            const timeStr = c.date ? (c.date.split(' ')[1] || c.date) : '';
             ctx.fillText(timeStr, x, h - 8);
           }
         }
 
-        // 4. Latest Price Tag
-        const latestCandle = displayCandles[n - 1];
-        if (latestCandle) {
-          const curY = getY(latestCandle.close);
-          const isUp = latestCandle.close >= latestCandle.open;
+        // 4. Latest Price Tag & Line
+        const latestGlobalCandle = candles[totalCandles - 1];
+        if (latestGlobalCandle) {
+          const curY = getY(latestGlobalCandle.close);
+          const isUp = latestGlobalCandle.close >= latestGlobalCandle.open;
           const badgeColor = isUp ? bullColor : bearColor;
 
-          ctx.strokeStyle = badgeColor;
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.moveTo(0, curY);
-          ctx.lineTo(w - rightMargin, curY);
-          ctx.stroke();
-          ctx.setLineDash([]);
+          if (curY >= 0 && curY <= chartAreaHeight) {
+            ctx.strokeStyle = badgeColor;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, curY);
+            ctx.lineTo(w - rightMargin, curY);
+            ctx.stroke();
+            ctx.setLineDash([]);
 
-          ctx.fillStyle = badgeColor;
-          ctx.fillRect(w - rightMargin + 4, curY - 9, rightMargin - 8, 18);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = 'bold 11px JetBrains Mono';
-          ctx.textAlign = 'center';
-          ctx.fillText(latestCandle.close.toFixed(2), w - rightMargin / 2, curY + 4);
+            ctx.fillStyle = badgeColor;
+            ctx.fillRect(w - rightMargin + 4, curY - 9, rightMargin - 8, 18);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 11px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText(latestGlobalCandle.close.toFixed(2), w - rightMargin / 2, curY + 4);
+          }
         }
 
         // 5. Crosshair
@@ -1782,6 +1896,28 @@
           closeEl.className = 'hud-val ' + (c.close >= c.open ? 'up' : 'down');
         }
         setTxt('hudVol', fmtNumber(c.volume));
+
+        // Pattern heuristic for individual bar inspection
+        const patEl = document.getElementById('hudPattern');
+        if (patEl) {
+          const body = Math.abs(c.close - c.open);
+          const range = c.high - c.low;
+          let patName = 'Normal Bar';
+          if (range > 0) {
+            const upperWick = c.high - Math.max(c.open, c.close);
+            const lowerWick = Math.min(c.open, c.close) - c.low;
+            if (lowerWick >= body * 1.8 && upperWick <= body * 0.5) {
+              patName = 'Hammer (Bullish Reversal)';
+            } else if (upperWick >= body * 1.8 && lowerWick <= body * 0.5) {
+              patName = 'Shooting Star (Bearish)';
+            } else if (body <= range * 0.12) {
+              patName = 'Doji (Market Indecision)';
+            } else if (body >= range * 0.8) {
+              patName = c.close >= c.open ? 'Bullish Marubozu' : 'Bearish Marubozu';
+            }
+          }
+          patEl.textContent = patName;
+        }
       }
 
       // 8. Level 2 Order Book Depth Ladder
@@ -2145,14 +2281,82 @@
           });
         }
 
-        // Crosshair Hover
+        // Interactive Canvas Engine (Pan, Wheel Scroll, Vertical Drag, Zoom & HUD)
         if (canvas) {
-          canvas.addEventListener('mousemove', (e) => {
+          let isPointerDown = false;
+          let dragMode = null; // 'pan' or 'scale-y'
+          let startX = 0;
+          let startY = 0;
+          let startOffset = 0;
+          let startZoomFactor = 1.0;
+          let startCenterOffset = 0.0;
+
+          canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
-            const rightMargin = 70;
-            const maxDisplayBars = 65;
-            const displayCandles = state.candles.slice(-maxDisplayBars);
+            const rightMargin = 72;
+
+            isPointerDown = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startOffset = state.scrollOffset || 0;
+            startZoomFactor = state.priceZoomFactor || 1.0;
+            startCenterOffset = state.priceCenterOffset || 0.0;
+
+            if (x > rect.width - rightMargin) {
+              dragMode = 'scale-y';
+              canvas.classList.add('resizing-y');
+            } else {
+              dragMode = 'pan';
+              canvas.classList.add('dragging');
+            }
+          });
+
+          window.addEventListener('mousemove', (e) => {
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+
+            if (isPointerDown) {
+              const dx = e.clientX - startX;
+              const dy = e.clientY - startY;
+
+              if (dragMode === 'pan') {
+                const rightMargin = 72;
+                const barSpacing = (rect.width - rightMargin) / Math.max(1, state.visibleBars || 40);
+                const barsShift = Math.round(dx / barSpacing);
+                const maxScroll = Math.max(0, state.candles.length - (state.visibleBars || 40));
+                state.scrollOffset = Math.max(0, Math.min(maxScroll, startOffset + barsShift));
+
+                if (Math.abs(dy) > 4) {
+                  const chartAreaH = rect.height - 26 - (rect.height * 0.17);
+                  const pRange = Math.max(0.01, (state.lastMaxP - state.lastMinP) || 10);
+                  state.priceCenterOffset = startCenterOffset + (dy / chartAreaH) * pRange;
+                }
+                renderChart();
+                return;
+              } else if (dragMode === 'scale-y') {
+                const factor = Math.max(0.2, Math.min(5.0, startZoomFactor * (1 + dy * 0.006)));
+                state.priceZoomFactor = factor;
+                renderChart();
+                return;
+              }
+            }
+
+            // Crosshair & Hover inspection when NOT dragging
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
+              state.hoveredBar = null;
+              return;
+            }
+
+            const rightMargin = 72;
+            const totalCandles = state.candles.length;
+            const visibleCount = Math.max(15, Math.min(100, state.visibleBars || 40));
+            const numVisible = Math.min(totalCandles, visibleCount);
+            const endIndex = totalCandles - (state.scrollOffset || 0);
+            const startIndex = Math.max(0, endIndex - numVisible);
+            const displayCandles = state.candles.slice(startIndex, endIndex);
             const n = displayCandles.length;
             if (n === 0) return;
 
@@ -2165,10 +2369,85 @@
             }
           });
 
+          window.addEventListener('mouseup', () => {
+            if (isPointerDown) {
+              isPointerDown = false;
+              dragMode = null;
+              if (canvas) {
+                canvas.classList.remove('dragging');
+                canvas.classList.remove('resizing-y');
+              }
+            }
+          });
+
           canvas.addEventListener('mouseleave', () => {
-            state.hoveredBar = null;
-            const last = state.candles[state.candles.length - 1];
-            if (last) updateChartHud(last);
+            if (!isPointerDown) {
+              state.hoveredBar = null;
+              const last = state.candles[state.candles.length - 1];
+              if (last) updateChartHud(last);
+              renderChart();
+            }
+          });
+
+          canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const totalCandles = state.candles.length;
+            const maxScroll = Math.max(0, totalCandles - (state.visibleBars || 40));
+
+            if (e.ctrlKey || e.metaKey) {
+              const zoomDelta = e.deltaY > 0 ? 3 : -3;
+              state.visibleBars = Math.max(15, Math.min(100, (state.visibleBars || 40) + zoomDelta));
+            } else {
+              const scrollDelta = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? -e.deltaX : e.deltaY);
+              const barsShift = scrollDelta > 0 ? 2 : -2;
+              state.scrollOffset = Math.max(0, Math.min(maxScroll, (state.scrollOffset || 0) + barsShift));
+            }
+            renderChart();
+          }, { passive: false });
+
+          canvas.addEventListener('dblclick', () => {
+            state.scrollOffset = 0;
+            state.priceZoomFactor = 1.0;
+            state.priceCenterOffset = 0.0;
+            state.visibleBars = 40;
+            renderChart();
+          });
+        }
+
+        // Zoom & Reset View Toolbar Buttons
+        const btnZoomIn = document.getElementById('btnZoomIn');
+        if (btnZoomIn) {
+          btnZoomIn.addEventListener('click', () => {
+            state.visibleBars = Math.max(15, (state.visibleBars || 40) - 5);
+            renderChart();
+          });
+        }
+
+        const btnZoomOut = document.getElementById('btnZoomOut');
+        if (btnZoomOut) {
+          btnZoomOut.addEventListener('click', () => {
+            state.visibleBars = Math.min(100, (state.visibleBars || 40) + 5);
+            renderChart();
+          });
+        }
+
+        const btnResetView = document.getElementById('btnResetView');
+        if (btnResetView) {
+          btnResetView.addEventListener('click', () => {
+            state.scrollOffset = 0;
+            state.priceZoomFactor = 1.0;
+            state.priceCenterOffset = 0.0;
+            state.visibleBars = 40;
+            renderChart();
+          });
+        }
+
+        const jumpLiveBtn = document.getElementById('jumpLiveBtn');
+        if (jumpLiveBtn) {
+          jumpLiveBtn.addEventListener('click', () => {
+            state.scrollOffset = 0;
+            state.priceZoomFactor = 1.0;
+            state.priceCenterOffset = 0.0;
             renderChart();
           });
         }
@@ -2369,6 +2648,10 @@
             const sym = pill.dataset.sym;
             state.userSelectedSymbol = true;
             state.symbol = sym;
+            state.scrollOffset = 0;
+            state.priceZoomFactor = 1.0;
+            state.priceCenterOffset = 0.0;
+            state.visibleBars = 40;
             highlightActiveSymbol(sym);
 
             try {

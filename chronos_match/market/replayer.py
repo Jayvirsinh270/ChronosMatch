@@ -113,9 +113,9 @@ class HistoricalMarketReplayer:
                 tick_size = 0.01
 
         # 2. Check if valid session candles are already persisted in SQLite
-        stored_raw = self.data_store.get_recent_candles(sym, limit=60)
+        stored_raw = self.data_store.get_recent_candles(sym, limit=180)
         if not stored_raw and "-" in sym:
-            stored_raw = self.data_store.get_recent_candles(sym.split("-")[0], limit=60)
+            stored_raw = self.data_store.get_recent_candles(sym.split("-")[0], limit=180)
 
         candles: List[StockCandle] = []
         valid_stored = False
@@ -141,7 +141,7 @@ class HistoricalMarketReplayer:
         if not valid_stored:
             # Load from historical data loader
             try:
-                candles = self.data_loader.load_candles(sym, max_bars=60)
+                candles = self.data_loader.load_candles(sym, max_bars=180)
             except Exception:
                 candles = []
 

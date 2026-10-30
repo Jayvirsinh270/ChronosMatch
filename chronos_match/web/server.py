@@ -631,7 +631,7 @@ class WebTradingServer:
         snap["market_stats"] = self.replayer.data_store.get_market_statistics(venue.info.ticker)
         algo_mgr = self.replayer.algo_managers.get(venue.info.ticker)
         snap["algo_stats"] = algo_mgr.get_summary(venue.last_trade_price) if algo_mgr else None
-        snap["candles"] = self.replayer.get_candlesticks(venue.info.ticker, limit=60)
+        snap["candles"] = self.replayer.get_candlesticks(venue.info.ticker, limit=180)
         pat = self.replayer.latest_pattern.get(venue.info.ticker)
         snap["pattern"] = {
             "name": pat.name,
