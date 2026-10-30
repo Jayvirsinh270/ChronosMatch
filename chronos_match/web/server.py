@@ -47,6 +47,7 @@ from chronos_match.persistence.wal import WriteAheadLog
 from chronos_match.persistence.snapshot import SnapshotManager
 from chronos_match.persistence.recovery import DeterministicRecoveryEngine
 from chronos_match.market.data_loader import MarketDataLoader
+from chronos_match.market.storage import MarketDataStore
 from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
 from chronos_match.market.replayer import HistoricalMarketReplayer
 from chronos_match.market.sor_network import MultiVenueNetwork
@@ -171,7 +172,12 @@ class WebTradingServer:
         self.connected_clients: List[WebSocket] = []
 
         # Real-Market Data Replayer & ML Pattern Impact Engine
-        self.replayer = HistoricalMarketReplayer(router=self.router, default_ticker="NVDA")
+        replayer_store = MarketDataStore(db_path=":memory:") if db_path == ":memory:" else None
+        self.replayer = HistoricalMarketReplayer(
+            router=self.router,
+            data_store=replayer_store,
+            default_ticker="NVDA",
+        )
         for sym in ("NVDA", "NVDA-USD", "AAPL", "AAPL-USD", "MSFT", "MSFT-USD", "TSLA", "TSLA-USD", "RELIANCE", "RELIANCE-BSE", "BTC-USD", "ETH-USD", "SOL-USD"):
             try:
                 self.replayer.bind_stock(sym)

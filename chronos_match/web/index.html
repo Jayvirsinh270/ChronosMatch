@@ -591,6 +591,45 @@
       opacity: 0.7;
     }
 
+    .recenter-price-btn {
+      position: absolute;
+      top: 10px;
+      right: 84px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 11px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-main);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-sm);
+      cursor: pointer;
+      z-index: 10;
+      transition: all 0.2s ease;
+    }
+
+    .recenter-price-btn:hover {
+      background: var(--bg-subtle);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .focus-btn-indicator {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--bull);
+      transition: background 0.2s ease;
+    }
+
+    .focus-btn-indicator.off {
+      background: var(--text-muted);
+    }
+
     /* ==========================================================================
        AI MARKET INTELLIGENCE CARD (Plain English, Non-Academic)
        ========================================================================== */
@@ -1168,6 +1207,12 @@
               <button class="chart-btn active" id="toggleVwapBtn">VWAP</button>
               <button class="chart-btn active" id="toggleEmaBtn">EMA</button>
             </div>
+            <!-- Focus Price Auto-Tracking -->
+            <div class="chart-btn-group">
+              <button class="chart-btn active" id="btnFocusPrice" title="Lock camera to follow active candle price">
+                <span class="focus-btn-indicator" id="focusPriceIndicator"></span> Focus Price
+              </button>
+            </div>
             <!-- Zoom & Pan Controls -->
             <div class="chart-btn-group" id="zoomGroup">
               <button class="chart-btn" id="btnZoomIn" title="Zoom In (Bigger candles)">+</button>
@@ -1191,7 +1236,10 @@
         <!-- Chart Canvas Container -->
         <div class="chart-wrapper" id="chartWrapper">
           <canvas id="candlestickCanvas"></canvas>
-          <div class="chart-scroll-hint" id="chartScrollHint">⇄ Scroll or Drag to explore history</div>
+          <div class="chart-scroll-hint" id="chartScrollHint">⇄ Drag left/right for time | ⇅ Wheel or drag up/down for price</div>
+          <button id="recenterPriceBtn" class="recenter-price-btn" style="display: none;" title="Re-center view on active price">
+            <span>◉ Re-center Price</span>
+          </button>
           <button id="jumpLiveBtn" class="jump-live-btn" style="display: none;">
             <span class="live-dot"></span>
             <span>Jump to Live ⇥</span>
@@ -1513,8 +1561,11 @@
         // Chart Viewport & Interaction State
         visibleBars: 40,
         scrollOffset: 0,
+        autoTrackPrice: true,
         priceZoomFactor: 1.0,
         priceCenterOffset: 0.0,
+        lastCenterPrice: 0,
+        lastEffectiveRange: 0,
         lastMinP: 0,
         lastMaxP: 0,
       };
@@ -1687,38 +1738,49 @@
           jumpLiveBtn.style.display = state.scrollOffset > 0 ? 'inline-flex' : 'none';
         }
 
-        // Compute high, low, volume for ONLY the currently visible window:
-        let minPrice = Infinity;
-        let maxPrice = -Infinity;
-        let maxVol = 0;
+        // Determine active focus price
+        const latestGlobalCandle = candles[totalCandles - 1];
+        const activePrice = state.scrollOffset === 0
+          ? (latestGlobalCandle ? latestGlobalCandle.close : state.marketPrice)
+          : (displayCandles[displayCandles.length - 1] ? displayCandles[displayCandles.length - 1].close : state.marketPrice);
 
-        for (const c of displayCandles) {
-          if (c.low < minPrice) minPrice = c.low;
-          if (c.high > maxPrice) maxPrice = c.high;
-          if (c.volume > maxVol) maxVol = c.volume;
+        // 1. Calculate focused price span based on recent volatility so candles are NEVER squished vertically
+        const sampleBars = displayCandles.slice(-15);
+        let sampleAtr = 0;
+        sampleBars.forEach(c => {
+          sampleAtr += Math.max(c.high - c.low, Math.abs(c.close - c.open));
+        });
+        sampleAtr = sampleAtr / Math.max(1, sampleBars.length);
+        if (!sampleAtr || sampleAtr <= 0) sampleAtr = activePrice * 0.0015;
+
+        // Base height: 7.5x ATR or at least 0.35% of price gives an expansive, tall, generous candle size
+        let baseSpan = Math.max(sampleAtr * 7.5, activePrice * 0.0035);
+        const effectivePriceRange = Math.max(0.10, baseSpan * (state.priceZoomFactor || 1.0));
+        state.lastEffectiveRange = effectivePriceRange;
+
+        // 2. Camera focus: follows active price up/down in real-time
+        let centerPrice;
+        if (state.autoTrackPrice) {
+          centerPrice = activePrice + (state.priceCenterOffset || 0);
+        } else {
+          centerPrice = (state.lastCenterPrice || activePrice) + (state.priceCenterOffset || 0);
         }
+        state.lastCenterPrice = centerPrice;
 
-        // Breathing room & min range guarantee
-        if (maxPrice - minPrice < 0.10) {
-          const mid = (maxPrice + minPrice) / 2 || 100;
-          minPrice = mid * 0.995;
-          maxPrice = mid * 1.005;
-        }
-
-        let rawRange = maxPrice - minPrice;
-        let centerPrice = (maxPrice + minPrice) / 2 + (state.priceCenterOffset || 0);
-
-        // 12% top and bottom padding so wicks breathe freely
-        const pad = Math.max(rawRange * 0.12, centerPrice * 0.001);
-        const zoom = state.priceZoomFactor || 1.0;
-        minPrice = centerPrice - (rawRange / 2 + pad) * zoom;
-        maxPrice = centerPrice + (rawRange / 2 + pad) * zoom;
+        let minPrice = centerPrice - effectivePriceRange / 2;
+        let maxPrice = centerPrice + effectivePriceRange / 2;
         const priceRange = Math.max(0.01, maxPrice - minPrice);
 
         state.lastMinP = minPrice;
         state.lastMaxP = maxPrice;
 
         const getY = (p) => chartAreaHeight - ((p - minPrice) / priceRange) * chartAreaHeight;
+
+        // Volume scaling over visible bars
+        let maxVol = 0;
+        for (const c of displayCandles) {
+          if (c.volume > maxVol) maxVol = c.volume;
+        }
         const getVolY = (v) => h - bottomMargin - (v / (maxVol || 1)) * (volumeHeight - 8);
         const barSpacing = (w - rightMargin) / n;
         const barWidth = Math.max(4, Math.min(22, barSpacing * 0.72));
@@ -1742,7 +1804,12 @@
           ctx.fillText(p.toFixed(2), w - rightMargin + 8, y + 4);
         }
 
-        // 2. Indicators (sliced to current viewport)
+        // 2. Indicators & Candlesticks (clipped to chart area so off-screen candles slide out cleanly)
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, w - rightMargin, chartAreaHeight);
+        ctx.clip();
+
         const indicators = calculateIndicators(candles);
         const dispVwap = indicators.vwap.slice(startIndex, endIndex);
         const dispEma = indicators.ema20.slice(startIndex, endIndex);
@@ -1773,21 +1840,13 @@
           ctx.stroke();
         }
 
-        // 3. Candles & Volume
+        // 3. Candles (rendered inside clip area)
         for (let i = 0; i < n; i++) {
           const c = displayCandles[i];
           const x = i * barSpacing + barSpacing / 2;
           const isGreen = c.close >= c.open;
           const color = isGreen ? bullColor : bearColor;
 
-          // Volume Bar
-          const vy = getVolY(c.volume);
-          ctx.fillStyle = isGreen
-            ? (isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(5, 150, 105, 0.25)')
-            : (isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(220, 38, 38, 0.25)');
-          ctx.fillRect(x - barWidth / 2, vy, barWidth, h - bottomMargin - vy);
-
-          // Candle with guaranteed visible body and distinct upper/lower wicks
           if (state.chartType === 'candles') {
             const openY = getY(c.open);
             const closeY = getY(c.close);
@@ -1797,11 +1856,10 @@
             let bodyHeight = Math.abs(openY - closeY);
             let topY = Math.min(openY, closeY);
             if (bodyHeight < 3.5) {
-              bodyHeight = 3.5; // Clear visible solid body
+              bodyHeight = 3.5;
               topY = topY - 1.0;
             }
 
-            // Ensure wicks extend clearly beyond body
             const wickTop = Math.min(highY, topY - 2.0);
             const wickBottom = Math.max(lowY, topY + bodyHeight + 2.0);
 
@@ -1825,6 +1883,20 @@
             }
             if (i === n - 1) ctx.stroke();
           }
+        }
+        ctx.restore();
+
+        // 4. Volume Bars & Time Labels (rendered in bottom section)
+        for (let i = 0; i < n; i++) {
+          const c = displayCandles[i];
+          const x = i * barSpacing + barSpacing / 2;
+          const isGreen = c.close >= c.open;
+
+          const vy = getVolY(c.volume);
+          ctx.fillStyle = isGreen
+            ? (isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(5, 150, 105, 0.25)')
+            : (isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(220, 38, 38, 0.25)');
+          ctx.fillRect(x - barWidth / 2, vy, barWidth, h - bottomMargin - vy);
 
           if (i % Math.max(1, Math.round(n / 6)) === 0 || i === n - 1) {
             ctx.fillStyle = textMuted;
@@ -1835,8 +1907,7 @@
           }
         }
 
-        // 4. Latest Price Tag & Line
-        const latestGlobalCandle = candles[totalCandles - 1];
+        // 5. Latest Price Tag & Off-Screen Indicators
         if (latestGlobalCandle) {
           const curY = getY(latestGlobalCandle.close);
           const isUp = latestGlobalCandle.close >= latestGlobalCandle.open;
@@ -1857,7 +1928,33 @@
             ctx.font = 'bold 11px JetBrains Mono';
             ctx.textAlign = 'center';
             ctx.fillText(latestGlobalCandle.close.toFixed(2), w - rightMargin / 2, curY + 4);
+          } else if (curY < 0) {
+            ctx.fillStyle = badgeColor;
+            ctx.fillRect(w - rightMargin + 4, 4, rightMargin - 8, 18);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 10px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText(`▲ ${latestGlobalCandle.close.toFixed(2)}`, w - rightMargin / 2, 17);
+          } else if (curY > chartAreaHeight) {
+            ctx.fillStyle = badgeColor;
+            ctx.fillRect(w - rightMargin + 4, chartAreaHeight - 22, rightMargin - 8, 18);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 10px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText(`▼ ${latestGlobalCandle.close.toFixed(2)}`, w - rightMargin / 2, chartAreaHeight - 9);
           }
+        }
+
+        // 6. Update Status Buttons
+        const recenterBtn = document.getElementById('recenterPriceBtn');
+        if (recenterBtn) {
+          recenterBtn.style.display = (!state.autoTrackPrice || Math.abs(state.priceCenterOffset || 0) > effectivePriceRange * 0.25) ? 'inline-flex' : 'none';
+        }
+        const focusBtn = document.getElementById('btnFocusPrice');
+        const focusIndicator = document.getElementById('focusPriceIndicator');
+        if (focusBtn && focusIndicator) {
+          focusBtn.classList.toggle('active', state.autoTrackPrice);
+          focusIndicator.classList.toggle('off', !state.autoTrackPrice);
         }
 
         // 5. Crosshair
@@ -2329,8 +2426,9 @@
 
                 if (Math.abs(dy) > 4) {
                   const chartAreaH = rect.height - 26 - (rect.height * 0.17);
-                  const pRange = Math.max(0.01, (state.lastMaxP - state.lastMinP) || 10);
+                  const pRange = state.lastEffectiveRange || 20;
                   state.priceCenterOffset = startCenterOffset + (dy / chartAreaH) * pRange;
+                  state.autoTrackPrice = false;
                 }
                 renderChart();
                 return;
@@ -2397,19 +2495,48 @@
             if (e.ctrlKey || e.metaKey) {
               const zoomDelta = e.deltaY > 0 ? 3 : -3;
               state.visibleBars = Math.max(15, Math.min(100, (state.visibleBars || 40) + zoomDelta));
-            } else {
+            } else if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+              // Shift + Wheel or horizontal trackpad: horizontal time scroll
               const scrollDelta = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? -e.deltaX : e.deltaY);
               const barsShift = scrollDelta > 0 ? 2 : -2;
               state.scrollOffset = Math.max(0, Math.min(maxScroll, (state.scrollOffset || 0) + barsShift));
+            } else {
+              // Plain Wheel: Smooth vertical price pan (scroll UP/DOWN through price levels)
+              const range = state.lastEffectiveRange || (state.marketPrice * 0.005) || 20;
+              const priceShift = (e.deltaY > 0 ? -1 : 1) * (range * 0.08);
+              state.priceCenterOffset = (state.priceCenterOffset || 0) + priceShift;
+              state.autoTrackPrice = false;
             }
             renderChart();
           }, { passive: false });
 
           canvas.addEventListener('dblclick', () => {
             state.scrollOffset = 0;
-            state.priceZoomFactor = 1.0;
+            state.autoTrackPrice = true;
             state.priceCenterOffset = 0.0;
+            state.priceZoomFactor = 1.0;
             state.visibleBars = 40;
+            renderChart();
+          });
+        }
+
+        // Focus Price Button & Recenter Button
+        const btnFocusPrice = document.getElementById('btnFocusPrice');
+        if (btnFocusPrice) {
+          btnFocusPrice.addEventListener('click', () => {
+            state.autoTrackPrice = !state.autoTrackPrice;
+            if (state.autoTrackPrice) {
+              state.priceCenterOffset = 0.0;
+            }
+            renderChart();
+          });
+        }
+
+        const recenterPriceBtn = document.getElementById('recenterPriceBtn');
+        if (recenterPriceBtn) {
+          recenterPriceBtn.addEventListener('click', () => {
+            state.autoTrackPrice = true;
+            state.priceCenterOffset = 0.0;
             renderChart();
           });
         }
@@ -2435,8 +2562,9 @@
         if (btnResetView) {
           btnResetView.addEventListener('click', () => {
             state.scrollOffset = 0;
-            state.priceZoomFactor = 1.0;
+            state.autoTrackPrice = true;
             state.priceCenterOffset = 0.0;
+            state.priceZoomFactor = 1.0;
             state.visibleBars = 40;
             renderChart();
           });
@@ -2446,7 +2574,7 @@
         if (jumpLiveBtn) {
           jumpLiveBtn.addEventListener('click', () => {
             state.scrollOffset = 0;
-            state.priceZoomFactor = 1.0;
+            state.autoTrackPrice = true;
             state.priceCenterOffset = 0.0;
             renderChart();
           });
