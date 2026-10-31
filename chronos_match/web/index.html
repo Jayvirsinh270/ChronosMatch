@@ -1848,12 +1848,15 @@
           recenterBtn.style.display = (state.isCustomScale || Math.abs(state.priceCenterOffset || 0) > 1.0) ? 'inline-flex' : 'none';
         }
 
-        // 1. Compute min & max prices strictly over visible window
+        // 1. Compute min & max prices and distribution metrics over visible window
         let minPrice = Infinity;
         let maxPrice = -Infinity;
         let minBody = Infinity;
         let maxBody = -Infinity;
         let maxVol = 0;
+
+        const barRanges = [];
+        const barBodies = [];
 
         for (const c of displayCandles) {
           if (c.low < minPrice) minPrice = c.low;
@@ -1863,35 +1866,68 @@
           if (bLow < minBody) minBody = bLow;
           if (bHigh > maxBody) maxBody = bHigh;
           if (c.volume > maxVol) maxVol = c.volume;
+
+          barRanges.push(Math.max(0.01, c.high - c.low));
+          barBodies.push(Math.max(0.01, bHigh - bLow));
         }
+
+        barRanges.sort((a, b) => a - b);
+        barBodies.sort((a, b) => a - b);
+        const medianBarRange = barRanges[Math.floor(barRanges.length * 0.5)] || ((state.marketPrice || 65000) * 0.0008);
+        const medianBarBody = barBodies[Math.floor(barBodies.length * 0.5)] || (medianBarRange * 0.5);
+
+        // Maximum readable span constraint:
+        // Guarantees that normal candle bodies NEVER compress below 12px or turn into a flat line.
+        const maxComfortSpan = Math.max(medianBarRange * 16.0, (state.marketPrice || 65000) * 0.0025);
 
         // Dynamic Focus Mode vs Full Auto-Fit Mode
         let refMin, refMax;
         if (state.focusMode === 'full') {
-          // Fit all visible candles
-          refMin = minPrice;
-          refMax = maxPrice;
+          // Fit all visible candles with outlier dampening for extreme single-bar wicks
+          const fullSpan = maxPrice - minPrice;
+          const clampThreshold = maxComfortSpan * 2.2;
+          if (fullSpan > clampThreshold) {
+            const excess = fullSpan - clampThreshold;
+            const dampedExcess = Math.log1p(excess / medianBarRange) * medianBarRange * 3.5;
+            const mid = (maxPrice + minPrice) / 2;
+            const half = (clampThreshold + dampedExcess) / 2;
+            refMin = mid - half;
+            refMax = mid + half;
+          } else {
+            refMin = minPrice;
+            refMax = maxPrice;
+          }
         } else {
-          // Focus mode: calibrate scale to recent active price action
-          const focusCount = Math.min(n, 16);
-          const recentBars = (state.scrollOffset === 0)
+          // Focus mode: anchor vertical scale to active price action
+          const focusCount = Math.min(n, 12);
+          const focusBars = (state.scrollOffset === 0)
             ? displayCandles.slice(-focusCount)
             : displayCandles.slice(Math.max(0, Math.floor((n - focusCount) / 2)), Math.max(0, Math.floor((n - focusCount) / 2)) + focusCount);
-          let fMin = Math.min(...recentBars.map(c => c.low));
-          let fMax = Math.max(...recentBars.map(c => c.high));
+
+          let fMin = Math.min(...focusBars.map(c => c.low));
+          let fMax = Math.max(...focusBars.map(c => c.high));
           if (state.scrollOffset === 0 && state.marketPrice) {
             fMin = Math.min(fMin, state.marketPrice);
             fMax = Math.max(fMax, state.marketPrice);
           }
-          refMin = fMin;
-          refMax = fMax;
+
+          let focusSpan = fMax - fMin;
+          if (focusSpan > maxComfortSpan) {
+            // Outlier spike protection: prevent vertical scale blow-up
+            const excess = focusSpan - maxComfortSpan;
+            const dampedSpan = maxComfortSpan + Math.log1p(excess / medianBarRange) * medianBarRange * 2.5;
+            const anchor = (state.scrollOffset === 0 && state.marketPrice) ? state.marketPrice : (fMax + fMin) / 2;
+            refMin = anchor - dampedSpan * 0.45;
+            refMax = anchor + dampedSpan * 0.55;
+          } else {
+            refMin = fMin;
+            refMax = fMax;
+          }
         }
 
-        // Ensure minimum reasonable range so consolidation doesn't blow up
-        let rawRange = Math.max(refMax - refMin, (state.marketPrice || 65000) * 0.002, 0.50);
-
-        // Breathing room: 18% padding so candles never press against chart boundaries
-        const pad = Math.max(rawRange * 0.18, refMin * 0.001);
+        // Breathing room: 16% padding so candles never press against chart boundaries
+        const baseSpan = Math.max(refMax - refMin, medianBarRange * 5.0, (state.marketPrice || 65000) * 0.0012);
+        const pad = baseSpan * 0.16;
         refMin -= pad;
         refMax += pad;
 
@@ -1967,11 +2003,27 @@
         }
 
         // 3. Candlesticks (rendered inside clip area)
+        let spikeHighVal = -Infinity, spikeHighX = null;
+        let spikeLowVal = Infinity, spikeLowX = null;
+
         for (let i = 0; i < n; i++) {
           const c = displayCandles[i];
           const x = i * barSpacing + barSpacing / 2;
           const isGreen = c.close >= c.open;
           const color = isGreen ? bullColor : bearColor;
+          const borderC = isGreen ? (isDark ? '#34D399' : '#047857') : (isDark ? '#F87171' : '#B91C1C');
+
+          // Track out-of-bounds spike tips on recent bars to render crest badges
+          if (i >= n - 12) {
+            if (c.high > maxPrice && c.high > spikeHighVal) {
+              spikeHighVal = c.high;
+              spikeHighX = x;
+            }
+            if (c.low < minPrice && c.low < spikeLowVal) {
+              spikeLowVal = c.low;
+              spikeLowX = x;
+            }
+          }
 
           if (state.chartType === 'candles') {
             const openY = getY(c.open);
@@ -1979,16 +2031,22 @@
             const highY = getY(c.high);
             const lowY = getY(c.low);
 
-            let bodyHeight = Math.abs(openY - closeY);
+            const rawBodyH = Math.abs(openY - closeY);
             let topY = Math.min(openY, closeY);
-            if (bodyHeight < 4.0) {
-              bodyHeight = 4.0;
-              topY = topY - 1.0;
+
+            // ANTI-STRAIGHT-LINE PROTECTION:
+            // 1. Guaranteed minimum 5px body height
+            // 2. Guaranteed wick extensions: wicks ALWAYS project at least 3px above & below body
+            // 3. Distinct stroke border and clear inter-candle spacing
+            const bodyH = Math.max(5.0, rawBodyH);
+            if (rawBodyH < 5.0) {
+              topY = topY - (5.0 - rawBodyH) / 2;
             }
 
-            const wickTop = Math.min(highY, topY - 2.0);
-            const wickBottom = Math.max(lowY, topY + bodyHeight + 2.0);
+            const wickTop = Math.min(highY, topY - 3.0);
+            const wickBottom = Math.max(lowY, topY + bodyH + 3.0);
 
+            // Draw upper and lower wicks
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
@@ -1996,8 +2054,22 @@
             ctx.lineTo(x, wickBottom);
             ctx.stroke();
 
+            // Draw candle body with border
             ctx.fillStyle = color;
-            ctx.fillRect(x - barWidth / 2, topY, barWidth, bodyHeight);
+            ctx.fillRect(x - barWidth / 2, topY, barWidth, bodyH);
+            ctx.strokeStyle = borderC;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x - barWidth / 2, topY, barWidth, bodyH);
+
+            // If candle has nearly identical open and close (Doji), draw clear accent tick
+            if (rawBodyH < 2.0) {
+              ctx.strokeStyle = isDark ? '#FFFFFF' : '#0F172A';
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.moveTo(x - barWidth / 2 - 1, topY + bodyH / 2);
+              ctx.lineTo(x + barWidth / 2 + 1, topY + bodyH / 2);
+              ctx.stroke();
+            }
           } else {
             if (i === 0) {
               ctx.beginPath();
@@ -2011,6 +2083,35 @@
           }
         }
         ctx.restore();
+
+        // 3b. Out-of-bounds Spike Crest Badges
+        if (spikeHighVal > maxPrice && spikeHighX !== null) {
+          ctx.fillStyle = isDark ? 'rgba(16, 185, 129, 0.92)' : 'rgba(5, 150, 105, 0.95)';
+          const txt = `▲ Peak ${spikeHighVal.toFixed(2)}`;
+          ctx.font = 'bold 10px JetBrains Mono';
+          const txtW = ctx.measureText(txt).width;
+          const badgeX = Math.max(6, Math.min(w - rightMargin - txtW - 14, spikeHighX - txtW / 2 - 6));
+          ctx.beginPath();
+          ctx.roundRect(badgeX, 6, txtW + 12, 18, 3);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'left';
+          ctx.fillText(txt, badgeX + 6, 19);
+        }
+
+        if (spikeLowVal < minPrice && spikeLowX !== null) {
+          ctx.fillStyle = isDark ? 'rgba(239, 68, 68, 0.92)' : 'rgba(220, 38, 38, 0.95)';
+          const txt = `▼ Trough ${spikeLowVal.toFixed(2)}`;
+          ctx.font = 'bold 10px JetBrains Mono';
+          const txtW = ctx.measureText(txt).width;
+          const badgeX = Math.max(6, Math.min(w - rightMargin - txtW - 14, spikeLowX - txtW / 2 - 6));
+          ctx.beginPath();
+          ctx.roundRect(badgeX, chartAreaHeight - 24, txtW + 12, 18, 3);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'left';
+          ctx.fillText(txt, badgeX + 6, chartAreaHeight - 11);
+        }
 
         // 4. Volume Bars & Time Labels
         for (let i = 0; i < n; i++) {
