@@ -9,8 +9,25 @@ from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 import random
+import sys
 import time
 from typing import Dict, List, Optional, Any, Union
+
+# On Windows, suppress spurious ConnectionResetError [WinError 10054] when browser closes or refreshes tab
+if sys.platform == "win32":
+    try:
+        from asyncio.proactor_events import _ProactorBasePipeTransport
+        _orig_call_conn_lost = _ProactorBasePipeTransport._call_connection_lost
+
+        def _silent_call_conn_lost(self, exc=None):
+            try:
+                _orig_call_conn_lost(self, exc)
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+                pass
+
+        _ProactorBasePipeTransport._call_connection_lost = _silent_call_conn_lost
+    except Exception:
+        pass
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -170,6 +187,7 @@ class WebTradingServer:
         self.bot_delay = 0.04  # ~25 ord/s
         self._bot_task: Optional[asyncio.Task] = None
         self.connected_clients: List[WebSocket] = []
+        self.is_running = True
 
         # Real-Market Data Replayer & ML Pattern Impact Engine
         replayer_store = MarketDataStore(db_path=":memory:") if db_path == ":memory:" else None
@@ -653,10 +671,21 @@ class WebTradingServer:
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     """Auto-start background living market simulation loop on server startup."""
+    server.is_running = True
     if server.bot_active:
         if server._bot_task is None or server._bot_task.done():
             server._bot_task = asyncio.create_task(_bot_simulation_loop())
     yield
+    # Clean shutdown on server exit:
+    server.is_running = False
+    if server._bot_task and not server._bot_task.done():
+        server._bot_task.cancel()
+    for client in list(server.connected_clients):
+        try:
+            asyncio.create_task(client.close())
+        except Exception:
+            pass
+    server.connected_clients.clear()
 
 
 # Initialize App & Server instance
@@ -779,7 +808,7 @@ async def api_toggle_bot():
 
 async def _bot_simulation_loop():
     """Generates continuous realistic background order flow across all active venues."""
-    while server.bot_active:
+    while server.bot_active and getattr(server, "is_running", True):
         try:
             # 1. Prioritize active symbol currently viewed by the trader
             active_sym = server.active_symbol
@@ -793,6 +822,8 @@ async def _bot_simulation_loop():
                     server.replayer.step_market_tick(bg_venue.info.ticker)
 
             await asyncio.sleep(server.bot_delay)
+        except asyncio.CancelledError:
+            break
         except Exception:
             await asyncio.sleep(0.05)
 
@@ -1156,13 +1187,18 @@ async def websocket_endpoint(ws: WebSocket):
         server._bot_task = asyncio.create_task(_bot_simulation_loop())
     server.connected_clients.append(ws)
     try:
-        while True:
+        while getattr(server, "is_running", True):
             snapshot = server.get_snapshot()
             await ws.send_json(snapshot)
             await asyncio.sleep(0.06)  # 60 ms refresh (~16 FPS)
-    except WebSocketDisconnect:
-        if ws in server.connected_clients:
-            server.connected_clients.remove(ws)
+    except (WebSocketDisconnect, ConnectionResetError, ConnectionAbortedError, BrokenPipeError, asyncio.CancelledError):
+        pass
     except Exception:
+        pass
+    finally:
         if ws in server.connected_clients:
             server.connected_clients.remove(ws)
+        try:
+            await ws.close()
+        except Exception:
+            pass

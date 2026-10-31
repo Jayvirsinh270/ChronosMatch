@@ -8,10 +8,46 @@ Usage:
 """
 
 import argparse
+import asyncio
+import os
+import signal
 import sys
 import time
 import webbrowser
 import uvicorn
+
+# 1. On Windows, suppress spurious ConnectionResetError [WinError 10054] when browser refreshes or closes
+if sys.platform == "win32":
+    try:
+        from asyncio.proactor_events import _ProactorBasePipeTransport
+        _orig_call_conn_lost = _ProactorBasePipeTransport._call_connection_lost
+
+        def _silent_call_conn_lost(self, exc=None):
+            try:
+                _orig_call_conn_lost(self, exc)
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+                pass
+
+        _ProactorBasePipeTransport._call_connection_lost = _silent_call_conn_lost
+    except Exception:
+        pass
+
+# 2. Native Windows Console Control Handler to guarantee instant exit on Ctrl+C / Ctrl+Break
+if sys.platform == "win32":
+    try:
+        import ctypes
+
+        def _win_ctrl_handler(ctrl_type):
+            # CTRL_C_EVENT = 0, CTRL_BREAK_EVENT = 1, CTRL_CLOSE_EVENT = 2
+            if ctrl_type in (0, 1, 2):
+                print("\n[+] Web server stopped cleanly.")
+                os._exit(0)
+            return False
+
+        _handler = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)(_win_ctrl_handler)
+        ctypes.windll.kernel32.SetConsoleCtrlHandler(_handler, True)
+    except Exception:
+        pass
 
 
 def parse_args():
@@ -40,19 +76,15 @@ def main():
     from chronos_match.web.server import server as trading_server
     trading_server.active_symbol = args.symbol
 
-    # Register instant shutdown handler for Windows Ctrl+C / Ctrl+Break
     def _shutdown(sig=None, frame=None):
         print("\n[+] Web server stopped cleanly.")
-        import os
         os._exit(0)
 
-    import signal
     signal.signal(signal.SIGINT, _shutdown)
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, _shutdown)
 
     if not args.no_browser:
-        # Open default browser after a brief delay so server has started listening
         def _open():
             time.sleep(0.8)
             webbrowser.open(url)
@@ -67,10 +99,13 @@ def main():
             port=args.port,
             log_level="warning",
             loop="asyncio",
+            timeout_graceful_shutdown=1,
         )
         server = uvicorn.Server(config)
         server.run()
     except (KeyboardInterrupt, SystemExit):
+        _shutdown()
+    finally:
         _shutdown()
 
 
