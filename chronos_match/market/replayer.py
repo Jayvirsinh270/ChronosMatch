@@ -8,6 +8,7 @@ and autonomous multi-participant algorithmic trading.
 
 from collections import deque
 from dataclasses import dataclass
+import math
 import random
 import time
 from typing import Dict, List, Optional, Tuple, Any
@@ -45,11 +46,13 @@ class HistoricalMarketReplayer:
         data_loader: Optional[MarketDataLoader] = None,
         data_store: Optional[MarketDataStore] = None,
         default_ticker: str = "NVDA",
+        risk_engine: Optional[Any] = None,
     ):
         self.router = router
         self.data_loader = data_loader or MarketDataLoader()
         self.data_store = data_store or MarketDataStore()
         self.active_ticker = default_ticker.upper()
+        self.risk_engine = risk_engine
 
         self.impact_engines: Dict[str, MLMarketImpactEngine] = {}
         self.pattern_models: Dict[str, LightMarketPatternModel] = {}
@@ -367,15 +370,21 @@ class HistoricalMarketReplayer:
         drift = drift * 0.05
         step_sigma = (daily_vol * 0.001) * vol_mult
         shock = random.gauss(0, 1) * max(0.00005, step_sigma)
-        ofi_push = (impact.ofi / max(1000.0, impact.avg_daily_volume * 0.005)) * 0.00002
+        ofi_push = impact.ofi * (daily_vol * 0.0006)
 
-        new_mid = round(cur_mid * (1.0 + drift + shock + ofi_push), 2)
-        min_p = max(tick * 5, round((venue.info.initial_price or 100.0) * 0.90, 2))
-        max_p = round((venue.info.initial_price or 100.0) * 1.10, 2)
+        stochastic_mid = cur_mid * (1.0 + drift + shock + ofi_push)
+        effective_impact_mid = impact.get_effective_price()
+        blend_factor = 0.20
+        new_mid = round(stochastic_mid * (1.0 - blend_factor) + effective_impact_mid * blend_factor, 2)
+
+        min_p = max(tick * 5, round((venue.info.initial_price or 100.0) * 0.60, 2))
+        max_p = round((venue.info.initial_price or 100.0) * 2.00, 2)
         new_mid = max(min_p, min(max_p, new_mid))
 
         self.current_mid[sym] = new_mid
         self.current_mid[venue.info.ticker] = new_mid
+        if "-" in sym:
+            self.current_mid[sym.split("-")[0]] = new_mid
         impact.set_baseline_price(new_mid)
         effective_mid = new_mid
         events: List[Dict[str, Any]] = []
@@ -662,6 +671,10 @@ class HistoricalMarketReplayer:
         venue.total_volume += qty
         venue.high_price = max(venue.high_price, trade_p)
         venue.low_price = min(venue.low_price, trade_p)
+        self.current_mid[sym] = trade_p
+        self.current_mid[venue.info.ticker] = trade_p
+        if "-" in sym:
+            self.current_mid[sym.split("-")[0]] = trade_p
 
         # 1. Record Trade & Inspect Whale Flow
         trade_id = match_info.get("trade_id", venue.total_trades)
@@ -695,6 +708,37 @@ class HistoricalMarketReplayer:
         )
         venue.whale_detector.inspect_trade(tp)
 
+        # Settle user resting order fills in Risk Engine & open orders registry
+        b_oid = match_info.get("buy_order_id", 0)
+        s_oid = match_info.get("sell_order_id", 0)
+        b_cid = self.router.client_order_registry.get(b_oid, b_oid)
+        s_cid = self.router.client_order_registry.get(s_oid, s_oid)
+
+        if self.risk_engine and (b_cid == 1 or s_cid == 1):
+            self.risk_engine.on_trade_executed(
+                buy_client_id=b_cid,
+                sell_client_id=s_cid,
+                price_float=trade_p,
+                quantity=qty,
+                symbol_id=venue.info.symbol_id,
+                buy_order_id=b_oid,
+                sell_order_id=s_oid,
+            )
+
+        if b_oid in venue.user_open_orders:
+            o_entry = venue.user_open_orders[b_oid]
+            o_entry["filled"] += qty
+            o_entry["remaining"] = max(0, o_entry["remaining"] - qty)
+            if o_entry["remaining"] <= 0:
+                del venue.user_open_orders[b_oid]
+
+        if s_oid in venue.user_open_orders:
+            o_entry = venue.user_open_orders[s_oid]
+            o_entry["filled"] += qty
+            o_entry["remaining"] = max(0, o_entry["remaining"] - qty)
+            if o_entry["remaining"] <= 0:
+                del venue.user_open_orders[s_oid]
+
         # 2. Update ML Models
         impact.record_execution(side, qty, trade_p)
         pattern_model.record_trade(trade_p, qty, side)
@@ -707,10 +751,6 @@ class HistoricalMarketReplayer:
 
         # 3. Inform Algo Bot
         if algo_mgr:
-            b_oid = match_info.get("buy_order_id", 0)
-            s_oid = match_info.get("sell_order_id", 0)
-            b_cid = self.router.client_order_registry.get(b_oid, b_oid)
-            s_cid = self.router.client_order_registry.get(s_oid, s_oid)
             aggressor = match_info.get("aggressor_side", 1)
             b_is_maker = (aggressor == 2)
             s_is_maker = (aggressor == 1)
@@ -732,8 +772,103 @@ class HistoricalMarketReplayer:
             regime=pattern_model.current_regime.value,
         )
 
-        # 4. Synthesize Live Candlestick
+        # 5. Synthesize Live Candlestick
         self._update_live_candle(sym, trade_p, qty)
+
+    def apply_user_trade_impact(
+        self,
+        symbol: str,
+        side: int,
+        quantity: int,
+        execution_price: float,
+    ) -> float:
+        """
+        Apply immediate market impact, price continuation, candle synthesis, and algorithm reaction
+        when the user places an order that executes.
+        Directly affects market maker quotes, wave momentum, and the next candle's open and path.
+        """
+        sym = symbol.strip().upper()
+        try:
+            venue = self.router.get_venue(sym)
+        except KeyError:
+            return execution_price
+
+        impact = self.impact_engines.get(sym)
+        pattern_model = self.pattern_models.get(sym)
+        algo_mgr = self.algo_managers.get(sym)
+        w_state = self.wave_states.get(sym)
+
+        cur_mid = self.current_mid.get(sym, execution_price)
+
+        # 1. Kyle's Lambda & Square-Root Law Market Impact
+        typical_vol = max(1000.0, impact.avg_daily_volume * 0.001 if impact else 5000.0)
+        vol_factor = math.sqrt(max(1.0, quantity) / typical_vol)
+        push_bps = max(0.0005, min(0.025, 0.0012 * vol_factor))
+        direction = 1.0 if side == int(OrderSide.BUY) else -1.0
+
+        impacted_mid = round(execution_price * (1.0 + direction * push_bps * 0.5), 2)
+        new_mid = round(cur_mid * 0.35 + impacted_mid * 0.65, 2)
+        if side == int(OrderSide.BUY):
+            new_mid = max(cur_mid, new_mid)
+        else:
+            new_mid = min(cur_mid, new_mid)
+
+        self.current_mid[sym] = new_mid
+        self.current_mid[venue.info.ticker] = new_mid
+        if "-" in sym:
+            self.current_mid[sym.split("-")[0]] = new_mid
+
+        venue.last_trade_price = execution_price
+        venue.high_price = max(venue.high_price, execution_price, new_mid)
+        venue.low_price = min(venue.low_price, execution_price, new_mid)
+
+        # 2. Inform ML Impact Engine & baseline price
+        if impact:
+            impact.record_execution(side, quantity, execution_price, is_taker=True)
+            impact.set_baseline_price(new_mid)
+
+        # 3. Inform ML Pattern Model
+        if pattern_model:
+            pattern_model.record_trade(execution_price, quantity, side)
+            pattern_model.update_order_book_depth(
+                from_fixed_price(venue.book.best_bid_price),
+                from_fixed_price(venue.book.best_ask_price),
+                venue.book.best_bid_volume,
+                venue.book.best_ask_volume,
+            )
+
+        # 4. Immediately incorporate user trade into live candle
+        self._update_live_candle(sym, execution_price, quantity)
+        bar = self.live_candle.get(sym)
+        if bar:
+            bar["close"] = new_mid
+            bar["high"] = max(bar["high"], new_mid)
+            bar["low"] = min(bar["low"], new_mid)
+
+        # 5. Algorithmic Market Maker inventory skew (Avellaneda-Stoikov)
+        # When user buys, MM inventory becomes more negative (short), shifting quotes HIGHER!
+        # When user sells, MM inventory becomes more positive (long), shifting quotes LOWER!
+        if algo_mgr:
+            if side == int(OrderSide.BUY):
+                algo_mgr.market_maker.inventory -= quantity
+            else:
+                algo_mgr.market_maker.inventory += quantity
+
+        # 6. Wave Momentum State Machine Reactivity
+        if w_state:
+            w_state.atr = max(w_state.atr, venue.info.tick_size * 15, new_mid * 0.006)
+            if side == int(OrderSide.BUY):
+                if quantity >= 100 or execution_price >= w_state.swing_high * 0.995:
+                    w_state.phase = "BULL_IMPULSE"
+                    w_state.bars_remaining = max(w_state.bars_remaining, random.randint(3, 5))
+                    w_state.swing_high = max(w_state.swing_high, new_mid + w_state.atr * 2.5)
+            else:
+                if quantity >= 100 or execution_price <= w_state.swing_low * 1.005:
+                    w_state.phase = "BEAR_IMPULSE"
+                    w_state.bars_remaining = max(w_state.bars_remaining, random.randint(3, 5))
+                    w_state.swing_low = min(w_state.swing_low, max(venue.info.tick_size * 5, new_mid - w_state.atr * 2.5))
+
+        return new_mid
 
     def _update_live_candle(self, sym: str, price: float, volume: int) -> None:
         """Accumulate live tick into active candle bar."""

@@ -402,7 +402,7 @@ class PreTradeRiskEngine:
         sell_order_id: Optional[int] = None,
     ):
         """Settle trade across buyer and seller accounts."""
-        if self.limits.enforce_margin:
+        if self.limits.enforce_margin or buy_client_id in self.accounts or sell_client_id in self.accounts:
             buy_acc = self.get_or_create_account(buy_client_id)
             buy_acc.settle_trade(side=0, price=price_float, quantity=quantity, symbol_id=symbol_id, order_id=buy_order_id)
 

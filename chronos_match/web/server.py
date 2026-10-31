@@ -195,6 +195,7 @@ class WebTradingServer:
             router=self.router,
             data_store=replayer_store,
             default_ticker="NVDA",
+            risk_engine=self.risk_engine,
         )
         for sym in ("NVDA", "NVDA-USD", "AAPL", "AAPL-USD", "MSFT", "MSFT-USD", "TSLA", "TSLA-USD", "RELIANCE", "RELIANCE-BSE", "BTC-USD", "ETH-USD", "SOL-USD"):
             try:
@@ -316,6 +317,7 @@ class WebTradingServer:
         sym_id = venue.info.symbol_id
         side = OrderSide.BUY if side_str.upper() == "BUY" else OrderSide.SELL
         order_id = self.router.allocate_order_id()
+        self.router.client_order_registry[order_id] = client_id
         venue.total_orders += 1
 
         # For Market sweeps, set aggressive price crossing the book
@@ -525,6 +527,17 @@ class WebTradingServer:
                 algo_mgr.on_trade_executed(buy_c, int(OrderSide.BUY), trade_p, qty)
                 algo_mgr.on_trade_executed(sell_c, int(OrderSide.SELL), trade_p, qty)
 
+        # Apply market impact, price continuation, MM inventory shift, and wave breakout
+        if filled_shares > 0:
+            total_notional = sum(from_fixed_price(m["execution_price"]) * m["quantity"] for m in matches)
+            avg_exec_p = round(total_notional / filled_shares, 2)
+            self.replayer.apply_user_trade_impact(
+                symbol=venue.info.ticker,
+                side=int(side),
+                quantity=filled_shares,
+                execution_price=avg_exec_p,
+            )
+
         # Record price tick for live chart
         if matches:
             venue.price_history.append({
@@ -562,6 +575,14 @@ class WebTradingServer:
                     "post_only": post_only,
                     "time": time.strftime("%H:%M:%S"),
                 }
+                pattern_model = self.replayer.pattern_models.get(venue.info.ticker)
+                if pattern_model:
+                    pattern_model.update_order_book_depth(
+                        from_fixed_price(venue.book.best_bid_price),
+                        from_fixed_price(venue.book.best_ask_price),
+                        venue.book.best_bid_volume,
+                        venue.book.best_ask_volume,
+                    )
 
         return {
             "success": True,
