@@ -1587,7 +1587,7 @@
 
       // 2. State Management
       const state = {
-        symbol: 'BTC-USD',
+        symbol: 'SOL-USD',
         userSelectedSymbol: false,
         theme: localStorage.getItem('chronos_theme') || 'light',
         activeTab: 'orders',
@@ -1599,13 +1599,13 @@
         orderType: 'LIMIT',
         botActive: true,
         botSpeed: 'medium',
-        marketPrice: 65000.0,
-        candles: generateInitialCandles(65000),
+        marketPrice: 150.0,
+        candles: generateInitialCandles(150),
         openOrders: [],
         holdings: {},
         trades: [],
         account: { cash_balance: 100000, equity: 100000, positions: {} },
-        l2: generateInitialL2(65000),
+        l2: generateInitialL2(150),
         hoveredBar: null,
         hoveredY: null,
         // Chart Viewport & Interaction State
@@ -1848,88 +1848,50 @@
           recenterBtn.style.display = (state.isCustomScale || Math.abs(state.priceCenterOffset || 0) > 1.0) ? 'inline-flex' : 'none';
         }
 
-        // 1. Compute min & max prices and distribution metrics over visible window
+        // 1. Compute min & max prices directly from the visible display window
         let minPrice = Infinity;
         let maxPrice = -Infinity;
-        let minBody = Infinity;
-        let maxBody = -Infinity;
         let maxVol = 0;
+        let highBarX = null, highBarVal = -Infinity;
+        let lowBarX = null, lowBarVal = Infinity;
 
-        const barRanges = [];
-        const barBodies = [];
-
-        for (const c of displayCandles) {
+        for (let i = 0; i < n; i++) {
+          const c = displayCandles[i];
           if (c.low < minPrice) minPrice = c.low;
           if (c.high > maxPrice) maxPrice = c.high;
-          const bLow = Math.min(c.open, c.close);
-          const bHigh = Math.max(c.open, c.close);
-          if (bLow < minBody) minBody = bLow;
-          if (bHigh > maxBody) maxBody = bHigh;
           if (c.volume > maxVol) maxVol = c.volume;
 
-          barRanges.push(Math.max(0.01, c.high - c.low));
-          barBodies.push(Math.max(0.01, bHigh - bLow));
-        }
-
-        barRanges.sort((a, b) => a - b);
-        barBodies.sort((a, b) => a - b);
-        const medianBarRange = barRanges[Math.floor(barRanges.length * 0.5)] || ((state.marketPrice || 65000) * 0.0008);
-        const medianBarBody = barBodies[Math.floor(barBodies.length * 0.5)] || (medianBarRange * 0.5);
-
-        // Maximum readable span constraint:
-        // Guarantees that normal candle bodies NEVER compress below 12px or turn into a flat line.
-        const maxComfortSpan = Math.max(medianBarRange * 16.0, (state.marketPrice || 65000) * 0.0025);
-
-        // Dynamic Focus Mode vs Full Auto-Fit Mode
-        let refMin, refMax;
-        if (state.focusMode === 'full') {
-          // Fit all visible candles with outlier dampening for extreme single-bar wicks
-          const fullSpan = maxPrice - minPrice;
-          const clampThreshold = maxComfortSpan * 2.2;
-          if (fullSpan > clampThreshold) {
-            const excess = fullSpan - clampThreshold;
-            const dampedExcess = Math.log1p(excess / medianBarRange) * medianBarRange * 3.5;
-            const mid = (maxPrice + minPrice) / 2;
-            const half = (clampThreshold + dampedExcess) / 2;
-            refMin = mid - half;
-            refMax = mid + half;
-          } else {
-            refMin = minPrice;
-            refMax = maxPrice;
+          if (c.high > highBarVal) {
+            highBarVal = c.high;
+            highBarX = i;
           }
-        } else {
-          // Focus mode: anchor vertical scale to active price action
-          const focusCount = Math.min(n, 12);
-          const focusBars = (state.scrollOffset === 0)
-            ? displayCandles.slice(-focusCount)
-            : displayCandles.slice(Math.max(0, Math.floor((n - focusCount) / 2)), Math.max(0, Math.floor((n - focusCount) / 2)) + focusCount);
-
-          let fMin = Math.min(...focusBars.map(c => c.low));
-          let fMax = Math.max(...focusBars.map(c => c.high));
-          if (state.scrollOffset === 0 && state.marketPrice) {
-            fMin = Math.min(fMin, state.marketPrice);
-            fMax = Math.max(fMax, state.marketPrice);
-          }
-
-          let focusSpan = fMax - fMin;
-          if (focusSpan > maxComfortSpan) {
-            // Outlier spike protection: prevent vertical scale blow-up
-            const excess = focusSpan - maxComfortSpan;
-            const dampedSpan = maxComfortSpan + Math.log1p(excess / medianBarRange) * medianBarRange * 2.5;
-            const anchor = (state.scrollOffset === 0 && state.marketPrice) ? state.marketPrice : (fMax + fMin) / 2;
-            refMin = anchor - dampedSpan * 0.45;
-            refMax = anchor + dampedSpan * 0.55;
-          } else {
-            refMin = fMin;
-            refMax = fMax;
+          if (c.low < lowBarVal) {
+            lowBarVal = c.low;
+            lowBarX = i;
           }
         }
 
-        // Breathing room: 16% padding so candles never press against chart boundaries
-        const baseSpan = Math.max(refMax - refMin, medianBarRange * 5.0, (state.marketPrice || 65000) * 0.0012);
-        const pad = baseSpan * 0.16;
-        refMin -= pad;
-        refMax += pad;
+        // Safe fallback if data is somehow empty or non-finite
+        if (!isFinite(minPrice) || !isFinite(maxPrice) || maxPrice <= minPrice) {
+          const fallback = (displayCandles[n - 1] || {}).close || 150.0;
+          minPrice = fallback * 0.995;
+          maxPrice = fallback * 1.005;
+        }
+
+        // Ensure healthy minimum price span so quiet periods never compress into a flat line
+        let rawSpan = maxPrice - minPrice;
+        const minSpan = Math.max(0.15, minPrice * 0.002);
+        if (rawSpan < minSpan) {
+          const mid = (maxPrice + minPrice) / 2;
+          minPrice = mid - minSpan / 2;
+          maxPrice = mid + minSpan / 2;
+          rawSpan = minSpan;
+        }
+
+        // Institutional 14% vertical padding above highest wick and below lowest wick
+        const padding = rawSpan * 0.14;
+        let refMin = minPrice - padding;
+        let refMax = maxPrice + padding;
 
         // Apply manual scaling / pan if adjusted by user
         let centerPrice = (refMax + refMin) / 2 + (state.priceCenterOffset || 0);
@@ -1945,7 +1907,7 @@
         const getY = (p) => chartAreaHeight - ((p - minPrice) / priceRange) * chartAreaHeight;
         const getVolY = (v) => h - bottomMargin - (v / (maxVol || 1)) * (volumeHeight - 6);
         const barSpacing = (w - rightMargin) / n;
-        const barWidth = Math.max(4, Math.min(20, barSpacing * 0.74));
+        const barWidth = Math.max(4, Math.min(22, barSpacing * 0.74));
 
         // 1. Grid & Price Ticks
         ctx.strokeStyle = gridColor;
@@ -2002,10 +1964,7 @@
           ctx.stroke();
         }
 
-        // 3. Candlesticks (rendered inside clip area)
-        let spikeHighVal = -Infinity, spikeHighX = null;
-        let spikeLowVal = Infinity, spikeLowX = null;
-
+        // 3. Candlesticks (rendered cleanly inside clip area)
         for (let i = 0; i < n; i++) {
           const c = displayCandles[i];
           const x = i * barSpacing + barSpacing / 2;
@@ -2013,67 +1972,34 @@
           const color = isGreen ? bullColor : bearColor;
           const borderC = isGreen ? (isDark ? '#34D399' : '#047857') : (isDark ? '#F87171' : '#B91C1C');
 
-          // Track out-of-bounds spike tips on recent bars to render crest badges
-          if (i >= n - 12) {
-            if (c.high > maxPrice && c.high > spikeHighVal) {
-              spikeHighVal = c.high;
-              spikeHighX = x;
-            }
-            if (c.low < minPrice && c.low < spikeLowVal) {
-              spikeLowVal = c.low;
-              spikeLowX = x;
-            }
-          }
-
           if (state.chartType === 'candles') {
             const openY = getY(c.open);
             const closeY = getY(c.close);
             const highY = getY(c.high);
             const lowY = getY(c.low);
 
+            const bodyTop = Math.min(openY, closeY);
             const rawBodyH = Math.abs(openY - closeY);
-            let topY = Math.min(openY, closeY);
-
-            // ANTI-STRAIGHT-LINE PROTECTION:
-            // 1. Guaranteed minimum 5px body height
-            // 2. Guaranteed wick extensions: wicks ALWAYS project at least 3px above & below body
-            // 3. Distinct stroke border and clear inter-candle spacing
-            const bodyH = Math.max(5.0, rawBodyH);
-            if (rawBodyH < 5.0) {
-              topY = topY - (5.0 - rawBodyH) / 2;
-            }
-
-            const wickTop = Math.min(highY, topY - 3.0);
-            const wickBottom = Math.max(lowY, topY + bodyH + 3.0);
+            const bodyH = Math.max(1.5, rawBodyH);
 
             // Draw upper and lower wicks
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.moveTo(x, wickTop);
-            ctx.lineTo(x, wickBottom);
+            ctx.moveTo(x, highY);
+            ctx.lineTo(x, lowY);
             ctx.stroke();
 
-            // Draw candle body with border
+            // Draw candle body with distinct clean border
             ctx.fillStyle = color;
-            ctx.fillRect(x - barWidth / 2, topY, barWidth, bodyH);
+            ctx.fillRect(x - barWidth / 2, bodyTop, barWidth, bodyH);
             ctx.strokeStyle = borderC;
             ctx.lineWidth = 1;
-            ctx.strokeRect(x - barWidth / 2, topY, barWidth, bodyH);
-
-            // If candle has nearly identical open and close (Doji), draw clear accent tick
-            if (rawBodyH < 2.0) {
-              ctx.strokeStyle = isDark ? '#FFFFFF' : '#0F172A';
-              ctx.lineWidth = 1.5;
-              ctx.beginPath();
-              ctx.moveTo(x - barWidth / 2 - 1, topY + bodyH / 2);
-              ctx.lineTo(x + barWidth / 2 + 1, topY + bodyH / 2);
-              ctx.stroke();
-            }
+            ctx.strokeRect(x - barWidth / 2, bodyTop, barWidth, bodyH);
           } else {
             if (i === 0) {
               ctx.beginPath();
-              ctx.strokeStyle = state.marketPrice >= displayCandles[0].close ? bullColor : bearColor;
+              ctx.strokeStyle = displayCandles[n - 1].close >= displayCandles[0].close ? bullColor : bearColor;
               ctx.lineWidth = 2;
               ctx.moveTo(x, getY(c.close));
             } else {
@@ -2084,33 +2010,26 @@
         }
         ctx.restore();
 
-        // 3b. Out-of-bounds Spike Crest Badges
-        if (spikeHighVal > maxPrice && spikeHighX !== null) {
-          ctx.fillStyle = isDark ? 'rgba(16, 185, 129, 0.92)' : 'rgba(5, 150, 105, 0.95)';
-          const txt = `▲ Peak ${spikeHighVal.toFixed(2)}`;
-          ctx.font = 'bold 10px JetBrains Mono';
-          const txtW = ctx.measureText(txt).width;
-          const badgeX = Math.max(6, Math.min(w - rightMargin - txtW - 14, spikeHighX - txtW / 2 - 6));
-          ctx.beginPath();
-          ctx.roundRect(badgeX, 6, txtW + 12, 18, 3);
-          ctx.fill();
-          ctx.fillStyle = '#FFFFFF';
-          ctx.textAlign = 'left';
-          ctx.fillText(txt, badgeX + 6, 19);
+        // 3b. High & Low Session Tags
+        if (highBarX !== null && highBarX >= 0 && highBarX < n) {
+          const hx = highBarX * barSpacing + barSpacing / 2;
+          const hy = getY(highBarVal);
+          if (hy >= 14 && hy <= chartAreaHeight) {
+            ctx.fillStyle = isDark ? '#94A3B8' : '#64748B';
+            ctx.font = 'bold 9px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText(`▲ H: ${highBarVal.toFixed(2)}`, hx, Math.max(14, hy - 5));
+          }
         }
-
-        if (spikeLowVal < minPrice && spikeLowX !== null) {
-          ctx.fillStyle = isDark ? 'rgba(239, 68, 68, 0.92)' : 'rgba(220, 38, 38, 0.95)';
-          const txt = `▼ Trough ${spikeLowVal.toFixed(2)}`;
-          ctx.font = 'bold 10px JetBrains Mono';
-          const txtW = ctx.measureText(txt).width;
-          const badgeX = Math.max(6, Math.min(w - rightMargin - txtW - 14, spikeLowX - txtW / 2 - 6));
-          ctx.beginPath();
-          ctx.roundRect(badgeX, chartAreaHeight - 24, txtW + 12, 18, 3);
-          ctx.fill();
-          ctx.fillStyle = '#FFFFFF';
-          ctx.textAlign = 'left';
-          ctx.fillText(txt, badgeX + 6, chartAreaHeight - 11);
+        if (lowBarX !== null && lowBarX >= 0 && lowBarX < n) {
+          const lx = lowBarX * barSpacing + barSpacing / 2;
+          const ly = getY(lowBarVal);
+          if (ly >= 0 && ly <= chartAreaHeight - 12) {
+            ctx.fillStyle = isDark ? '#94A3B8' : '#64748B';
+            ctx.font = 'bold 9px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText(`▼ L: ${lowBarVal.toFixed(2)}`, lx, Math.min(chartAreaHeight - 4, ly + 12));
+          }
         }
 
         // 4. Volume Bars & Time Labels
@@ -2121,8 +2040,8 @@
 
           const vy = getVolY(c.volume);
           ctx.fillStyle = isGreen
-            ? (isDark ? 'rgba(16, 185, 129, 0.22)' : 'rgba(5, 150, 105, 0.22)')
-            : (isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(220, 38, 38, 0.22)');
+            ? (isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(5, 150, 105, 0.28)')
+            : (isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(220, 38, 38, 0.28)');
           ctx.fillRect(x - barWidth / 2, vy, barWidth, h - bottomMargin - vy);
 
           if (i % Math.max(1, Math.round(n / 6)) === 0 || i === n - 1) {
@@ -2134,7 +2053,7 @@
           }
         }
 
-        // 5. Current Real-Time Price Line & Badge
+        // 5. Current Real-Time Price Line & Pulsing Badge
         const latestGlobalCandle = candles[totalCandles - 1];
         if (latestGlobalCandle) {
           const curY = getY(latestGlobalCandle.close);
@@ -2143,6 +2062,7 @@
 
           if (curY >= 0 && curY <= chartAreaHeight) {
             ctx.strokeStyle = badgeColor;
+            ctx.lineWidth = 1;
             ctx.setLineDash([4, 4]);
             ctx.beginPath();
             ctx.moveTo(0, curY);
@@ -2150,12 +2070,52 @@
             ctx.stroke();
             ctx.setLineDash([]);
 
+            // Badge on right axis
             ctx.fillStyle = badgeColor;
-            ctx.fillRect(w - rightMargin + 4, curY - 9, rightMargin - 8, 18);
+            ctx.beginPath();
+            ctx.roundRect(w - rightMargin + 4, curY - 9, rightMargin - 8, 18, 3);
+            ctx.fill();
+
             ctx.fillStyle = '#FFFFFF';
             ctx.font = 'bold 11px JetBrains Mono';
             ctx.textAlign = 'center';
             ctx.fillText(latestGlobalCandle.close.toFixed(2), w - rightMargin / 2, curY + 4);
+          }
+        }
+
+        // Floating Symbol & Trend Info Pill in top-left (when not hovering)
+        if (state.hoveredBar === null) {
+          const latestBar = displayCandles[n - 1];
+          if (latestBar) {
+            const isLatestUp = latestBar.close >= latestBar.open;
+            const chg = latestBar.close - latestBar.open;
+            const chgPct = (latestBar.open > 0 ? (chg / latestBar.open) * 100 : 0).toFixed(2);
+            const sign = chg >= 0 ? '+' : '';
+            const pillC = isLatestUp ? bullColor : bearColor;
+
+            ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.90)';
+            ctx.strokeStyle = isDark ? 'rgba(51, 65, 85, 0.7)' : 'rgba(203, 213, 225, 0.8)';
+            ctx.lineWidth = 1;
+
+            const symText = `${state.activeSymbol || 'MARKET'}`;
+            const priceText = `${latestBar.close.toFixed(2)}`;
+            const chgText = `(${sign}${chgPct}%)`;
+
+            ctx.font = 'bold 11px JetBrains Mono';
+            const totalW = ctx.measureText(`${symText}  ${priceText}  ${chgText}`).width + 20;
+
+            ctx.beginPath();
+            ctx.roundRect(12, 10, totalW, 24, 4);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = textMain;
+            ctx.textAlign = 'left';
+            let curX = 20;
+            ctx.fillText(symText, curX, 26);
+            curX += ctx.measureText(symText).width + 8;
+            ctx.fillStyle = pillC;
+            ctx.fillText(`${priceText} ${chgText}`, curX, 26);
           }
         }
 

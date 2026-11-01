@@ -367,26 +367,31 @@ class HistoricalMarketReplayer:
             vol_mult = 1.0
 
         # Authentic tick volatility shock calibrated for high-frequency (25 ticks/sec) loop
-        drift = drift * 0.05
-        step_sigma = (daily_vol * 0.001) * vol_mult
-        shock = random.gauss(0, 1) * max(0.00005, step_sigma)
-        ofi_push = impact.ofi * (daily_vol * 0.0006)
+        step_sigma = (daily_vol / 45.0) * vol_mult
+        shock = random.gauss(0, 1) * step_sigma
+        ofi_push = impact.ofi * (daily_vol * 0.0001)
+        drift_step = drift * 0.20
 
-        stochastic_mid = cur_mid * (1.0 + drift + shock + ofi_push)
-        effective_impact_mid = impact.get_effective_price()
-        blend_factor = 0.20
-        new_mid = round(stochastic_mid * (1.0 - blend_factor) + effective_impact_mid * blend_factor, 2)
-
-        min_p = max(tick * 5, round((venue.info.initial_price or 100.0) * 0.60, 2))
-        max_p = round((venue.info.initial_price or 100.0) * 2.00, 2)
+        new_mid = cur_mid * (1.0 + drift_step + shock + ofi_push)
+        min_p = max(tick * 5, (venue.info.initial_price or 100.0) * 0.60)
+        max_p = (venue.info.initial_price or 100.0) * 2.00
         new_mid = max(min_p, min(max_p, new_mid))
 
         self.current_mid[sym] = new_mid
         self.current_mid[venue.info.ticker] = new_mid
         if "-" in sym:
             self.current_mid[sym.split("-")[0]] = new_mid
-        impact.set_baseline_price(new_mid)
-        effective_mid = new_mid
+
+        effective_mid = round(new_mid, 2)
+        impact.set_baseline_price(effective_mid)
+
+        # Dynamic live candle tracking
+        bar = self.live_candle.get(sym)
+        if bar:
+            bar["close"] = effective_mid
+            bar["high"] = max(bar["high"], effective_mid)
+            bar["low"] = min(bar["low"], effective_mid)
+
         events: List[Dict[str, Any]] = []
 
         # 2. Market Maker Quoting
@@ -635,6 +640,27 @@ class HistoricalMarketReplayer:
                 self._on_trade_matched(venue, sym, int(side), trade_p, m["quantity"], impact, pattern_model, algo_mgr, m)
                 events.append({"type": "NATURAL_FILL", "price": trade_p, "qty": m["quantity"]})
 
+        # Ensure book depth never completely empties after an aggressive sweep
+        if from_fixed_price(venue.book.best_bid_price) <= 0:
+            for lvl in range(4):
+                p_lvl = round(target_bid - lvl * tick, 2)
+                if p_lvl <= 0:
+                    break
+                b_oid = self.router.allocate_order_id()
+                self.router.client_order_registry[b_oid] = 99
+                venue.book.add_limit_order(b_oid, 99, to_fixed_price(p_lvl), random.choice([200, 500]), int(OrderSide.BUY), venue.info.symbol_id)
+                self._track_sim_order(venue, sym, b_oid)
+                venue.total_orders += 1
+
+        if from_fixed_price(venue.book.best_ask_price) <= 0:
+            for lvl in range(4):
+                p_lvl = round(target_ask + lvl * tick, 2)
+                a_oid = self.router.allocate_order_id()
+                self.router.client_order_registry[a_oid] = 99
+                venue.book.add_limit_order(a_oid, 99, to_fixed_price(p_lvl), random.choice([200, 500]), int(OrderSide.SELL), venue.info.symbol_id)
+                self._track_sim_order(venue, sym, a_oid)
+                venue.total_orders += 1
+
         # 5. Check Candlestick Rollover Interval
         self._check_candle_rollover(sym, daily_vol, tick)
 
@@ -671,10 +697,6 @@ class HistoricalMarketReplayer:
         venue.total_volume += qty
         venue.high_price = max(venue.high_price, trade_p)
         venue.low_price = min(venue.low_price, trade_p)
-        self.current_mid[sym] = trade_p
-        self.current_mid[venue.info.ticker] = trade_p
-        if "-" in sym:
-            self.current_mid[sym.split("-")[0]] = trade_p
 
         # 1. Record Trade & Inspect Whale Flow
         trade_id = match_info.get("trade_id", venue.total_trades)
@@ -785,7 +807,9 @@ class HistoricalMarketReplayer:
         """
         Apply immediate market impact, price continuation, candle synthesis, and algorithm reaction
         when the user places an order that executes.
-        Directly affects market maker quotes, wave momentum, and the next candle's open and path.
+        Treats the user as an authentic real-market participant:
+        - Normal retail orders (10-1000 shares) create realistic micro-impact without wild spikes.
+        - Institutional whale orders (>= 5000 shares) create substantial momentum.
         """
         sym = symbol.strip().upper()
         try:
@@ -800,18 +824,19 @@ class HistoricalMarketReplayer:
 
         cur_mid = self.current_mid.get(sym, execution_price)
 
-        # 1. Kyle's Lambda & Square-Root Law Market Impact
+        # 1. Authentic Microstructure Impact (Kyle's Lambda & Square-Root Law)
+        # Normal user order (10-1000 shares) produces healthy, realistic 1-5 tick nudge
         typical_vol = max(1000.0, impact.avg_daily_volume * 0.001 if impact else 5000.0)
         vol_factor = math.sqrt(max(1.0, quantity) / typical_vol)
-        push_bps = max(0.0005, min(0.025, 0.0012 * vol_factor))
         direction = 1.0 if side == int(OrderSide.BUY) else -1.0
+        push_bps = max(0.0002, min(0.004, 0.0006 * vol_factor))
 
-        impacted_mid = round(execution_price * (1.0 + direction * push_bps * 0.5), 2)
-        new_mid = round(cur_mid * 0.35 + impacted_mid * 0.65, 2)
+        impacted_mid = execution_price * (1.0 + direction * push_bps)
+        new_mid = round(cur_mid * 0.60 + impacted_mid * 0.40, 2)
         if side == int(OrderSide.BUY):
-            new_mid = max(cur_mid, new_mid)
+            new_mid = max(round(cur_mid + venue.info.tick_size, 2), new_mid)
         else:
-            new_mid = min(cur_mid, new_mid)
+            new_mid = min(round(cur_mid - venue.info.tick_size, 2), new_mid)
 
         self.current_mid[sym] = new_mid
         self.current_mid[venue.info.ticker] = new_mid
@@ -841,13 +866,11 @@ class HistoricalMarketReplayer:
         self._update_live_candle(sym, execution_price, quantity)
         bar = self.live_candle.get(sym)
         if bar:
-            bar["close"] = new_mid
-            bar["high"] = max(bar["high"], new_mid)
-            bar["low"] = min(bar["low"], new_mid)
+            bar["close"] = round(new_mid, 2)
+            bar["high"] = max(bar["high"], round(new_mid, 2))
+            bar["low"] = min(bar["low"], round(new_mid, 2))
 
         # 5. Algorithmic Market Maker inventory skew (Avellaneda-Stoikov)
-        # When user buys, MM inventory becomes more negative (short), shifting quotes HIGHER!
-        # When user sells, MM inventory becomes more positive (long), shifting quotes LOWER!
         if algo_mgr:
             if side == int(OrderSide.BUY):
                 algo_mgr.market_maker.inventory -= quantity
@@ -855,18 +878,18 @@ class HistoricalMarketReplayer:
                 algo_mgr.market_maker.inventory += quantity
 
         # 6. Wave Momentum State Machine Reactivity
+        # Sizeable orders (>= 500 shares) reinforce macro wave impulse
         if w_state:
             w_state.atr = max(w_state.atr, venue.info.tick_size * 15, new_mid * 0.006)
-            if side == int(OrderSide.BUY):
-                if quantity >= 100 or execution_price >= w_state.swing_high * 0.995:
+            if quantity >= 500:
+                if side == int(OrderSide.BUY):
                     w_state.phase = "BULL_IMPULSE"
                     w_state.bars_remaining = max(w_state.bars_remaining, random.randint(3, 5))
-                    w_state.swing_high = max(w_state.swing_high, new_mid + w_state.atr * 2.5)
-            else:
-                if quantity >= 100 or execution_price <= w_state.swing_low * 1.005:
+                    w_state.swing_high = max(w_state.swing_high, new_mid + w_state.atr * 2.0)
+                else:
                     w_state.phase = "BEAR_IMPULSE"
                     w_state.bars_remaining = max(w_state.bars_remaining, random.randint(3, 5))
-                    w_state.swing_low = min(w_state.swing_low, max(venue.info.tick_size * 5, new_mid - w_state.atr * 2.5))
+                    w_state.swing_low = min(w_state.swing_low, max(venue.info.tick_size * 5, new_mid - w_state.atr * 2.0))
 
         return new_mid
 
@@ -984,70 +1007,30 @@ class HistoricalMarketReplayer:
                 atr = w_state.atr
 
                 # Ensure every candle has authentic natural body and distinct wicks
-                if bar["trades"] == 0 or abs(bar["close"] - bar["open"]) < tick:
-                    # Synthesize authentic candle geometry driven by active wave phase
-                    if w_state.phase == "BULL_IMPULSE":
-                        is_green = random.random() < 0.80
-                        move = atr * random.uniform(0.5, 1.2) if is_green else atr * random.uniform(0.15, 0.4)
-                        bar["close"] = round(bar["open"] + (move if is_green else -move), 2)
-                        wick_u = round(atr * random.uniform(0.10, 0.35), 2)
-                        wick_l = round(atr * random.uniform(0.10, 0.30), 2)
-                        bar["volume"] = random.randint(15000, 45000)
-                    elif w_state.phase == "BULL_PULLBACK":
-                        # Retracement candle (red!)
-                        is_red = random.random() < 0.78
-                        move = atr * random.uniform(0.4, 0.8) if is_red else atr * random.uniform(0.1, 0.3)
-                        bar["close"] = round(bar["open"] - (move if is_red else -move), 2)
-                        wick_u = round(atr * random.uniform(0.20, 0.45), 2)
-                        wick_l = round(atr * random.uniform(0.10, 0.25), 2)
-                        bar["volume"] = random.randint(5000, 18000)
-                    elif w_state.phase == "BEAR_IMPULSE":
-                        is_red = random.random() < 0.80
-                        move = atr * random.uniform(0.5, 1.2) if is_red else atr * random.uniform(0.15, 0.4)
-                        bar["close"] = round(bar["open"] - (move if is_red else -move), 2)
-                        wick_u = round(atr * random.uniform(0.10, 0.30), 2)
-                        wick_l = round(atr * random.uniform(0.10, 0.35), 2)
-                        bar["volume"] = random.randint(15000, 45000)
-                    elif w_state.phase == "BEAR_PULLBACK":
-                        is_green = random.random() < 0.70
-                        move = atr * random.uniform(0.3, 0.6) if is_green else atr * random.uniform(0.1, 0.3)
-                        bar["close"] = round(bar["open"] + (move if is_green else -move), 2)
-                        wick_u = round(atr * random.uniform(0.20, 0.40), 2)
-                        wick_l = round(atr * random.uniform(0.10, 0.25), 2)
-                        bar["volume"] = random.randint(5000, 18000)
-                    elif w_state.phase == "REVERSAL_BOUNCE":
-                        # Bullish Hammer! Long lower wick, small green body
-                        move = atr * random.uniform(0.25, 0.6)
-                        bar["close"] = round(bar["open"] + move, 2)
-                        wick_u = round(atr * random.uniform(0.05, 0.20), 2)
-                        wick_l = round(atr * random.uniform(1.4, 2.5), 2)  # Extended hammer shadow!
-                        bar["volume"] = random.randint(25000, 60000)
-                    else:  # RANGE_CONSOLIDATION
-                        is_doji = random.random() < 0.45
-                        move = atr * random.uniform(0.02, 0.15) if is_doji else atr * random.uniform(0.15, 0.4)
-                        direction = 1 if random.random() < 0.50 else -1
-                        bar["close"] = round(bar["open"] + direction * move, 2)
-                        wick_u = round(atr * random.uniform(0.25, 0.65), 2)
-                        wick_l = round(atr * random.uniform(0.25, 0.65), 2)
-                        bar["volume"] = random.randint(4000, 15000)
+                bar_o = bar["open"]
+                bar_c = bar["close"]
 
-                    bar["high"] = round(max(bar["open"], bar["close"]) + wick_u, 2)
-                    bar["low"] = round(max(tick, min(bar["open"], bar["close"]) - wick_l), 2)
-                else:
-                    # Active traded bars: preserve authentic traded extremes from matched order flow
-                    bar["high"] = max(bar["high"], max(bar["open"], bar["close"]))
-                    bar["low"] = min(bar["low"], min(bar["open"], bar["close"]))
+                # Natural body: if market was unusually flat, provide subtle natural displacement
+                min_body = max(tick * 3, atr * 0.18)
+                if abs(bar_c - bar_o) < min_body:
+                    if w_state.phase in ("BULL_IMPULSE", "REVERSAL_BOUNCE"):
+                        bias = 1
+                    elif w_state.phase in ("BEAR_IMPULSE", "BULL_PULLBACK"):
+                        bias = -1
+                    else:
+                        bias = 1 if random.random() < 0.50 else -1
+                    bar_c = round(bar_o + bias * min_body * random.uniform(0.75, 1.4), 2)
+                    bar["close"] = bar_c
 
-                    # Ensure active bar has realistic body and upper/lower shadows
-                    min_tr = max(tick * 4, atr * 0.35)
-                    body_top = max(bar["open"], bar["close"])
-                    body_bot = min(bar["open"], bar["close"])
+                # Natural organic wicks extending beyond candle body
+                body_high = max(bar_o, bar_c)
+                body_low = min(bar_o, bar_c)
+                upper_shadow = round(random.uniform(atr * 0.08, atr * 0.38), 2)
+                lower_shadow = round(random.uniform(atr * 0.08, atr * 0.38), 2)
 
-                    # If high - low is too compressed, synthesize natural bid-ask bounce shadows
-                    if (bar["high"] - bar["low"]) < min_tr:
-                        bar["high"] = round(body_top + atr * 0.20, 2)
-                        bar["low"] = round(max(tick, body_bot - atr * 0.20), 2)
-                    bar["volume"] = max(bar["volume"], random.randint(8000, 35000))
+                bar["high"] = round(max(bar["high"], body_high + upper_shadow), 2)
+                bar["low"] = round(max(tick, min(bar["low"], body_low - lower_shadow)), 2)
+                bar["volume"] = max(bar["volume"], random.randint(15000, 48000))
 
                 self.current_mid[sym] = bar["close"]
                 self.current_mid[sym.split("-")[0]] = bar["close"]

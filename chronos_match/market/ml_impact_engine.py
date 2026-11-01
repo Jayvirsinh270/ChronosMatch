@@ -76,6 +76,8 @@ class MLMarketImpactEngine:
         """Update macro historical anchor price (from real stock dataset)."""
         if price > 0:
             self.base_price = price
+            # Absorb permanent impact offset into the baseline so it never compounds repeatedly
+            self.permanent_impact_offset = 0.0
 
     def record_execution(self, side: int, quantity: int, execution_price: float, is_taker: bool = True) -> float:
         """
