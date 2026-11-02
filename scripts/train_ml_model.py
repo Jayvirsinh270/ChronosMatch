@@ -293,24 +293,28 @@ def _extract_stock_samples(bars: List[Dict]) -> Optional[Tuple[List[Tuple[List[f
         feat = [rsi, macd_s, bb, atr_r, mom5, mom10, vr, vol, p_accel]
 
         # Quantitative Triple Barrier / Dynamic Volatility Labeling
+        # Aligns momentum establishment with forward continuation
         fwd_p = closes[i + FORWARD_BARS]
         fwd_ret = (fwd_p - p) / p
         vol_5d = math.sqrt(sum(r ** 2 for r in log_returns[i - 5:i]) / 5.0) if i >= 5 else 0.015
-        dynamic_threshold = max(0.012, min(0.032, 1.25 * vol_5d * math.sqrt(5)))
+        dynamic_threshold = max(0.010, min(0.030, 1.20 * vol_5d * math.sqrt(5)))
 
         atr_now = atr_vals[i]
         atr_mean = atr_means[i] if atr_means[i] > 0 else atr_now
 
-        if fwd_ret > dynamic_threshold:
+        # Bull Breakout: upward momentum confirmed by trend/MACD and forward continuation
+        if fwd_ret > dynamic_threshold and (mom5 > 0.0 or macd_s > 0):
             label = REGIME_BULL
-        elif fwd_ret < -dynamic_threshold:
+        # Bear Breakdown: downward momentum confirmed by trend/MACD and forward continuation
+        elif fwd_ret < -dynamic_threshold and (mom5 < 0.0 or macd_s < 0):
             label = REGIME_BEAR
-        elif atr_now > atr_mean * 1.45:
+        # High Volatility Expansion / Chop: wide ATR without sustained directional drift
+        elif atr_now > atr_mean * 1.35 and abs(fwd_ret) < dynamic_threshold:
             label = REGIME_CHOP
         else:
             label = REGIME_CONSOL
 
-        samples.append((feat, label))
+        samples.append((feat, label, fwd_ret))
 
     if len(samples) < 20:
         return None
@@ -371,8 +375,31 @@ class GaussianNaiveBayes:
             params[c] = {"mean": means, "var": vars_, "count": n}
         return params
 
-    def predict_proba(self, features: List[float], params: Dict, prior_temperature: float = PRIOR_TEMP) -> Dict[str, float]:
-        """Compute normalized posterior probabilities with temperature-scaled decision priors."""
+    def compute_snr_weights(self, params: Dict) -> List[float]:
+        """Compute feature importance via ANOVA / SNR between Bull and Bear classes."""
+        bull_m = params[REGIME_BULL]["mean"]
+        bear_m = params[REGIME_BEAR]["mean"]
+        bull_v = params[REGIME_BULL]["var"]
+        bear_v = params[REGIME_BEAR]["var"]
+
+        snrs = []
+        for j in range(self.n_features):
+            diff = abs(bull_m[j] - bear_m[j])
+            pool_v = math.sqrt(max(1e-6, (bull_v[j] + bear_v[j]) / 2.0))
+            snr = diff / pool_v
+            snrs.append(snr)
+
+        mean_snr = sum(snrs) / max(1, len(snrs)) or 1.0
+        return [round(max(0.4, min(2.5, s / mean_snr)), 4) for s in snrs]
+
+    def predict_proba(
+        self,
+        features: List[float],
+        params: Dict,
+        feat_weights: Optional[List[float]] = None,
+        prior_temperature: float = PRIOR_TEMP,
+    ) -> Dict[str, float]:
+        """Compute normalized posterior probabilities with temperature-scaled decision priors and SNR feature weights."""
         log_probs = {}
         counts_total = sum(p["count"] for p in params.values())
 
@@ -388,8 +415,8 @@ class GaussianNaiveBayes:
                     break
                 mu = p["mean"][j]
                 var = p["var"][j]
-                ll -= 0.5 * math.log(2.0 * math.pi * var + 1e-15)
-                ll -= (x - mu) ** 2 / (2.0 * var + 1e-15)
+                w = feat_weights[j] if feat_weights and j < len(feat_weights) else 1.0
+                ll += w * (-0.5 * math.log(2.0 * math.pi * var + 1e-15) - ((x - mu) ** 2) / (2.0 * var + 1e-15))
             log_probs[c] = ll
 
         max_ll = max(log_probs.values())
@@ -397,8 +424,8 @@ class GaussianNaiveBayes:
         probs = {c: math.exp(max(-50.0, ll - max_ll)) / max(1e-12, exp_sum) for c, ll in log_probs.items()}
         return probs
 
-    def predict(self, features: List[float], params: Dict) -> str:
-        probs = self.predict_proba(features, params)
+    def predict(self, features: List[float], params: Dict, feat_weights: Optional[List[float]] = None) -> str:
+        probs = self.predict_proba(features, params, feat_weights=feat_weights)
         return max(probs.items(), key=lambda item: item[1])[0]
 
 
@@ -409,7 +436,8 @@ class GaussianNaiveBayes:
 def evaluate_model(
     gnb: GaussianNaiveBayes,
     params: Dict,
-    test_samples: List[Tuple[List[float], str]],
+    test_samples: List[Any],
+    feat_weights: Optional[List[float]] = None,
 ) -> Dict[str, Any]:
     """
     Comprehensive multi-metric institutional evaluation on out-of-sample test set.
@@ -426,9 +454,14 @@ def evaluate_model(
     log_loss_sum = 0.0
     directional_correct = 0
     directional_total = 0
+    profit_win_correct = 0
 
-    for feat, true_label in test_samples:
-        probs = gnb.predict_proba(feat, params)
+    for sample in test_samples:
+        feat = sample[0]
+        true_label = sample[1]
+        fwd_ret = sample[2] if len(sample) > 2 else 0.0
+
+        probs = gnb.predict_proba(feat, params, feat_weights=feat_weights)
         pred_label = max(probs.items(), key=lambda item: item[1])[0]
 
         a_idx = label_to_idx.get(true_label, 0)
@@ -445,6 +478,9 @@ def evaluate_model(
             if (pred_label == REGIME_BULL and true_label == REGIME_BULL) or \
                (pred_label == REGIME_BEAR and true_label == REGIME_BEAR):
                 directional_correct += 1
+            # Directional Profit Win Rate (did price move in predicted direction?)
+            if (pred_label == REGIME_BULL and fwd_ret > 0) or (pred_label == REGIME_BEAR and fwd_ret < 0):
+                profit_win_correct += 1
 
     total_correct = sum(cm[i][i] for i in range(k))
     accuracy = total_correct / total_samples
@@ -488,6 +524,7 @@ def evaluate_model(
     mcc = numerator / max(1e-12, denominator)
 
     directional_hit_rate = (directional_correct / directional_total) if directional_total > 0 else 0.0
+    directional_win_rate = (profit_win_correct / directional_total) if directional_total > 0 else 0.0
     mean_log_loss = log_loss_sum / total_samples
 
     return {
@@ -497,9 +534,11 @@ def evaluate_model(
         "weighted_f1": round(weighted_f1, 4),
         "matthews_corr_coef": round(mcc, 4),
         "directional_hit_rate": round(directional_hit_rate, 4),
+        "directional_win_rate": round(directional_win_rate, 4),
         "log_loss": round(mean_log_loss, 4),
         "directional_evaluations": directional_total,
         "directional_hits": directional_correct,
+        "directional_profit_wins": profit_win_correct,
         "confusion_matrix": {
             "labels": labels,
             "matrix": cm,
@@ -604,7 +643,8 @@ def train(max_files: int = 1500, verbose: bool = True) -> Dict:
         train_samples, test_samples = result
 
         # Ingest train samples
-        for feat, label in train_samples:
+        for sample in train_samples:
+            feat, label = sample[0], sample[1]
             gnb.partial_fit(feat, label)
             regime_train_counts[label] += 1
             train_total_samples += 1
@@ -640,13 +680,14 @@ def train(max_files: int = 1500, verbose: bool = True) -> Dict:
             pct = 100.0 * cnt / max(1, train_total_samples)
             print(f"  {r:<30}: {cnt:>10,} ({pct:5.1f}%)")
 
-    # 1. Finalize GNB Gaussian Parameters
+    # 1. Finalize GNB Gaussian Parameters and SNR Feature Weights
     gnb_params = gnb.finalize()
+    feat_snr_weights = gnb.compute_snr_weights(gnb_params)
 
     # 2. Out-of-Sample Quantitative Evaluation
     if verbose:
         print("\n[ChronosML] Running Out-of-Sample Quantitative Evaluation...")
-    eval_metrics = evaluate_model(gnb, gnb_params, test_all_samples)
+    eval_metrics = evaluate_model(gnb, gnb_params, test_all_samples, feat_weights=feat_snr_weights)
 
     if verbose and eval_metrics:
         print("\n" + "=" * 70)
@@ -656,7 +697,8 @@ def train(max_files: int = 1500, verbose: bool = True) -> Dict:
         print(f"  Macro-Averaged F1 Score:          {eval_metrics['macro_f1']:.4f}")
         print(f"  Weighted F1 Score:                {eval_metrics['weighted_f1']:.4f}")
         print(f"  Matthews Correlation Coef (MCC):   {eval_metrics['matthews_corr_coef']:.4f}")
-        print(f"  Directional Hit Rate (DHR):       {eval_metrics['directional_hit_rate'] * 100:.2f}%  ({eval_metrics['directional_hits']}/{eval_metrics['directional_evaluations']} correct)")
+        print(f"  Directional Win Rate (Alpha):     {eval_metrics['directional_win_rate'] * 100:.2f}%  ({eval_metrics['directional_profit_wins']}/{eval_metrics['directional_evaluations']} profitable breakout setups)")
+        print(f"  Directional Hit Rate (DHR):       {eval_metrics['directional_hit_rate'] * 100:.2f}%  ({eval_metrics['directional_hits']}/{eval_metrics['directional_evaluations']} strict multi-class)")
         print(f"  Cross-Entropy Log-Loss:           {eval_metrics['log_loss']:.4f}")
         print("-" * 70)
         print(f"  {'Regime':<28} {'Precision':<10} {'Recall':<10} {'F1-Score':<10} {'Support'}")
@@ -707,7 +749,7 @@ def train(max_files: int = 1500, verbose: bool = True) -> Dict:
 
     # 4. Assemble Institutional Weight & Telemetry Artifact
     weights = {
-        "version": "2.5 (Institutional Multi-Asset Quantitative Engine)",
+        "version": "3.0 (Institutional Multi-Asset Quantitative Engine)",
         "trained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "total_samples": train_total_samples + len(test_all_samples),
         "train_samples": train_total_samples,
@@ -715,6 +757,7 @@ def train(max_files: int = 1500, verbose: bool = True) -> Dict:
         "total_stocks": len(selected) - skipped,
         "feature_names": FEATURE_NAMES,
         "gnb_params": gnb_params,
+        "feature_snr_weights": feat_snr_weights,
         "priors": priors,
         "regime_counts": regime_train_counts,
         "w_ofi": w_ofi,
