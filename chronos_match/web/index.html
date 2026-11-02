@@ -1194,7 +1194,7 @@
     <div class="price-group">
       <span class="asset-title" id="marketSymTitle">BTC / USD</span>
       <span class="asset-price mono" id="marketPrice">$42,845.23</span>
-      <span class="change-badge up mono" id="marketChangeBadge">+0.00% ▲</span>
+      <span class="change-badge up mono" id="marketChangeBadge">+0.00%</span>
     </div>
 
     <div class="market-stats-row">
@@ -1255,13 +1255,13 @@
             </div>
             <!-- Focus & Auto-Fit Mode Selector -->
             <div class="chart-btn-group" id="scaleGroup">
-              <button class="chart-btn active" id="btnFocusMode" title="Focus Mode: Tall prominent candles tracking active price">⚡ Focus</button>
-              <button class="chart-btn" id="btnAutoFit" title="Auto-Fit: Fit all visible historical bars in viewport">⤢ Auto-Fit</button>
+              <button class="chart-btn active" id="btnFocusMode" title="Focus Mode: Tall prominent candles tracking active price"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>Focus</button>
+              <button class="chart-btn" id="btnAutoFit" title="Auto-Fit: Fit all visible historical bars in viewport"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>Auto-Fit</button>
             </div>
             <!-- Zoom Controls -->
             <div class="chart-btn-group" id="zoomGroup">
               <button class="chart-btn" id="btnZoomIn" title="Zoom In (Fewer bars, wider candles)">+</button>
-              <button class="chart-btn" id="btnZoomOut" title="Zoom Out (More bars)">−</button>
+              <button class="chart-btn" id="btnZoomOut" title="Zoom Out (More bars)">-</button>
             </div>
             <!-- Export 1-Day Buy & Sell Market Data CSV -->
             <div class="chart-btn-group">
@@ -1286,13 +1286,13 @@
         <!-- Chart Canvas Container -->
         <div class="chart-wrapper" id="chartWrapper">
           <canvas id="candlestickCanvas"></canvas>
-          <div class="chart-scroll-hint" id="chartScrollHint">⇄ Drag chart to pan time | Drag price axis to scale</div>
+          <div class="chart-scroll-hint" id="chartScrollHint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>Drag chart to pan time | Drag price axis to scale</div>
           <button id="recenterPriceBtn" class="recenter-price-btn" style="display: none;" title="Auto-scale and re-center view">
             <span>Auto</span>
           </button>
           <button id="jumpLiveBtn" class="jump-live-btn" style="display: none;">
             <span class="live-dot"></span>
-            <span>Jump to Live ⇥</span>
+            <span>Jump to Live</span>
           </button>
         </div>
 
@@ -1302,10 +1302,10 @@
           <div class="timeline-slider-wrap">
             <span id="timelineStartLabel" style="font-family: monospace; font-size: 0.7rem; color: var(--text-muted);">Historical</span>
             <input type="range" class="timeline-slider" id="timelineSlider" min="0" max="100" value="100" title="Scrub through market history">
-            <span id="timelineEndLabel" style="font-family: monospace; font-size: 0.7rem; color: var(--bull); font-weight: 600;">● Live</span>
+            <span id="timelineEndLabel" style="font-family: monospace; font-size: 0.7rem; color: var(--bull); font-weight: 600;">LIVE</span>
           </div>
           <div class="timeline-quick-actions">
-            <button class="chart-btn" id="btnTimelineLive" style="padding: 2px 8px; font-size: 0.7rem;">⇥ Latest</button>
+            <button class="chart-btn" id="btnTimelineLive" style="padding: 2px 8px; font-size: 0.7rem;">Latest</button>
           </div>
         </div>
       </div>
@@ -1314,8 +1314,8 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">
-            <span>⚡ AI Market Intelligence</span>
-            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">(Institutional Engine v3.0 • 2.65M historical bars)</span>
+            <span style="display:inline-flex; align-items:center; gap:5px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>AI Market Intelligence</span>
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">(Institutional Engine v3.0 | 2.65M historical bars)</span>
           </div>
           <span class="mono" id="aiConfidenceBadge" style="font-size: 0.75rem; font-weight: 600; color: var(--bull); background: var(--bull-bg); padding: 0.15rem 0.5rem; border-radius: 4px; border: 1px solid var(--bull-border);">Confidence: 84%</span>
         </div>
@@ -1325,7 +1325,7 @@
           <div class="ai-box">
             <span class="ai-box-label">Current Market Regime</span>
             <div class="ai-box-value" id="aiCondition">
-              <span style="color: var(--bull);">▲</span>
+              <span style="display:inline-flex; align-items:center; color:var(--bull); margin-right:3px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 4 4 20 20 20"></polygon></svg></span>
               <span>Bullish Momentum</span>
             </div>
             <span class="ai-box-sub" id="aiConditionDesc">Sustained buy-side order flow with expanding trading ranges above VWAP.</span>
@@ -1851,7 +1851,7 @@
         }
         if (endLbl && candles.length > 0) {
           const last = candles[candles.length - 1];
-          endLbl.textContent = state.scrollOffset === 0 ? '● Live' : (last.date ? (last.date.split(' ')[1] || last.date) : 'Live');
+          endLbl.textContent = state.scrollOffset === 0 ? 'LIVE' : (last.date ? (last.date.split(' ')[1] || last.date) : 'Live');
         }
 
         // Jump to Live Button & Auto Scale Button
@@ -2034,7 +2034,7 @@
             ctx.fillStyle = isDark ? '#94A3B8' : '#64748B';
             ctx.font = 'bold 9px JetBrains Mono';
             ctx.textAlign = 'center';
-            ctx.fillText(`▲ H: ${highBarVal.toFixed(2)}`, hx, Math.max(14, hy - 5));
+            ctx.fillText(`H: ${highBarVal.toFixed(2)}`, hx, Math.max(14, hy - 5));
           }
         }
         if (lowBarX !== null && lowBarX >= 0 && lowBarX < n) {
@@ -2044,7 +2044,7 @@
             ctx.fillStyle = isDark ? '#94A3B8' : '#64748B';
             ctx.font = 'bold 9px JetBrains Mono';
             ctx.textAlign = 'center';
-            ctx.fillText(`▼ L: ${lowBarVal.toFixed(2)}`, lx, Math.min(chartAreaHeight - 4, ly + 12));
+            ctx.fillText(`L: ${lowBarVal.toFixed(2)}`, lx, Math.min(chartAreaHeight - 4, ly + 12));
           }
         }
 
@@ -2383,18 +2383,18 @@
         const regime = mlPat ? mlPat.regime : 'BALANCED_CONSOLIDATION';
 
         if (condEl && condDescEl) {
-          const topDriver = (mlPat && mlPat.top_drivers && mlPat.top_drivers[0]) ? ` • ${mlPat.top_drivers[0]}` : '';
+          const topDriver = (mlPat && mlPat.top_drivers && mlPat.top_drivers[0]) ? ` | ${mlPat.top_drivers[0]}` : '';
           if (regime === 'MOMENTUM_BREAKOUT_BULL') {
-            condEl.innerHTML = '<span style="color: var(--bull);">▲</span><span>Bullish Breakout</span>';
+            condEl.innerHTML = '<span style="display:inline-flex; align-items:center; color:var(--bull); margin-right:3px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 4 4 20 20 20"></polygon></svg></span><span>Bullish Breakout</span>';
             condDescEl.textContent = 'Aggressive buyers pushing prices through resistance with rising volume' + topDriver;
           } else if (regime === 'MOMENTUM_BREAKOUT_BEAR') {
-            condEl.innerHTML = '<span style="color: var(--bear);">▼</span><span>Bearish Breakdown</span>';
+            condEl.innerHTML = '<span style="display:inline-flex; align-items:center; gap:4px; color:var(--bear);"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 20 4 4 20 4"></polygon></svg><span>Bearish Breakdown</span></span>';
             condDescEl.textContent = 'Heavy seller distribution; lower-low price action dominant' + topDriver;
           } else if (regime === 'VOLATILITY_EXPANSION_CHOP') {
-            condEl.innerHTML = '<span style="color: var(--accent);">⚡</span><span>Volatility Expansion</span>';
+            condEl.innerHTML = '<span style="display:inline-flex; align-items:center; gap:4px; color:var(--accent);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg><span>Volatility Expansion</span></span>';
             condDescEl.textContent = 'Elevated true range; rapid liquidity absorption across order book' + topDriver;
           } else {
-            condEl.innerHTML = '<span style="color: var(--text-secondary);">◆</span><span>Balanced Consolidation</span>';
+            condEl.innerHTML = '<span style="display:inline-flex; align-items:center; gap:4px; color:var(--text-secondary);"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg><span>Balanced Consolidation</span></span>';
             condDescEl.textContent = 'Mean-reverting institutional bracket; tight spread and stable order book' + topDriver;
           }
         }
@@ -2581,7 +2581,7 @@
         if (badgeEl) {
           const isUp = chg >= 0;
           badgeEl.className = 'change-badge mono ' + (isUp ? 'up' : 'down');
-          badgeEl.textContent = `${isUp ? '+' : ''}${chgPct.toFixed(2)}% ${isUp ? '▲' : '▼'}`;
+          const arrowSvg = isUp ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-1px; margin-left:3px;"><polygon points="12 4 4 20 20 20"></polygon></svg>' : '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-1px; margin-left:3px;"><polygon points="12 20 4 4 20 4"></polygon></svg>'; badgeEl.innerHTML = `${isUp ? '+' : ''}${chgPct.toFixed(2)}% ${arrowSvg}`;
         }
         setTxt('statHigh', fmtCurrency(snap.high_24h || state.marketPrice * 1.015));
         setTxt('statLow', fmtCurrency(snap.low_24h || state.marketPrice * 0.985));
