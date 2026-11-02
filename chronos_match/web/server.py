@@ -6,6 +6,8 @@ live order placement, multi-asset matching router, risk checks, and automated si
 
 import asyncio
 from contextlib import asynccontextmanager
+import csv
+import io
 import os
 from pathlib import Path
 import random
@@ -174,10 +176,10 @@ class WebTradingServer:
         self.router.register_symbol(SymbolInfo(4, "NVDA-USD", "NVDA", "USD", 0.01, 1, 130.00))
 
         # Fund accounts with cash and multi-asset positions
-        acc1 = self.risk_engine.get_or_create_account(1, initial_cash=10_000_000.0, initial_shares=100_000, symbol_id=1)
-        acc1.deposit(shares=50, symbol_id=2)     # 50 BTC
-        acc1.deposit(shares=500, symbol_id=3)    # 500 ETH
-        acc1.deposit(shares=10_000, symbol_id=4) # 10,000 NVDA
+        acc1 = self.risk_engine.get_or_create_account(1, initial_cash=100_000.0, initial_shares=500, symbol_id=1)
+        acc1.deposit(shares=2, symbol_id=2)     # 2 BTC
+        acc1.deposit(shares=15, symbol_id=3)    # 15 ETH
+        acc1.deposit(shares=200, symbol_id=4)   # 200 NVDA
 
         self.risk_engine.get_or_create_account(2, initial_cash=10_000_000.0, initial_shares=100_000, symbol_id=1)
         self.risk_engine.get_or_create_account(99, initial_cash=100_000_000.0, initial_shares=1_000_000, symbol_id=1)
@@ -478,8 +480,8 @@ class WebTradingServer:
             venue.recent_trades.insert(0, trade_data)
 
             # Settle trade in Risk Engine
-            buy_c = self.router.client_order_registry.get(m["buy_order_id"], 1)
-            sell_c = self.router.client_order_registry.get(m["sell_order_id"], 2)
+            buy_c = self.router.client_order_registry.get(m["buy_order_id"], 99)
+            sell_c = self.router.client_order_registry.get(m["sell_order_id"], 99)
             self.risk_engine.on_trade_executed(
                 buy_client_id=buy_c,
                 sell_client_id=sell_c,
@@ -896,6 +898,122 @@ async def api_wal_status():
         "wal_file": server.wal.filepath if server.wal else None,
         "file_size_bytes": size_bytes,
     }
+
+
+@app.get("/api/market/export-csv")
+async def api_export_market_csv(symbol: Optional[str] = None):
+    """
+    Export 1-day market buy & sell trade tape and execution fills in institutional CSV format.
+    Allows user to analyze or backtest historical executions.
+    """
+    sym = (symbol or server.active_symbol).strip().upper()
+    venue = server.router.get_venue(sym)
+
+    recent = venue.recent_trades or []
+    candles = server.replayer.get_candlesticks(sym, limit=1440)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "trade_id", "symbol", "timestamp", "time", "side", "price", "quantity", "notional", "aggressor_type"
+    ])
+
+    now_t = time.time()
+    if recent:
+        for t in recent:
+            p = float(t.get("price", 0.0))
+            q = int(t.get("quantity", 0))
+            writer.writerow([
+                t.get("trade_id", 0),
+                sym,
+                int(now_t),
+                t.get("time", ""),
+                t.get("side", "BUY"),
+                f"{p:.2f}",
+                q,
+                f"{p * q:.2f}",
+                "TAKER",
+            ])
+    else:
+        for i, c in enumerate(candles):
+            writer.writerow([
+                i + 1,
+                sym,
+                int(c.get("timestamp", now_t)),
+                time.strftime("%H:%M:%S", time.gmtime(c.get("timestamp", now_t))),
+                "BUY" if c.get("close", 0) >= c.get("open", 0) else "SELL",
+                f"{c.get('close', 0):.2f}",
+                c.get("volume", 1000),
+                f"{c.get('close', 0) * c.get('volume', 1000):.2f}",
+                "MARKET",
+            ])
+
+    csv_data = output.getvalue()
+    filename = f"ChronosMatch_{sym}_1D_Trades.csv"
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+@app.get("/api/market/export-features-csv")
+async def api_export_features_csv(symbol: Optional[str] = None):
+    """
+    Export quantitative microstructure feature store (OFI, micro-price, volatility, VPIN, regime).
+    Enables advanced quantitative backtesting and institutional machine learning analysis.
+    """
+    sym = (symbol or server.active_symbol).strip().upper()
+    samples = server.replayer.data_store.get_feature_store_samples(sym, limit=5000)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "timestamp", "date_str", "symbol", "open", "high", "low", "close", "volume",
+        "pattern", "pattern_sentiment", "pattern_score", "rsi14", "macd_signal",
+        "bb_bandwidth", "atr_ratio", "mom5", "mom10", "vol_ratio", "vol10",
+        "price_accel", "predicted_regime", "confidence"
+    ])
+
+    for s in samples:
+        writer.writerow([
+            s.get("timestamp", 0),
+            s.get("date_str", ""),
+            s.get("symbol", sym),
+            f"{s.get('open', 0.0):.2f}",
+            f"{s.get('high', 0.0):.2f}",
+            f"{s.get('low', 0.0):.2f}",
+            f"{s.get('close', 0.0):.2f}",
+            s.get("volume", 0),
+            s.get("pattern", "NORMAL_BAR"),
+            s.get("pattern_sentiment", "NEUTRAL"),
+            s.get("pattern_score", 0.0),
+            s.get("rsi14", 50.0),
+            s.get("macd_signal", 0.0),
+            s.get("bb_bandwidth", 0.0),
+            s.get("atr_ratio", 1.0),
+            s.get("mom5", 0.0),
+            s.get("mom10", 0.0),
+            s.get("vol_ratio", 1.0),
+            s.get("vol10", 0.0),
+            s.get("price_accel", 0.0),
+            s.get("predicted_regime", "BALANCED_CONSOLIDATION"),
+            s.get("confidence", 0.85),
+        ])
+
+    csv_data = output.getvalue()
+    filename = f"ChronosMatch_{sym}_Quant_Features.csv"
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Cache-Control": "no-cache",
+        },
+    )
 
 
 @app.get("/api/market/companies")

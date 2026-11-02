@@ -1131,7 +1131,11 @@
   <header>
     <div class="header-left">
       <a href="/" class="brand">
-        <div class="brand-icon">ΓÜí</div>
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </div>
         <span>ChronosMatch</span>
         <span style="display:none">CHRONOS MATCH</span>
       </a>
@@ -1154,7 +1158,9 @@
       <!-- Simulation Controls -->
       <div class="sim-controls">
         <button class="sim-btn" id="botToggleBtn" title="Start/Pause Order Flow Simulation">
-          <span id="botIcon">Γû╢</span>
+          <span id="botIcon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </span>
           <span id="botLabel">Run Sim</span>
         </button>
         <div style="width: 1px; height: 16px; background: var(--border);"></div>
@@ -1177,7 +1183,9 @@
       </div>
 
       <!-- Dark / Light Theme Toggle -->
-      <button class="theme-toggle-btn" id="themeToggleBtn" title="Toggle Light / Dark Mode">ΓÿÇ∩╕Å</button>
+      <button class="theme-toggle-btn" id="themeToggleBtn" title="Toggle Light / Dark Mode">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+      </button>
     </div>
   </header>
 
@@ -1186,7 +1194,7 @@
     <div class="price-group">
       <span class="asset-title" id="marketSymTitle">BTC / USD</span>
       <span class="asset-price mono" id="marketPrice">$42,845.23</span>
-      <span class="change-badge up mono" id="marketChangeBadge">+2.45% Γû▓</span>
+      <span class="change-badge up mono" id="marketChangeBadge">+0.00% ▲</span>
     </div>
 
     <div class="market-stats-row">
@@ -1254,6 +1262,12 @@
             <div class="chart-btn-group" id="zoomGroup">
               <button class="chart-btn" id="btnZoomIn" title="Zoom In (Fewer bars, wider candles)">+</button>
               <button class="chart-btn" id="btnZoomOut" title="Zoom Out (More bars)">−</button>
+            </div>
+            <!-- Export 1-Day Buy & Sell Market Data CSV -->
+            <div class="chart-btn-group">
+              <button class="chart-btn" id="btnExportCsv" title="Download 1-Day Buy & Sell Market Tape (CSV)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px; vertical-align:-1px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export 1D CSV
+              </button>
             </div>
           </div>
         </div>
@@ -1671,7 +1685,9 @@
         document.documentElement.setAttribute('data-theme', theme);
         try { localStorage.setItem('chronos_theme', theme); } catch (e) {}
         if (themeToggleBtn) {
-          themeToggleBtn.textContent = theme === 'dark' ? '≡ƒîÖ' : 'ΓÿÇ∩╕Å';
+          const sunSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+          const moonSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+          themeToggleBtn.innerHTML = theme === 'dark' ? moonSvg : sunSvg;
         }
         if (canvas && ctx) {
           renderChart();
@@ -2310,6 +2326,30 @@
         }
       };
 
+      function formatPatternName(rawName) {
+        if (!rawName) return 'Consolidation Wave';
+        const map = {
+          'NORMAL_BAR': 'Standard Trend Bar',
+          'BULLISH_ENGULFING': 'Bullish Engulfing',
+          'BEARISH_ENGULFING': 'Bearish Engulfing',
+          'HAMMER': 'Bullish Hammer',
+          'SHOOTING_STAR': 'Shooting Star',
+          'DOJI': 'Equilibrium Doji',
+          'MORNING_STAR': 'Morning Star Reversal',
+          'EVENING_STAR': 'Evening Star Reversal',
+          'PIERCING_LINE': 'Piercing Line Reversal',
+          'DARK_CLOUD_COVER': 'Dark Cloud Cover',
+          'THREE_WHITE_SOLDIERS': 'Three White Soldiers',
+          'THREE_BLACK_CROWS': 'Three Black Crows',
+          'SPINNING_TOP': 'Spinning Top Neutral',
+          'MARUBOZU_BULLISH': 'Bullish Marubozu Breakout',
+          'MARUBOZU_BEARISH': 'Bearish Marubozu Breakdown',
+          'CONSOLIDATION_WAVE': 'Consolidation Wave'
+        };
+        if (map[rawName]) return map[rawName];
+        return rawName.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+      }
+
       // 9. AI Market Intelligence (Powered by Institutional Quantitative ML v3.0)
       function updateAiMarketIntelligence(snap) {
         const pat = snap.pattern;
@@ -2320,9 +2360,9 @@
 
         // 1. Detected Candlestick Pattern
         if (pat && pat.name) {
-          setTxt('aiPatternName', pat.name);
+          setTxt('aiPatternName', formatPatternName(pat.name));
           setTxt('aiPatternDesc', pat.description || 'Detected high-probability price action formation.');
-          setTxt('hudPattern', pat.name);
+          setTxt('hudPattern', formatPatternName(pat.name));
         } else {
           setTxt('aiPatternName', 'Consolidation Wave');
           setTxt('aiPatternDesc', 'Balanced institutional liquidity; awaiting breakout trigger.');
@@ -2509,7 +2549,11 @@
       function updateBotControls() {
         const icon = document.getElementById('botIcon');
         const label = document.getElementById('botLabel');
-        if (icon) icon.textContent = state.botActive ? 'ΓÅ╕' : 'Γû╢';
+        if (icon) {
+          icon.innerHTML = state.botActive
+            ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>'
+            : '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+        }
         if (label) label.textContent = state.botActive ? 'Pause Sim' : 'Resume Sim';
         if (botToggleBtn) botToggleBtn.classList.toggle('active', state.botActive);
       }
@@ -2528,6 +2572,17 @@
         const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
         setTxt('marketPrice', fmtCurrency(state.marketPrice));
+
+        // Dynamically compute and display 24h market price change
+        const initialP = (state.candles && state.candles.length > 0) ? state.candles[0].open : (snap.open_24h || state.marketPrice);
+        const chg = state.marketPrice - initialP;
+        const chgPct = initialP > 0 ? (chg / initialP) * 100 : 0;
+        const badgeEl = document.getElementById('marketChangeBadge');
+        if (badgeEl) {
+          const isUp = chg >= 0;
+          badgeEl.className = 'change-badge mono ' + (isUp ? 'up' : 'down');
+          badgeEl.textContent = `${isUp ? '+' : ''}${chgPct.toFixed(2)}% ${isUp ? '▲' : '▼'}`;
+        }
         setTxt('statHigh', fmtCurrency(snap.high_24h || state.marketPrice * 1.015));
         setTxt('statLow', fmtCurrency(snap.low_24h || state.marketPrice * 0.985));
         setTxt('statVwap', fmtCurrency(snap.vwap || state.marketPrice));
@@ -2852,6 +2907,16 @@
           btnZoomIn.addEventListener('click', () => {
             state.visibleBars = Math.max(15, (state.visibleBars || 40) - 5);
             renderChart();
+          });
+        }
+
+        // Export 1-Day Buy & Sell Market Data CSV
+        const btnExportCsv = document.getElementById('btnExportCsv');
+        if (btnExportCsv) {
+          btnExportCsv.addEventListener('click', () => {
+            const sym = state.symbol || 'SOL-USD';
+            window.location.href = `/api/market/export-csv?symbol=${encodeURIComponent(sym)}`;
+            showToast(`Downloading 1-Day ${sym} Buy & Sell tape CSV...`, 'success');
           });
         }
 

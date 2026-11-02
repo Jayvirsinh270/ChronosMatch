@@ -220,6 +220,16 @@ class LightMarketPatternModel:
             self.training_stocks = int(weights.get("total_stocks", 1465))
             self.model_version = f"3.0 (Institutional Multi-Asset Quantitative Engine)"
             self.directional_hit_rate = round(float(eval_metrics.get("directional_win_rate", eval_metrics.get("directional_hit_rate", 0.495))) * 100.0, 1)
+
+            # Precalculate log-priors once at startup for sub-microsecond online scoring
+            if self._gnb_params:
+                counts_total = sum(p["count"] for p in self._gnb_params.values())
+                prior_temp = 0.25
+                raw_priors = {c: (p["count"] / max(1, counts_total)) ** prior_temp for c, p in self._gnb_params.items()}
+                sum_temp = sum(raw_priors.values()) or 1.0
+                self._precomputed_priors = {c: math.log(max(1e-6, raw_priors[c] / sum_temp)) for c in self._gnb_params}
+            else:
+                self._precomputed_priors = {}
         except Exception:
             pass  # Never crash the constructor; keep defaults
 
@@ -258,16 +268,10 @@ class LightMarketPatternModel:
 
         feat = [rsi_feat, macd_feat, bb_feat, atr_ratio, mom5, mom10, vol_ratio, vol10, p_accel]
 
-        # Compute log-posterior for each regime with SNR feature weights and smoothed priors
-        counts_total = sum(p["count"] for p in self._gnb_params.values())
-        prior_temp = 0.25
-        temp_priors = {c: (p["count"] / max(1, counts_total)) ** prior_temp for c, p in self._gnb_params.items()}
-        sum_temp = sum(temp_priors.values()) or 1.0
-
+        # Fast log-posterior calculation using precomputed log-priors and SNR feature weights
         log_probs = {}
         for regime, params in self._gnb_params.items():
-            prior = math.log(max(1e-6, temp_priors[regime] / sum_temp))
-            ll = prior
+            ll = self._precomputed_priors.get(regime, -1.386)
             means = params["mean"]
             variances = params["var"]
             for j, x in enumerate(feat):

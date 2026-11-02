@@ -824,15 +824,39 @@ class HistoricalMarketReplayer:
 
         cur_mid = self.current_mid.get(sym, execution_price)
 
-        # 1. Authentic Microstructure Impact (Kyle's Lambda & Square-Root Law)
-        # Normal user order (10-1000 shares) produces healthy, realistic 1-5 tick nudge
-        typical_vol = max(1000.0, impact.avg_daily_volume * 0.001 if impact else 5000.0)
+        # 1. Authentic Microstructure Impact & Order Flow Reactivity
+        # Treats user as an authentic real-market participant:
+        # - Repetitive buying/selling accumulates flow momentum instead of getting stuck
+        # - If user selling is massive, causes authentic liquidation crash
+        # - If market is selling but user buys more than market flow, creates green candle
+        typical_vol = max(500.0, impact.avg_daily_volume * 0.0005 if impact else 2500.0)
         vol_factor = math.sqrt(max(1.0, quantity) / typical_vol)
         direction = 1.0 if side == int(OrderSide.BUY) else -1.0
-        push_bps = max(0.0002, min(0.004, 0.0006 * vol_factor))
 
-        impacted_mid = execution_price * (1.0 + direction * push_bps)
-        new_mid = round(cur_mid * 0.60 + impacted_mid * 0.40, 2)
+        # Rolling 5-second cumulative user flow memory
+        if not hasattr(self, "_user_flow_memory"):
+            self._user_flow_memory: Dict[str, Tuple[float, float]] = {}
+        now_ts = time.time()
+        prev_flow, prev_time = self._user_flow_memory.get(sym, (0.0, now_ts))
+        decay = math.exp(-max(0.0, now_ts - prev_time) / 4.0)
+        accum_flow = prev_flow * decay + direction * quantity
+        self._user_flow_memory[sym] = (accum_flow, now_ts)
+
+        # Repetitive trading amplification
+        flow_mult = 1.0 + min(3.0, abs(accum_flow) / max(500.0, typical_vol * 0.5))
+
+        # Dynamic displacement based on order size and cumulative flow
+        if quantity < 500:
+            push_bps = max(0.0003, min(0.0035, 0.0008 * vol_factor * flow_mult))
+        elif quantity < 3000:
+            push_bps = max(0.0025, min(0.0150, 0.0030 * vol_factor * flow_mult))
+        else:  # Whale / institutional block order
+            push_bps = max(0.0080, min(0.0500, 0.0065 * vol_factor * flow_mult))
+
+        impact_delta = execution_price * direction * push_bps
+        new_mid = round(cur_mid + impact_delta, 2)
+
+        # Ensure active displacement of at least 1 tick in intended direction
         if side == int(OrderSide.BUY):
             new_mid = max(round(cur_mid + venue.info.tick_size, 2), new_mid)
         else:
@@ -862,13 +886,24 @@ class HistoricalMarketReplayer:
                 venue.book.best_ask_volume,
             )
 
-        # 4. Immediately incorporate user trade into live candle
+        # 4. Dynamic Live Candle Formation & Color Reactivity
         self._update_live_candle(sym, execution_price, quantity)
         bar = self.live_candle.get(sym)
         if bar:
             bar["close"] = round(new_mid, 2)
             bar["high"] = max(bar["high"], round(new_mid, 2))
             bar["low"] = min(bar["low"], round(new_mid, 2))
+
+            # If user buy was greater than selling pressure, ensure candle turns GREEN
+            if side == int(OrderSide.BUY) and (accum_flow > 0 or quantity >= 500):
+                if bar["close"] <= bar["open"]:
+                    bar["close"] = round(max(bar["open"] + venue.info.tick_size * 2, new_mid), 2)
+                    bar["high"] = max(bar["high"], bar["close"])
+            # If user sell was greater than buying pressure, ensure candle turns RED
+            elif side == int(OrderSide.SELL) and (accum_flow < 0 or quantity >= 500):
+                if bar["close"] >= bar["open"]:
+                    bar["close"] = round(min(bar["open"] - venue.info.tick_size * 2, new_mid), 2)
+                    bar["low"] = min(bar["low"], bar["close"])
 
         # 5. Algorithmic Market Maker inventory skew (Avellaneda-Stoikov)
         if algo_mgr:
@@ -881,7 +916,7 @@ class HistoricalMarketReplayer:
         # Sizeable orders (>= 500 shares) reinforce macro wave impulse
         if w_state:
             w_state.atr = max(w_state.atr, venue.info.tick_size * 15, new_mid * 0.006)
-            if quantity >= 500:
+            if quantity >= 500 or abs(accum_flow) >= 1500:
                 if side == int(OrderSide.BUY):
                     w_state.phase = "BULL_IMPULSE"
                     w_state.bars_remaining = max(w_state.bars_remaining, random.randint(3, 5))
@@ -890,6 +925,26 @@ class HistoricalMarketReplayer:
                     w_state.phase = "BEAR_IMPULSE"
                     w_state.bars_remaining = max(w_state.bars_remaining, random.randint(3, 5))
                     w_state.swing_low = min(w_state.swing_low, max(venue.info.tick_size * 5, new_mid - w_state.atr * 2.0))
+
+        # 7. Replenish Level 2 book depth so repetitive trades never get stuck or empty
+        tick = venue.info.tick_size
+        target_bid = round(new_mid - tick * 1.5, 2)
+        target_ask = round(new_mid + tick * 1.5, 2)
+        if from_fixed_price(venue.book.best_bid_price) <= 0:
+            for lvl in range(3):
+                p_b = round(target_bid - lvl * tick, 2)
+                if p_b > 0:
+                    b_oid = self.router.allocate_order_id()
+                    self.router.client_order_registry[b_oid] = 99
+                    venue.book.add_limit_order(b_oid, 99, to_fixed_price(p_b), 500, int(OrderSide.BUY), venue.info.symbol_id)
+                    self._track_sim_order(venue, sym, b_oid)
+        if from_fixed_price(venue.book.best_ask_price) <= 0:
+            for lvl in range(3):
+                p_a = round(target_ask + lvl * tick, 2)
+                a_oid = self.router.allocate_order_id()
+                self.router.client_order_registry[a_oid] = 99
+                venue.book.add_limit_order(a_oid, 99, to_fixed_price(p_a), 500, int(OrderSide.SELL), venue.info.symbol_id)
+                self._track_sim_order(venue, sym, a_oid)
 
         return new_mid
 

@@ -1,0 +1,5 @@
+when use sell or buy reparative it will stuck and then made an single line 
+-> 
+-> need to trat me as an user and when my oreders are need to made an impect if it was a big enof like a sell are so much and that time i sell a lot like realy so much so it should crash a big and when everyone are selling and my buy was grater then them so buy cndel need to be made 
+-> user can download the market sell and buy data of one day in csv file.
+->data handlings need to be more batter and how we use this data and how we store it and what is also need to store so our system are stend out a bit different 
