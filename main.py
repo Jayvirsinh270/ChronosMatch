@@ -15,6 +15,12 @@ import signal
 import sys
 import time
 
+# Expose FastAPI application instance for Vercel / ASGI cloud runners
+try:
+    from chronos_match.web.server import app
+except Exception:
+    app = None
+
 from chronos_match.daemon import ChronosDaemon
 from chronos_match.ledger.audit_logger import AuditLedger
 
