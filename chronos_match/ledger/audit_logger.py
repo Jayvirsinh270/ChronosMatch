@@ -50,16 +50,25 @@ class AuditLedger:
     def _configure_database(self) -> None:
         """Apply high-performance low-latency SQLite pragmas."""
         cur = self.conn.cursor()
-        # WAL mode allows concurrent reads during writes without blocking
-        cur.execute("PRAGMA journal_mode=WAL;")
-        # NORMAL synchronicity is crash-safe in WAL mode while avoiding full fsync per transaction
-        cur.execute("PRAGMA synchronous=NORMAL;")
-        # In-memory temporary tables and indexes
-        cur.execute("PRAGMA temp_store=MEMORY;")
-        # 64 MB database page cache (-64000 KB)
-        cur.execute("PRAGMA cache_size=-64000;")
-        # Memory-mapped I/O up to 256 MB for lightning-fast reads
-        cur.execute("PRAGMA mmap_size=268435456;")
+        try:
+            # WAL mode allows concurrent reads during writes without blocking
+            cur.execute("PRAGMA journal_mode=WAL;")
+        except Exception:
+            try:
+                cur.execute("PRAGMA journal_mode=MEMORY;")
+            except Exception:
+                pass
+        try:
+            # NORMAL synchronicity is crash-safe in WAL mode while avoiding full fsync per transaction
+            cur.execute("PRAGMA synchronous=NORMAL;")
+            # In-memory temporary tables and indexes
+            cur.execute("PRAGMA temp_store=MEMORY;")
+            # 64 MB database page cache (-64000 KB)
+            cur.execute("PRAGMA cache_size=-64000;")
+            # Memory-mapped I/O up to 256 MB for lightning-fast reads
+            cur.execute("PRAGMA mmap_size=268435456;")
+        except Exception:
+            pass
         cur.close()
 
     def _create_schema(self) -> None:

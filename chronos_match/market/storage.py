@@ -49,10 +49,19 @@ class MarketDataStore:
     def _configure_db(self) -> None:
         """Apply high-throughput low-latency SQLite pragmas."""
         cur = self.conn.cursor()
-        cur.execute("PRAGMA journal_mode=WAL;")
-        cur.execute("PRAGMA synchronous=NORMAL;")
-        cur.execute("PRAGMA temp_store=MEMORY;")
-        cur.execute("PRAGMA cache_size=-32000;")  # 32 MB cache
+        try:
+            cur.execute("PRAGMA journal_mode=WAL;")
+        except Exception:
+            try:
+                cur.execute("PRAGMA journal_mode=MEMORY;")
+            except Exception:
+                pass
+        try:
+            cur.execute("PRAGMA synchronous=NORMAL;")
+            cur.execute("PRAGMA temp_store=MEMORY;")
+            cur.execute("PRAGMA cache_size=-32000;")  # 32 MB cache
+        except Exception:
+            pass
         cur.close()
 
     def _create_schema(self) -> None:

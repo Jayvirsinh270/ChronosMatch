@@ -721,11 +721,34 @@ class WebTradingServer:
         return snap
 
 
+def get_index_html_path() -> Path:
+    """Find index.html across local development and serverless bundle directories."""
+    candidates = [
+        Path(__file__).parent / "index.html",
+        Path(__file__).resolve().parent / "index.html",
+        Path(os.getcwd()) / "chronos_match" / "web" / "index.html",
+        Path(os.getcwd()) / "api" / "index.html",
+        Path(__file__).resolve().parents[2] / "chronos_match" / "web" / "index.html",
+        Path(__file__).resolve().parents[2] / "api" / "index.html",
+        Path("/var/task/chronos_match/web/index.html"),
+        Path("/var/task/api/index.html"),
+    ]
+    for p in candidates:
+        try:
+            if p.is_file():
+                return p
+        except Exception:
+            pass
+    return candidates[0]
+
+
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     """Auto-start background living market simulation loop on server startup."""
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
     server.is_running = True
-    if server.bot_active:
+    # In serverless environments, do not spawn infinite loops that block request completion
+    if not is_serverless and server.bot_active:
         if server._bot_task is None or server._bot_task.done():
             server._bot_task = asyncio.create_task(_bot_simulation_loop())
     yield
@@ -764,9 +787,9 @@ async def favicon():
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
     """Serve single-page trading terminal with strict no-cache headers."""
-    index_path = Path(__file__).parent / "index.html"
+    index_path = get_index_html_path()
     if not index_path.exists():
-        raise HTTPException(status_code=404, detail="index.html not found")
+        raise HTTPException(status_code=404, detail=f"index.html not found (checked: {index_path})")
     content = index_path.read_text(encoding="utf-8")
     return HTMLResponse(
         content=content,
@@ -776,6 +799,20 @@ async def serve_index():
             "Expires": "0",
         },
     )
+
+
+@app.get("/api/snapshot")
+async def api_snapshot(symbol: Optional[str] = None):
+    """Fetch current market snapshot for active or specified symbol."""
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    if is_serverless and server.bot_active:
+        # Step market tick on-demand on each frontend snapshot poll in serverless environments
+        try:
+            target_sym = symbol or server.active_symbol
+            server.replayer.step_market_tick(target_sym)
+        except Exception:
+            pass
+    return server.get_snapshot(symbol=symbol)
 
 
 @app.post("/api/order")
@@ -792,12 +829,6 @@ async def api_order(req: OrderRequest):
         stp_str=req.stp,
     )
     return res
-
-
-@app.get("/api/snapshot")
-async def api_snapshot(symbol: Optional[str] = None):
-    """Fetch current market snapshot for active or specified symbol."""
-    return server.get_snapshot(symbol=symbol)
 
 
 @app.get("/api/symbols")
@@ -849,7 +880,8 @@ async def api_bot_speed(req: BotSpeedRequest):
 async def api_toggle_bot():
     """Toggle background liquidity simulation across instruments."""
     server.bot_active = not server.bot_active
-    if server.bot_active:
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    if not is_serverless and server.bot_active:
         if server._bot_task is None or server._bot_task.done():
             server._bot_task = asyncio.create_task(_bot_simulation_loop())
     return {
@@ -1435,7 +1467,8 @@ def api_inject_market_shock(req: MarketShockRequest):
 async def websocket_endpoint(ws: WebSocket):
     """High-frequency WebSocket broadcasting live snapshots for the active symbol at ~16 FPS."""
     await ws.accept()
-    if server.bot_active and (server._bot_task is None or server._bot_task.done()):
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    if not is_serverless and server.bot_active and (server._bot_task is None or server._bot_task.done()):
         server._bot_task = asyncio.create_task(_bot_simulation_loop())
     server.connected_clients.append(ws)
     try:
