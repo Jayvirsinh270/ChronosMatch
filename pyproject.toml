@@ -1,2 +1,19 @@
+[project]
+name = "chronos-match"
+version = "0.1.0"
+description = "ChronosMatch: High-Frequency Trading Matching Engine & Web Terminal"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+    "websockets>=12.0",
+    "pydantic>=2.0.0",
+    "rich>=13.0.0",
+    "cython>=3.0.0",
+    "setuptools>=68.0.0",
+    "pytest>=8.0.0",
+]
+
 [tool.vercel]
 entrypoint = "main:app"
