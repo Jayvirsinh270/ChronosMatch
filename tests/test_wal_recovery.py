@@ -428,6 +428,7 @@ def test_web_server_wal_and_snapshot_methods(temp_dir):
         wal_path=test_wal_path,
         snapshot_dir=test_snap_dir,
         enable_wal=True,
+        db_path=":memory:",
     )
 
     try:

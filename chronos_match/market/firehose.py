@@ -68,7 +68,7 @@ class AsyncMarketFirehose:
                 self.total_generated += 1
 
             if written % yield_interval == 0:
-                await asyncio.sleep(0) # Cooperative event loop yield
+                await asyncio.sleep(0.0001) # Cooperative event loop yield
 
         t1 = time.perf_counter_ns()
         elapsed_sec = (t1 - t0) / 1e9

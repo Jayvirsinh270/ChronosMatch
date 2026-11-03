@@ -32,9 +32,16 @@ class MarketDataStore:
     """
 
     def __init__(self, db_path: str = "chronos_market_history.db"):
+        import tempfile
+        if os.environ.get("VERCEL") and not os.path.isabs(db_path) and db_path != ":memory:":
+            db_path = os.path.join(tempfile.gettempdir(), os.path.basename(db_path))
         self.db_path = db_path
         self._lock = threading.Lock()
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
+        try:
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
+        except sqlite3.OperationalError:
+            self.db_path = os.path.join(tempfile.gettempdir(), os.path.basename(self.db_path)) if self.db_path != ":memory:" else ":memory:"
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
         self.conn.row_factory = sqlite3.Row
         self._configure_db()
         self._create_schema()
@@ -454,6 +461,92 @@ class MarketDataStore:
                 "session_low": c_row["min_price"],
                 "session_high": c_row["max_price"],
             }
+
+    def get_trades_for_export(
+        self,
+        symbol: Optional[str] = None,
+        duration_minutes: Optional[int] = 120,
+        limit: int = 100_000,
+    ) -> List[Dict[str, Any]]:
+        """
+        Query trade ticks for CSV export with optional symbol and duration filters.
+        duration_minutes can be 30, 60, 120, or None (for all).
+        symbol can be 'ALL', None, or a specific ticker (e.g. 'NVDA-USD').
+        """
+        with self._lock:
+            cur = self.conn.cursor()
+
+            cutoff_ns = None
+            if duration_minutes is not None and duration_minutes > 0:
+                cur.execute("SELECT MAX(timestamp_ns) FROM market_ticks")
+                max_row = cur.fetchone()
+                max_ts = max_row[0] if max_row and max_row[0] else None
+                if max_ts:
+                    cutoff_ns = max_ts - (duration_minutes * 60 * 1_000_000_000)
+
+            query = "SELECT id, symbol, timestamp_ns, price, quantity, side, best_bid, best_ask, ofi, regime FROM market_ticks WHERE 1=1"
+            params: List[Any] = []
+
+            if symbol and symbol.upper() != "ALL":
+                sym_clean = symbol.upper()
+                query += " AND (symbol = ? OR symbol LIKE ?)"
+                params.extend([sym_clean, f"{sym_clean.split('-')[0]}%"])
+
+            if cutoff_ns is not None:
+                query += " AND timestamp_ns >= ?"
+                params.append(cutoff_ns)
+
+            query += " ORDER BY timestamp_ns ASC LIMIT ?"
+            params.append(limit)
+
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in rows]
+
+    def get_candles_for_export(
+        self,
+        symbol: Optional[str] = None,
+        duration_minutes: Optional[int] = 120,
+        limit: int = 20_000,
+    ) -> List[Dict[str, Any]]:
+        """
+        Query candlesticks for CSV export with optional symbol and duration filters.
+        """
+        with self._lock:
+            cur = self.conn.cursor()
+
+            cutoff_s = None
+            if duration_minutes is not None and duration_minutes > 0:
+                cur.execute("SELECT MAX(timestamp) FROM market_candles")
+                max_row = cur.fetchone()
+                max_ts = max_row[0] if max_row and max_row[0] else None
+                if max_ts:
+                    cutoff_s = max_ts - (duration_minutes * 60)
+
+            query = """
+                SELECT id, symbol, timestamp, date_str, open, high, low, close, volume, trades_count,
+                       pattern, pattern_sentiment, pattern_score, rsi, vwap
+                FROM market_candles WHERE 1=1
+            """
+            params: List[Any] = []
+
+            if symbol and symbol.upper() != "ALL":
+                sym_clean = symbol.upper()
+                query += " AND (symbol = ? OR symbol LIKE ?)"
+                params.extend([sym_clean, f"{sym_clean.split('-')[0]}%"])
+
+            if cutoff_s is not None:
+                query += " AND timestamp >= ?"
+                params.append(cutoff_s)
+
+            query += " ORDER BY timestamp ASC LIMIT ?"
+            params.append(limit)
+
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in rows]
 
     def close(self) -> None:
         """Close database connection cleanly."""

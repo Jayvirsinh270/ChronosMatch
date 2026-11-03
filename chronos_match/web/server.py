@@ -161,6 +161,16 @@ class WebTradingServer:
         snapshot_dir: str = "chronos_snapshots",
         enable_wal: bool = False,
     ):
+        if os.environ.get("VERCEL"):
+            import tempfile
+            tmp = tempfile.gettempdir()
+            if not os.path.isabs(db_path) and db_path != ":memory:":
+                db_path = os.path.join(tmp, os.path.basename(db_path))
+            if not os.path.isabs(wal_path):
+                wal_path = os.path.join(tmp, os.path.basename(wal_path))
+            if not os.path.isabs(snapshot_dir):
+                snapshot_dir = os.path.join(tmp, os.path.basename(snapshot_dir))
+
         self.router = MultiBookRouter()
         self.ledger = AuditLedger(db_path=db_path)
         self.risk_engine = PreTradeRiskEngine()
@@ -176,10 +186,10 @@ class WebTradingServer:
         self.router.register_symbol(SymbolInfo(4, "NVDA-USD", "NVDA", "USD", 0.01, 1, 130.00))
 
         # Fund accounts with cash and multi-asset positions
-        acc1 = self.risk_engine.get_or_create_account(1, initial_cash=100_000.0, initial_shares=500, symbol_id=1)
-        acc1.deposit(shares=2, symbol_id=2)     # 2 BTC
-        acc1.deposit(shares=15, symbol_id=3)    # 15 ETH
-        acc1.deposit(shares=200, symbol_id=4)   # 200 NVDA
+        acc1 = self.risk_engine.get_or_create_account(1, initial_cash=1_000_000.0, initial_shares=500, symbol_id=1)
+        acc1.deposit(shares=5, symbol_id=2)     # 5 BTC
+        acc1.deposit(shares=50, symbol_id=3)    # 50 ETH
+        acc1.deposit(shares=500, symbol_id=4)   # 500 NVDA
 
         self.risk_engine.get_or_create_account(2, initial_cash=10_000_000.0, initial_shares=100_000, symbol_id=1)
         self.risk_engine.get_or_create_account(99, initial_cash=100_000_000.0, initial_shares=1_000_000, symbol_id=1)
@@ -204,6 +214,18 @@ class WebTradingServer:
                 self.replayer.bind_stock(sym)
             except Exception:
                 pass
+
+        # Provision positions across all bound equity & crypto instruments
+        acc2 = self.risk_engine.get_or_create_account(2)
+        acc99 = self.risk_engine.get_or_create_account(99)
+        for venue in self.router.venues_by_id.values():
+            s_id = venue.info.symbol_id
+            if s_id not in acc1.positions or acc1.positions[s_id] < 100:
+                acc1.deposit(shares=1000, symbol_id=s_id)
+            if s_id not in acc2.positions:
+                acc2.deposit(shares=100_000, symbol_id=s_id)
+            if s_id not in acc99.positions:
+                acc99.deposit(shares=1_000_000, symbol_id=s_id)
 
         # Institutional Quantitative Backtesting & Monte Carlo Engine
         self.backtest_engine = BacktestEngine(data_loader=self.replayer.data_loader)
@@ -322,9 +344,17 @@ class WebTradingServer:
         self.router.client_order_registry[order_id] = client_id
         venue.total_orders += 1
 
-        # For Market sweeps, set aggressive price crossing the book
+        # For Market sweeps, set aggressive price crossing the current book without collar blowouts
         if type_str.upper() == "MARKET":
-            exec_price = to_fixed_price(venue.info.initial_price * 1.5 if side == OrderSide.BUY else venue.info.initial_price * 0.5)
+            best_bid_p = from_fixed_price(venue.book.best_bid_price)
+            best_ask_p = from_fixed_price(venue.book.best_ask_price)
+            curr_ref = best_ask_p if (best_ask_p > 0 and side == OrderSide.BUY) else (best_bid_p if best_bid_p > 0 else (venue.last_trade_price or venue.info.initial_price))
+            collar = getattr(self.risk_engine.limits, "price_collar_pct", 0.10) or 0.10
+            crossing_factor = min(collar * 0.8, 0.05)
+            if side == OrderSide.BUY:
+                exec_price = to_fixed_price(curr_ref * (1.0 + crossing_factor))
+            else:
+                exec_price = to_fixed_price(curr_ref * (1.0 - crossing_factor))
         else:
             exec_price = to_fixed_price(price_float)
 
@@ -848,6 +878,7 @@ async def _bot_simulation_loop():
         except asyncio.CancelledError:
             break
         except Exception:
+            traceback.print_exc()
             await asyncio.sleep(0.05)
 
 
@@ -901,55 +932,137 @@ async def api_wal_status():
 
 
 @app.get("/api/market/export-csv")
-async def api_export_market_csv(symbol: Optional[str] = None):
+def api_export_market_csv(
+    symbol: Optional[str] = None,
+    duration: str = "2h",
+    data_type: str = "trades",
+):
     """
-    Export 1-day market buy & sell trade tape and execution fills in institutional CSV format.
-    Allows user to analyze or backtest historical executions.
+    Export comprehensive market buy & sell order execution tape and OHLCV candlestick data
+    in institutional CSV format. Supports duration filters: 30m, 1h, 2h (max 2 hours), or all session,
+    and supports exporting all stocks combined (symbol='ALL') or individual instruments.
     """
-    sym = (symbol or server.active_symbol).strip().upper()
-    venue = server.router.get_venue(sym)
-
-    recent = venue.recent_trades or []
-    candles = server.replayer.get_candlesticks(sym, limit=1440)
-
+    raw_sym = (symbol or server.active_symbol or "ALL").strip().upper()
+    dur_str = duration.strip().lower()
+    
+    # Map duration string to minutes
+    dur_map = {
+        "30m": 30,
+        "30min": 30,
+        "1h": 60,
+        "60m": 60,
+        "2h": 120,
+        "120m": 120,
+        "all": None,
+    }
+    dur_minutes = dur_map.get(dur_str, 120)  # default to 2h max
+    
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "trade_id", "symbol", "timestamp", "time", "side", "price", "quantity", "notional", "aggressor_type"
-    ])
-
-    now_t = time.time()
-    if recent:
-        for t in recent:
-            p = float(t.get("price", 0.0))
-            q = int(t.get("quantity", 0))
-            writer.writerow([
-                t.get("trade_id", 0),
-                sym,
-                int(now_t),
-                t.get("time", ""),
-                t.get("side", "BUY"),
-                f"{p:.2f}",
-                q,
-                f"{p * q:.2f}",
-                "TAKER",
-            ])
+    
+    # Target symbols
+    is_all = raw_sym in ("ALL", "*", "")
+    target_sym_label = "ALL_STOCKS" if is_all else raw_sym
+    
+    if data_type.lower() == "candles":
+        writer.writerow([
+            "candle_id", "symbol", "timestamp", "date_str", "open", "high", "low", "close",
+            "volume", "trades_count", "pattern", "pattern_sentiment", "pattern_score", "rsi", "vwap"
+        ])
+        candles_rows = server.replayer.data_store.get_candles_for_export(
+            symbol=None if is_all else raw_sym,
+            duration_minutes=dur_minutes,
+            limit=20000,
+        )
+        if candles_rows:
+            for r in candles_rows:
+                writer.writerow([
+                    r.get("id", ""),
+                    r.get("symbol", ""),
+                    r.get("timestamp", ""),
+                    r.get("date_str", ""),
+                    f"{float(r.get('open', 0)):.2f}",
+                    f"{float(r.get('high', 0)):.2f}",
+                    f"{float(r.get('low', 0)):.2f}",
+                    f"{float(r.get('close', 0)):.2f}",
+                    r.get("volume", 0),
+                    r.get("trades_count", 0),
+                    r.get("pattern", "NORMAL"),
+                    r.get("pattern_sentiment", "NEUTRAL"),
+                    r.get("pattern_score", 0.0),
+                    r.get("rsi", 50.0),
+                    r.get("vwap", 0.0),
+                ])
+        else:
+            # Fallback if DB query returned empty
+            symbols_to_fetch = list(server.router.venues_by_ticker.keys()) if is_all else [raw_sym]
+            c_id = 1
+            for s in set(symbols_to_fetch):
+                bars = server.replayer.get_candlesticks(s, limit=120 if dur_minutes == 120 else 60)
+                for b in bars:
+                    writer.writerow([
+                        c_id, s, int(time.time()), b.get("date", ""),
+                        f"{float(b.get('open', 0)):.2f}", f"{float(b.get('high', 0)):.2f}",
+                        f"{float(b.get('low', 0)):.2f}", f"{float(b.get('close', 0)):.2f}",
+                        b.get("volume", 0), 1, "NORMAL", "NEUTRAL", 0.0, 50.0, b.get("close", 0),
+                    ])
+                    c_id += 1
+        filename = f"ChronosMatch_{target_sym_label}_{dur_str.upper()}_Candles.csv"
     else:
-        for i, c in enumerate(candles):
-            writer.writerow([
-                i + 1,
-                sym,
-                int(c.get("timestamp", now_t)),
-                time.strftime("%H:%M:%S", time.gmtime(c.get("timestamp", now_t))),
-                "BUY" if c.get("close", 0) >= c.get("open", 0) else "SELL",
-                f"{c.get('close', 0):.2f}",
-                c.get("volume", 1000),
-                f"{c.get('close', 0) * c.get('volume', 1000):.2f}",
-                "MARKET",
-            ])
+        # Default: Detailed Execution Trade Tape & Order Fills
+        writer.writerow([
+            "trade_id", "symbol", "timestamp_ns", "side", "price", "quantity",
+            "notional", "best_bid", "best_ask", "spread", "ofi", "regime"
+        ])
+        ticks = server.replayer.data_store.get_trades_for_export(
+            symbol=None if is_all else raw_sym,
+            duration_minutes=dur_minutes,
+            limit=100000,
+        )
+        if ticks:
+            for t in ticks:
+                p = float(t.get("price", 0.0))
+                q = int(t.get("quantity", 0))
+                side_str = "BUY" if t.get("side", 0) == 0 else "SELL"
+                bb = float(t.get("best_bid", 0.0))
+                ba = float(t.get("best_ask", 0.0))
+                writer.writerow([
+                    t.get("id", 0),
+                    t.get("symbol", ""),
+                    t.get("timestamp_ns", 0),
+                    side_str,
+                    f"{p:.2f}",
+                    q,
+                    f"{p * q:.2f}",
+                    f"{bb:.2f}",
+                    f"{ba:.2f}",
+                    f"{max(0.0, ba - bb):.2f}",
+                    f"{float(t.get('ofi', 0.0)):.2f}",
+                    t.get("regime", "BALANCED_CONSOLIDATION"),
+                ])
+        else:
+            # Fallback to in-memory recent trades if DB was empty
+            now_t = time.time()
+            symbols_to_fetch = list(server.router.venues_by_ticker.keys()) if is_all else [raw_sym]
+            tid = 1
+            for s in set(symbols_to_fetch):
+                try:
+                    venue = server.router.get_venue(s)
+                    recent = venue.recent_trades or []
+                    for t in recent:
+                        p = float(t.get("price", 0.0))
+                        q = int(t.get("quantity", 0))
+                        writer.writerow([
+                            tid, s, int(now_t * 1e9), t.get("side", "BUY"),
+                            f"{p:.2f}", q, f"{p * q:.2f}",
+                            f"{p - 0.05:.2f}", f"{p + 0.05:.2f}", "0.10", "0.0", "ACTIVE"
+                        ])
+                        tid += 1
+                except Exception:
+                    pass
+        filename = f"ChronosMatch_{target_sym_label}_{dur_str.upper()}_Trades.csv"
 
     csv_data = output.getvalue()
-    filename = f"ChronosMatch_{sym}_1D_Trades.csv"
     return Response(
         content=csv_data,
         media_type="text/csv",

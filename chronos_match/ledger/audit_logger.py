@@ -20,16 +20,27 @@ class AuditLedger:
     """
 
     def __init__(self, db_path: str = "chronos_audit.db", read_only: bool = False):
+        import tempfile
+        if os.environ.get("VERCEL") and not os.path.isabs(db_path) and db_path != ":memory:":
+            db_path = os.path.join(tempfile.gettempdir(), os.path.basename(db_path))
         self.db_path = db_path
         self.read_only = read_only
         self._lock = threading.Lock()
 
         # Connect with autocommit disabled for explicit transaction control
-        self.conn = sqlite3.connect(
-            self.db_path,
-            check_same_thread=False,
-            timeout=30.0
-        )
+        try:
+            self.conn = sqlite3.connect(
+                self.db_path,
+                check_same_thread=False,
+                timeout=30.0
+            )
+        except sqlite3.OperationalError:
+            self.db_path = os.path.join(tempfile.gettempdir(), os.path.basename(self.db_path)) if self.db_path != ":memory:" else ":memory:"
+            self.conn = sqlite3.connect(
+                self.db_path,
+                check_same_thread=False,
+                timeout=30.0
+            )
         self.conn.row_factory = sqlite3.Row
 
         if not read_only:

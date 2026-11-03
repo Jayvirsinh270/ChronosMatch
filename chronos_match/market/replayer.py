@@ -122,24 +122,21 @@ class HistoricalMarketReplayer:
 
         candles: List[StockCandle] = []
         valid_stored = False
-        if stored_raw and len(stored_raw) >= 10:
-            last_p = stored_raw[-1]["close"]
-            # Valid if stored close matches expected benchmark price within 2.5%
-            if initial_p and abs(last_p - initial_p) / initial_p <= 0.025:
-                valid_stored = True
-                for r in stored_raw:
-                    candles.append(
-                        StockCandle(
-                            date=r["date_str"],
-                            open=round(r["open"], 2),
-                            high=round(r["high"], 2),
-                            low=round(r["low"], 2),
-                            close=round(r["close"], 2),
-                            volume=int(r["volume"]),
-                            adj_close=round(r["close"], 2),
-                        )
+        if stored_raw and len(stored_raw) >= 1:
+            valid_stored = True
+            for r in stored_raw:
+                candles.append(
+                    StockCandle(
+                        date=r["date_str"],
+                        open=round(r["open"], 2),
+                        high=round(r["high"], 2),
+                        low=round(r["low"], 2),
+                        close=round(r["close"], 2),
+                        volume=int(r["volume"]),
+                        adj_close=round(r["close"], 2),
                     )
-                initial_p = candles[-1].close
+                )
+            initial_p = candles[-1].close
 
         if not valid_stored:
             # Load from historical data loader
@@ -183,17 +180,6 @@ class HistoricalMarketReplayer:
                     )
                 candles = calibrated_candles
 
-                # Clear old corrupted candles and persist clean calibrated session
-                try:
-                    with self.data_store._lock:
-                        cur = self.data_store.conn.cursor()
-                        cur.execute("DELETE FROM market_candles WHERE symbol = ?", (sym.upper(),))
-                        if "-" in sym:
-                            cur.execute("DELETE FROM market_candles WHERE symbol = ?", (sym.split("-")[0].upper(),))
-                        self.data_store.conn.commit()
-                except Exception:
-                    pass
-
                 for sc in candles:
                     self.data_store.record_candle(
                         symbol=sym,
@@ -233,6 +219,19 @@ class HistoricalMarketReplayer:
         self.anchor_price[venue.info.ticker] = initial_p
         self.macro_drift[sym] = 0.0
         self.macro_drift[venue.info.ticker] = 0.0
+
+        # Initialize active live building candle starting from exact last close
+        prev_close = initial_p
+        self.live_candle[sym] = {
+            "date": time.strftime("%H:%M:%S"),
+            "open": prev_close,
+            "high": prev_close,
+            "low": prev_close,
+            "close": prev_close,
+            "volume": 0,
+            "trades": 0,
+        }
+        self.live_candle[venue.info.ticker] = self.live_candle[sym]
 
         # Initialize dedicated ML Impact Engine
         if sym not in self.impact_engines:
@@ -370,11 +369,15 @@ class HistoricalMarketReplayer:
         step_sigma = (daily_vol / 45.0) * vol_mult
         shock = random.gauss(0, 1) * step_sigma
         ofi_push = impact.ofi * (daily_vol * 0.0001)
-        drift_step = drift * 0.20
+
+        # Ornstein-Uhlenbeck mean reversion toward benchmark session anchor to prevent runaway compounding
+        anchor_p = venue.info.initial_price or 100.0
+        reversion_force = -0.00030 * ((cur_mid - anchor_p) / max(1.0, anchor_p))
+        drift_step = (drift * 0.12 + reversion_force)
 
         new_mid = cur_mid * (1.0 + drift_step + shock + ofi_push)
-        min_p = max(tick * 5, (venue.info.initial_price or 100.0) * 0.60)
-        max_p = (venue.info.initial_price or 100.0) * 2.00
+        min_p = max(tick * 5, anchor_p * 0.85)
+        max_p = anchor_p * 1.20
         new_mid = max(min_p, min(max_p, new_mid))
 
         self.current_mid[sym] = new_mid
@@ -969,7 +972,7 @@ class HistoricalMarketReplayer:
         bar["high"] = max(bar["high"], price)
         bar["low"] = min(bar["low"], price)
         bar["close"] = price
-        bar["volume"] += volume
+        bar["volume"] += max(10, volume * random.randint(5, 15))
         bar["trades"] += 1
 
     def _check_candle_rollover(self, sym: str, daily_vol: float = 0.02, tick: float = 0.01) -> None:
@@ -977,6 +980,13 @@ class HistoricalMarketReplayer:
         now = time.time()
         last_t = self.last_candle_time.get(sym, now)
         if (now - last_t) >= self.candle_interval_sec:
+            try:
+                venue = self.router.get_venue(sym)
+                venue_anchor = (venue.info.initial_price if venue else 100.0) or 100.0
+            except Exception:
+                venue = None
+                venue_anchor = 100.0
+
             bar = self.live_candle.get(sym)
             if bar:
                 pattern_model = self.pattern_models.get(sym)
@@ -1059,6 +1069,11 @@ class HistoricalMarketReplayer:
                         w_state.bars_remaining = random.randint(4, 7)
                         w_state.swing_high = bar["close"] + w_state.atr * random.uniform(2.2, 3.2)
 
+                # Clamp wave targets within institutional session band to prevent runaway drift
+                venue_anchor = venue.info.initial_price or 100.0
+                w_state.swing_high = min(venue_anchor * 1.18, w_state.swing_high)
+                w_state.swing_low = max(venue_anchor * 0.82, w_state.swing_low)
+
                 atr = w_state.atr
 
                 # Ensure every candle has authentic natural body and distinct wicks
@@ -1085,7 +1100,15 @@ class HistoricalMarketReplayer:
 
                 bar["high"] = round(max(bar["high"], body_high + upper_shadow), 2)
                 bar["low"] = round(max(tick, min(bar["low"], body_low - lower_shadow)), 2)
-                bar["volume"] = max(bar["volume"], random.randint(15000, 48000))
+
+                # Market volume directly representative of candlestick range and body size
+                candle_tr = (bar["high"] - bar["low"]) + abs(bar_c - bar_o)
+                rel_candle_size = candle_tr / max(0.001, atr * 1.5)
+                vol_intensity = max(0.30, min(3.8, rel_candle_size))
+                if w_state and "IMPULSE" in w_state.phase:
+                    vol_intensity = min(4.2, vol_intensity * 1.25)
+                synthesized_vol = int(random.uniform(900, 1400) * vol_intensity)
+                bar["volume"] = max(bar["volume"], synthesized_vol)
 
                 self.current_mid[sym] = bar["close"]
                 self.current_mid[sym.split("-")[0]] = bar["close"]
@@ -1196,11 +1219,30 @@ class HistoricalMarketReplayer:
         sym = (symbol or self.active_ticker).upper()
         candles = self.candles_cache.get(sym, [])
         if not candles:
-            try:
-                candles = self.data_loader.load_candles(sym, max_bars=limit)
+            # Check SQLite persistent store first
+            stored_raw = self.data_store.get_recent_candles(sym, limit=max(limit, 180))
+            if not stored_raw and "-" in sym:
+                stored_raw = self.data_store.get_recent_candles(sym.split("-")[0], limit=max(limit, 180))
+            if stored_raw:
+                candles = [
+                    StockCandle(
+                        date=r["date_str"],
+                        open=round(r["open"], 2),
+                        high=round(r["high"], 2),
+                        low=round(r["low"], 2),
+                        close=round(r["close"], 2),
+                        volume=int(r["volume"]),
+                        adj_close=round(r["close"], 2),
+                    )
+                    for r in stored_raw
+                ]
                 self.candles_cache[sym] = candles
-            except Exception:
-                candles = []
+            else:
+                try:
+                    candles = self.data_loader.load_candles(sym, max_bars=limit)
+                    self.candles_cache[sym] = candles
+                except Exception:
+                    candles = []
 
         bars = [
             {

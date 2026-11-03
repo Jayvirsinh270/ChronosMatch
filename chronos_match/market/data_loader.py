@@ -426,6 +426,8 @@ class MarketDataLoader:
                         c = float(parts[4])
                         adj = float(parts[5]) if len(parts) > 5 else c
                         v = int(float(parts[6])) if len(parts) > 6 else 1000
+                        if v > 200_000:
+                            v = int(v / 390)
 
                     candles.append(StockCandle(
                         date=date_str,
@@ -433,7 +435,7 @@ class MarketDataLoader:
                         high=round(h, 2),
                         low=round(l, 2),
                         close=round(c, 2),
-                        volume=v,
+                        volume=max(500, v),
                         adj_close=round(adj, 2),
                     ))
                 except (ValueError, IndexError):

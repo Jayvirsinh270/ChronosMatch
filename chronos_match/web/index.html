@@ -215,6 +215,13 @@
       background: var(--bg-subtle);
       padding: 0.25rem;
       border-radius: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      white-space: nowrap;
+    }
+    .symbol-nav::-webkit-scrollbar {
+      display: none;
     }
 
     .symbol-pill {
@@ -1150,7 +1157,9 @@
         <button class="symbol-pill" data-sym="SOL-USD">SOL-USD</button>
         <button class="symbol-pill" data-sym="NVDA">NVDA</button>
         <button class="symbol-pill" data-sym="AAPL">AAPL</button>
+        <button class="symbol-pill" data-sym="MSFT">MSFT</button>
         <button class="symbol-pill" data-sym="TSLA">TSLA</button>
+        <button class="symbol-pill" data-sym="RELIANCE">RELIANCE</button>
       </nav>
     </div>
 
@@ -1255,19 +1264,62 @@
             </div>
             <!-- Focus & Auto-Fit Mode Selector -->
             <div class="chart-btn-group" id="scaleGroup">
-              <button class="chart-btn active" id="btnFocusMode" title="Focus Mode: Tall prominent candles tracking active price"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>Focus</button>
-              <button class="chart-btn" id="btnAutoFit" title="Auto-Fit: Fit all visible historical bars in viewport"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>Auto-Fit</button>
+              <button class="chart-btn active" id="btnFocusMode" title="Focus Mode: Anti-Shrink adaptive scaling keeping candles tall and prominent"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>Focus</button>
+              <button class="chart-btn" id="btnLogMode" title="Log Scale: Percentage-based logarithmic scaling"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><path d="M3 3v18h18"></path><path d="M3 15c4-4 8-8 18-8"></path></svg>Log</button>
+              <button class="chart-btn" id="btnAutoFit" title="Auto-Fit: Fit entire linear price range in viewport"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>Auto-Fit</button>
             </div>
             <!-- Zoom Controls -->
             <div class="chart-btn-group" id="zoomGroup">
               <button class="chart-btn" id="btnZoomIn" title="Zoom In (Fewer bars, wider candles)">+</button>
               <button class="chart-btn" id="btnZoomOut" title="Zoom Out (More bars)">-</button>
             </div>
-            <!-- Export 1-Day Buy & Sell Market Data CSV -->
-            <div class="chart-btn-group">
-              <button class="chart-btn" id="btnExportCsv" title="Download 1-Day Buy & Sell Market Tape (CSV)">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px; vertical-align:-1px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export 1D CSV
+            <!-- Export Buy & Sell Market Orders CSV (30m, 1h, 2h, All Stocks) -->
+            <div class="chart-btn-group" style="position: relative;">
+              <button class="chart-btn" id="btnExportCsv" title="Download Buy & Sell Market Orders (CSV)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px; vertical-align:-1px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export CSV ▾
               </button>
+              <!-- Export Popover Menu -->
+              <div id="exportCsvMenu" style="display: none; position: absolute; right: 0; top: 32px; z-index: 1000; width: 270px; padding: 14px; background: var(--bg-card, #0f172a); border: 1px solid var(--border, #334155); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,0.55); font-size: 12px; color: var(--text-main, #f1f5f9); text-align: left;">
+                <div style="font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border, #334155); padding-bottom: 6px;">
+                  <span>Export Market Data (CSV)</span>
+                  <span id="closeExportMenu" style="cursor: pointer; opacity: 0.6; font-size: 14px; padding: 2px 6px;">✕</span>
+                </div>
+                <div style="margin-bottom: 9px;">
+                  <label style="display: block; font-size: 11px; opacity: 0.75; margin-bottom: 3px; font-weight: 600;">Timeframe Duration:</label>
+                  <select id="exportDurationSelect" style="width: 100%; padding: 6px 8px; background: var(--bg-input, #1e293b); color: inherit; border: 1px solid var(--border, #334155); border-radius: 4px; font-size: 12px;">
+                    <option value="30m">Last 30 Minutes</option>
+                    <option value="1h">Last 1 Hour</option>
+                    <option value="2h" selected>Last 2 Hours (Maximum)</option>
+                    <option value="all">All Available Session Data</option>
+                  </select>
+                </div>
+                <div style="margin-bottom: 9px;">
+                  <label style="display: block; font-size: 11px; opacity: 0.75; margin-bottom: 3px; font-weight: 600;">Stock / Instrument Scope:</label>
+                  <select id="exportStockSelect" style="width: 100%; padding: 6px 8px; background: var(--bg-input, #1e293b); color: inherit; border: 1px solid var(--border, #334155); border-radius: 4px; font-size: 12px;">
+                    <option value="ALL" selected>All Different Stocks (Combined Tape)</option>
+                    <option value="ACTIVE">Current Active Stock Only</option>
+                    <option value="BTC-USD">BTC-USD (Bitcoin)</option>
+                    <option value="ETH-USD">ETH-USD (Ethereum)</option>
+                    <option value="SOL-USD">SOL-USD (Solana)</option>
+                    <option value="NVDA">NVDA (NVIDIA)</option>
+                    <option value="AAPL">AAPL (Apple)</option>
+                    <option value="MSFT">MSFT (Microsoft)</option>
+                    <option value="TSLA">TSLA (Tesla)</option>
+                    <option value="RELIANCE">RELIANCE (Reliance Ind.)</option>
+                  </select>
+                </div>
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; font-size: 11px; opacity: 0.75; margin-bottom: 3px; font-weight: 600;">Data Type:</label>
+                  <select id="exportTypeSelect" style="width: 100%; padding: 6px 8px; background: var(--bg-input, #1e293b); color: inherit; border: 1px solid var(--border, #334155); border-radius: 4px; font-size: 12px;">
+                    <option value="trades" selected>Orders & Executed Trades Tape</option>
+                    <option value="candles">1-Minute OHLCV Candlesticks</option>
+                  </select>
+                </div>
+                <button id="btnConfirmExport" style="width: 100%; padding: 8px; background: #2563eb; color: #ffffff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  Download CSV
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1815,8 +1867,9 @@
 
         const rightMargin = 74;
         const bottomMargin = 26;
-        const volumeHeight = h * 0.14;
-        const chartAreaHeight = h - bottomMargin - volumeHeight;
+        // Dedicated volume zone (36-48px) giving volume bars dynamic height variation
+        const volumeHeight = Math.min(48, Math.max(32, h * 0.10));
+        const chartAreaHeight = h - bottomMargin - volumeHeight - 8;
 
         // Viewport window calculation:
         const totalCandles = candles.length;
@@ -1904,14 +1957,58 @@
           rawSpan = minSpan;
         }
 
-        // Institutional 14% vertical padding above highest wick and below lowest wick
-        const padding = rawSpan * 0.14;
-        let refMin = minPrice - padding;
-        let refMax = maxPrice + padding;
+        // Institutional Anti-Compression Engine:
+        // Calculate robust median ATR and price density envelopes to prevent single-candle outliers from compressing the chart
+        const allRanges = displayCandles.map(c => Math.max(0.001, c.high - c.low)).sort((a, b) => a - b);
+        const medATR = allRanges.length > 0 ? allRanges[Math.floor(allRanges.length / 2)] : 1.0;
+        const avgRange = allRanges.reduce((a, b) => a + b, 0) / Math.max(1, allRanges.length);
+        const effectiveATR = Math.max(minSpan, (medATR * 0.75 + avgRange * 0.25));
 
-        // Apply manual scaling / pan if adjusted by user
-        let centerPrice = (refMax + refMin) / 2 + (state.priceCenterOffset || 0);
-        let span = (refMax - refMin) * (state.priceZoomFactor || 1.0);
+        const isLog = (state.focusMode === 'log');
+        const isFocus = (state.focusMode || 'focus') === 'focus';
+        let targetMin = minPrice;
+        let targetMax = maxPrice;
+
+        if (isFocus) {
+          // Focus mode tracks the active trading momentum cluster (recent 16-20 bars)
+          const recentCount = Math.min(n, 18);
+          const recentBars = displayCandles.slice(n - recentCount);
+          let recMin = Infinity, recMax = -Infinity;
+          let recSumTR = 0;
+          for (let k = 0; k < recentBars.length; k++) {
+            const b = recentBars[k];
+            if (b.low < recMin) recMin = b.low;
+            if (b.high > recMax) recMax = b.high;
+            recSumTR += (b.high - b.low);
+          }
+          const recentATR = Math.max(minSpan, recSumTR / Math.max(1, recentBars.length));
+          const recentSpan = Math.max(minSpan, recMax - recMin);
+          const activeMid = displayCandles[n - 1].close;
+
+          // Target span for tall, bold, prominent candles in active trading zone (~8 to 11x ATR)
+          const targetSpan = Math.max(minSpan, recentATR * 9, Math.min(rawSpan, recentSpan * 1.16));
+
+          // Anchor viewport around the active trading region
+          targetMin = activeMid - targetSpan * 0.50;
+          targetMax = activeMid + targetSpan * 0.50;
+        }
+
+        // 12% vertical padding so candles utilize full vertical viewport height
+        const pad = (targetMax - targetMin) * 0.12;
+        let refMin = targetMin - pad;
+        let refMax = targetMax + pad;
+
+        // Smooth EMA dampening on viewport bounds to eliminate jarring jumps
+        if (!state.smoothMinP || Math.abs(state.smoothMinP - refMin) > (refMax - refMin) * 3 || state.isCustomScale) {
+          state.smoothMinP = refMin;
+          state.smoothMaxP = refMax;
+        } else {
+          state.smoothMinP = state.smoothMinP * 0.80 + refMin * 0.20;
+          state.smoothMaxP = state.smoothMaxP * 0.80 + refMax * 0.20;
+        }
+
+        let centerPrice = (state.smoothMaxP + state.smoothMinP) / 2 + (state.priceCenterOffset || 0);
+        let span = (state.smoothMaxP - state.smoothMinP) * (state.priceZoomFactor || 1.0);
         minPrice = centerPrice - span / 2;
         maxPrice = centerPrice + span / 2;
         const priceRange = Math.max(0.01, maxPrice - minPrice);
@@ -1920,7 +2017,16 @@
         state.lastMaxP = maxPrice;
         state.lastEffectiveRange = priceRange;
 
-        const getY = (p) => chartAreaHeight - ((p - minPrice) / priceRange) * chartAreaHeight;
+        const getY = (p) => {
+          if (isLog && minPrice > 0 && maxPrice > 0) {
+            const logMin = Math.log(minPrice);
+            const logMax = Math.log(maxPrice);
+            const logP = Math.log(Math.max(0.001, p));
+            return chartAreaHeight - ((logP - logMin) / Math.max(0.0001, logMax - logMin)) * chartAreaHeight;
+          }
+          return chartAreaHeight - ((p - minPrice) / priceRange) * chartAreaHeight;
+        };
+
         const getVolY = (v) => h - bottomMargin - (v / (maxVol || 1)) * (volumeHeight - 6);
         const barSpacing = (w - rightMargin) / n;
         const barWidth = Math.max(4, Math.min(22, barSpacing * 0.74));
@@ -1934,7 +2040,15 @@
 
         const priceSteps = 6;
         for (let i = 0; i <= priceSteps; i++) {
-          const p = minPrice + (priceRange / priceSteps) * i;
+          let p;
+          if (isLog && minPrice > 0 && maxPrice > 0) {
+            const logMin = Math.log(minPrice);
+            const logMax = Math.log(maxPrice);
+            const logStep = (logMax - logMin) / priceSteps;
+            p = Math.exp(logMin + logStep * i);
+          } else {
+            p = minPrice + (priceRange / priceSteps) * i;
+          }
           const y = getY(p);
           ctx.beginPath();
           ctx.moveTo(0, y);
@@ -1994,16 +2108,52 @@
             const highY = getY(c.high);
             const lowY = getY(c.low);
 
-            const bodyTop = Math.min(openY, closeY);
-            const rawBodyH = Math.abs(openY - closeY);
-            const bodyH = Math.max(1.5, rawBodyH);
+            // Local rolling 7-bar ATR window around candle i
+            const wStart = Math.max(0, i - 3);
+            const wEnd = Math.min(n, i + 4);
+            let sumLocalTR = 0;
+            for (let k = wStart; k < wEnd; k++) {
+              sumLocalTR += Math.max(0.001, displayCandles[k].high - displayCandles[k].low);
+            }
+            const localATR = sumLocalTR / Math.max(1, wEnd - wStart);
+            const barMove = Math.abs(c.close - c.open);
+            const relMove = barMove / Math.max(0.001, localATR);
 
-            // Draw upper and lower wicks
+            const tickSize = 0.01;
+            const isDoji = barMove < tickSize * 0.4;
+
+            // 1. Guaranteed Dominant Prominent Body:
+            // Candlesticks are the hero element: minimum body is 22px, average ~30-45px, impulse up to 64px!
+            const rawBodyH = Math.abs(openY - closeY);
+            const targetLocalBodyH = isDoji ? 3.0 : Math.max(22.0, Math.min(64.0, 26.0 * Math.max(0.75, relMove)));
+            const bodyH = Math.max(targetLocalBodyH, rawBodyH);
+
+            // 2. Centered Placement:
+            // Center the body around true open/close midpoint so it never drifts from true traded price
+            const centerY = (openY + closeY) / 2;
+            const bodyTop = centerY - bodyH / 2;
+            const bodyBottom = centerY + bodyH / 2;
+
+            // 3. Guaranteed Upper and Lower Shadows (Wicks):
+            // Every candle with wicks is guaranteed visible shadow protrusion (at least 4.0px)!
+            const hasUpperWick = c.high > Math.max(c.open, c.close);
+            const hasLowerWick = c.low < Math.min(c.open, c.close);
+
+            const upperWickRatio = hasUpperWick ? ((c.high - Math.max(c.open, c.close)) / localATR) : 0;
+            const lowerWickRatio = hasLowerWick ? ((Math.min(c.open, c.close) - c.low) / localATR) : 0;
+
+            const minUpperPx = hasUpperWick ? Math.max(5.0, Math.min(24.0, 9.0 * upperWickRatio)) : 0;
+            const minLowerPx = hasLowerWick ? Math.max(5.0, Math.min(24.0, 9.0 * lowerWickRatio)) : 0;
+
+            const wickHighY = hasUpperWick ? Math.min(highY, bodyTop - minUpperPx) : bodyTop;
+            const wickLowY = hasLowerWick ? Math.max(lowY, bodyBottom + minLowerPx) : bodyBottom;
+
+            // Draw upper and lower wicks with distinct separation
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.moveTo(x, highY);
-            ctx.lineTo(x, lowY);
+            ctx.moveTo(x, wickHighY);
+            ctx.lineTo(x, wickLowY);
             ctx.stroke();
 
             // Draw candle body with distinct clean border
@@ -2012,6 +2162,7 @@
             ctx.strokeStyle = borderC;
             ctx.lineWidth = 1;
             ctx.strokeRect(x - barWidth / 2, bodyTop, barWidth, bodyH);
+
           } else {
             if (i === 0) {
               ctx.beginPath();
@@ -2026,39 +2177,92 @@
         }
         ctx.restore();
 
-        // 3b. High & Low Session Tags
-        if (highBarX !== null && highBarX >= 0 && highBarX < n) {
-          const hx = highBarX * barSpacing + barSpacing / 2;
-          const hy = getY(highBarVal);
-          if (hy >= 14 && hy <= chartAreaHeight) {
-            ctx.fillStyle = isDark ? '#94A3B8' : '#64748B';
-            ctx.font = 'bold 9px JetBrains Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText(`H: ${highBarVal.toFixed(2)}`, hx, Math.max(14, hy - 5));
-          }
-        }
-        if (lowBarX !== null && lowBarX >= 0 && lowBarX < n) {
-          const lx = lowBarX * barSpacing + barSpacing / 2;
-          const ly = getY(lowBarVal);
-          if (ly >= 0 && ly <= chartAreaHeight - 12) {
-            ctx.fillStyle = isDark ? '#94A3B8' : '#64748B';
-            ctx.font = 'bold 9px JetBrains Mono';
-            ctx.textAlign = 'center';
-            ctx.fillText(`L: ${lowBarVal.toFixed(2)}`, lx, Math.min(chartAreaHeight - 4, ly + 12));
-          }
+        // 3b. High & Low Session Badges (TradingView-Style Pill Labels)
+        if (highBarX !== null && highBarX >= 0 && highBarX < n && isFinite(highBarVal)) {
+          const rawHx = highBarX * barSpacing + barSpacing / 2;
+          const hx = Math.max(52, Math.min(w - rightMargin - 52, rawHx));
+          const hy = Math.max(16, Math.min(chartAreaHeight - 16, getY(highBarVal) - 8));
+
+          const textH = `▲ H: ${highBarVal.toFixed(2)}`;
+          ctx.font = 'bold 9px JetBrains Mono, monospace';
+          const textW = ctx.measureText(textH).width;
+          const pillW = textW + 14;
+          const pillH = 16;
+
+          ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.90)' : 'rgba(255, 255, 255, 0.94)';
+          ctx.strokeStyle = isDark ? 'rgba(52, 211, 153, 0.6)' : 'rgba(5, 150, 105, 0.6)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(hx - pillW / 2, hy - pillH / 2, pillW, pillH, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = isDark ? '#34D399' : '#059669';
+          ctx.textAlign = 'center';
+          ctx.fillText(textH, hx, hy + 3.5);
         }
 
-        // 4. Volume Bars & Time Labels
+        if (lowBarX !== null && lowBarX >= 0 && lowBarX < n && isFinite(lowBarVal)) {
+          const rawLx = lowBarX * barSpacing + barSpacing / 2;
+          const lx = Math.max(52, Math.min(w - rightMargin - 52, rawLx));
+          const ly = Math.max(20, Math.min(chartAreaHeight - 10, getY(lowBarVal) + 12));
+
+          const textL = `▼ L: ${lowBarVal.toFixed(2)}`;
+          ctx.font = 'bold 9px JetBrains Mono, monospace';
+          const textW = ctx.measureText(textL).width;
+          const pillW = textW + 14;
+          const pillH = 16;
+
+          ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.90)' : 'rgba(255, 255, 255, 0.94)';
+          ctx.strokeStyle = isDark ? 'rgba(248, 113, 113, 0.6)' : 'rgba(220, 38, 38, 0.6)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(lx - pillW / 2, ly - pillH / 2, pillW, pillH, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = isDark ? '#F87171' : '#DC2626';
+          ctx.textAlign = 'center';
+          ctx.fillText(textL, lx, ly + 3.5);
+        }
+
+        // 4. Volume Bars & Time Labels (Directly Representative of Candlestick Size & Flow)
+        const maxBarH = Math.max(24, volumeHeight - 6);
+        const minBarH = 4.0;
+        const volBarWidth = Math.max(2, Math.min(16, barWidth * 0.72));
+
+        // Window-relative robust volume scale
+        const validVols = displayCandles.map(c => Math.max(10, c.volume || 100));
+        const sortedVols = [...validVols].sort((a, b) => a - b);
+        const p90Vol = sortedVols.length > 0 ? sortedVols[Math.floor(sortedVols.length * 0.90)] : 1000;
+        const scaleMaxVol = Math.max(50, p90Vol * 1.15);
+
+        // ATR of display window for size representation
+        const winATR = effectiveATR || medATR || 1.0;
+
         for (let i = 0; i < n; i++) {
           const c = displayCandles[i];
           const x = i * barSpacing + barSpacing / 2;
           const isGreen = c.close >= c.open;
 
-          const vy = getVolY(c.volume);
+          const rawVol = Math.max(10, c.volume || 100);
+          const volRatio = Math.max(0.08, Math.min(1.0, rawVol / scaleMaxVol));
+
+          // Physical candle size representation: big candles have tall bars, small have short bars
+          const candleTR = Math.max(0.001, c.high - c.low);
+          const candleBody = Math.abs(c.close - c.open);
+          const candleSizeRatio = Math.max(0.12, Math.min(1.5, (candleTR * 0.65 + candleBody * 0.35) / Math.max(0.001, winATR * 1.5)));
+
+          // Blend volume and candle size so bar height visibly and directly represents the candle above it
+          const combinedRatio = Math.min(1.0, Math.max(0.08, volRatio * 0.60 + candleSizeRatio * 0.40));
+          const vh = minBarH + combinedRatio * (maxBarH - minBarH);
+          const vy = h - bottomMargin - vh;
+
+          // Translucent volume bar with clean contrast
           ctx.fillStyle = isGreen
-            ? (isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(5, 150, 105, 0.28)')
-            : (isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(220, 38, 38, 0.28)');
-          ctx.fillRect(x - barWidth / 2, vy, barWidth, h - bottomMargin - vy);
+            ? (isDark ? 'rgba(34, 197, 94, 0.45)' : 'rgba(16, 185, 129, 0.40)')
+            : (isDark ? 'rgba(239, 68, 68, 0.45)' : 'rgba(239, 68, 68, 0.40)');
+          ctx.fillRect(x - volBarWidth / 2, vy, volBarWidth, vh);
 
           if (i % Math.max(1, Math.round(n / 6)) === 0 || i === n - 1) {
             ctx.fillStyle = textMuted;
@@ -2068,7 +2272,6 @@
             ctx.fillText(timeStr, x, h - 8);
           }
         }
-
         // 5. Current Real-Time Price Line & Pulsing Badge
         const latestGlobalCandle = candles[totalCandles - 1];
         if (latestGlobalCandle) {
@@ -2185,40 +2388,86 @@
           const chgSign = chg >= 0 ? '+' : '';
           const barColor = isBarGreen ? bullColor : bearColor;
 
-          ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.92)';
-          ctx.strokeStyle = isDark ? 'rgba(51, 65, 85, 0.8)' : 'rgba(203, 213, 225, 0.9)';
+          ctx.font = '11px JetBrains Mono, monospace';
+
+          const dateStr = c.date || '';
+          const openStr = c.open.toFixed(2);
+          const highStr = c.high.toFixed(2);
+          const lowStr = c.low.toFixed(2);
+          const closeStr = `${c.close.toFixed(2)} (${chgSign}${chgPct}%)`;
+
+          // Dynamically measure all segments to ensure the pill box fits perfectly
+          const dateW = ctx.measureText(dateStr).width;
+          const openLabelW = ctx.measureText('O: ').width;
+          const openValW = ctx.measureText(openStr).width;
+          const highLabelW = ctx.measureText('H: ').width;
+          const highValW = ctx.measureText(highStr).width;
+          const lowLabelW = ctx.measureText('L: ').width;
+          const lowValW = ctx.measureText(lowStr).width;
+          const closeLabelW = ctx.measureText('C: ').width;
+          const closeValW = ctx.measureText(closeStr).width;
+
+          const gap = 12;
+          const padX = 10;
+          const totalContentW = dateW + gap + openLabelW + openValW + gap + highLabelW + highValW + gap + lowLabelW + lowValW + gap + closeLabelW + closeValW;
+          const maxHudW = Math.max(100, w - rightMargin - 24);
+          const hudW = Math.min(totalContentW + padX * 2, maxHudW);
+
+          ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.90)' : 'rgba(255, 255, 255, 0.94)';
+          ctx.strokeStyle = isDark ? 'rgba(51, 65, 85, 0.85)' : 'rgba(203, 213, 225, 0.95)';
           ctx.lineWidth = 1;
 
-          const hudW = Math.min(430, w - rightMargin - 24);
           ctx.beginPath();
-          ctx.roundRect(12, 10, hudW, 26, 4);
+          ctx.roundRect(12, 10, hudW, 26, 5);
           ctx.fill();
           ctx.stroke();
 
-          ctx.font = '11px JetBrains Mono';
+          // Clip to pill interior so content NEVER overflows the rounded box
+          ctx.save();
+          ctx.beginPath();
+          ctx.roundRect(12, 10, hudW, 26, 5);
+          ctx.clip();
+
           ctx.textAlign = 'left';
-          ctx.fillStyle = textMuted;
-          ctx.fillText(c.date || '', 20, 27);
+          let curX = 12 + padX;
 
+          // 1. Date
           ctx.fillStyle = textMuted;
-          ctx.fillText('O:', 110, 27);
+          ctx.fillText(dateStr, curX, 27);
+          curX += dateW + gap;
+
+          // 2. Open
+          ctx.fillStyle = textMuted;
+          ctx.fillText('O: ', curX, 27);
+          curX += openLabelW;
           ctx.fillStyle = textMain;
-          ctx.fillText(c.open.toFixed(2), 125, 27);
+          ctx.fillText(openStr, curX, 27);
+          curX += openValW + gap;
 
+          // 3. High
           ctx.fillStyle = textMuted;
-          ctx.fillText('H:', 180, 27);
+          ctx.fillText('H: ', curX, 27);
+          curX += highLabelW;
           ctx.fillStyle = textMain;
-          ctx.fillText(c.high.toFixed(2), 195, 27);
+          ctx.fillText(highStr, curX, 27);
+          curX += highValW + gap;
 
+          // 4. Low
           ctx.fillStyle = textMuted;
-          ctx.fillText('L:', 250, 27);
+          ctx.fillText('L: ', curX, 27);
+          curX += lowLabelW;
           ctx.fillStyle = textMain;
-          ctx.fillText(c.low.toFixed(2), 265, 27);
+          ctx.fillText(lowStr, curX, 27);
+          curX += lowValW + gap;
 
+          // 5. Close & Change %
           ctx.fillStyle = textMuted;
-          ctx.fillText('C:', 320, 27);
+          ctx.fillText('C: ', curX, 27);
+          curX += closeLabelW;
           ctx.fillStyle = barColor;
-          ctx.fillText(`${c.close.toFixed(2)} (${chgSign}${chgPct}%)`, 335, 27);
+          ctx.fillText(closeStr, curX, 27);
+
+          ctx.restore();
         }
       }
 
@@ -2568,6 +2817,25 @@
           highlightActiveSymbol(state.symbol);
         }
 
+        // Dynamically ensure all active exchange tickers have a pill in navigation
+        if (snap.tickers && Array.isArray(snap.tickers)) {
+          const navEl = document.getElementById('symbolNav');
+          if (navEl) {
+            snap.tickers.forEach(t => {
+              const sym = t.symbol;
+              if (!sym) return;
+              const exists = Array.from(navEl.querySelectorAll('.symbol-pill')).some(p => matchesSymbol(p.dataset.sym, sym));
+              if (!exists) {
+                const btn = document.createElement('button');
+                btn.className = 'symbol-pill';
+                btn.dataset.sym = sym;
+                btn.textContent = sym;
+                navEl.appendChild(btn);
+              }
+            });
+          }
+        }
+
         state.marketPrice = snap.last_price || state.marketPrice;
         const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
 
@@ -2833,29 +3101,25 @@
           });
         }
 
-        // Focus & Auto-Fit Mode Selector Buttons
+        // Focus, Log & Auto-Fit Mode Selector Buttons
         const btnFocusMode = document.getElementById('btnFocusMode');
+        const btnLogMode = document.getElementById('btnLogMode');
         const btnAutoFit = document.getElementById('btnAutoFit');
-        if (btnFocusMode && btnAutoFit) {
-          btnFocusMode.addEventListener('click', () => {
-            state.focusMode = 'focus';
-            btnFocusMode.classList.add('active');
-            btnAutoFit.classList.remove('active');
-            state.priceCenterOffset = 0.0;
-            state.priceZoomFactor = 1.0;
-            state.isCustomScale = false;
-            renderChart();
-          });
-          btnAutoFit.addEventListener('click', () => {
-            state.focusMode = 'full';
-            btnAutoFit.classList.add('active');
-            btnFocusMode.classList.remove('active');
-            state.priceCenterOffset = 0.0;
-            state.priceZoomFactor = 1.0;
-            state.isCustomScale = false;
-            renderChart();
-          });
+
+        function setScaleMode(mode) {
+          state.focusMode = mode;
+          if (btnFocusMode) btnFocusMode.classList.toggle('active', mode === 'focus');
+          if (btnLogMode) btnLogMode.classList.toggle('active', mode === 'log');
+          if (btnAutoFit) btnAutoFit.classList.toggle('active', mode === 'full');
+          state.priceCenterOffset = 0.0;
+          state.priceZoomFactor = 1.0;
+          state.isCustomScale = false;
+          renderChart();
         }
+
+        if (btnFocusMode) btnFocusMode.addEventListener('click', () => setScaleMode('focus'));
+        if (btnLogMode) btnLogMode.addEventListener('click', () => setScaleMode('log'));
+        if (btnAutoFit) btnAutoFit.addEventListener('click', () => setScaleMode('full'));
 
         // Timeline Slider & Jump Live Navigation
         const timelineSlider = document.getElementById('timelineSlider');
@@ -2910,13 +3174,41 @@
           });
         }
 
-        // Export 1-Day Buy & Sell Market Data CSV
+        // Enhanced Multi-Timeframe (30m, 1h, 2h, All Stocks) CSV Exporter
         const btnExportCsv = document.getElementById('btnExportCsv');
-        if (btnExportCsv) {
-          btnExportCsv.addEventListener('click', () => {
-            const sym = state.symbol || 'SOL-USD';
-            window.location.href = `/api/market/export-csv?symbol=${encodeURIComponent(sym)}`;
-            showToast(`Downloading 1-Day ${sym} Buy & Sell tape CSV...`, 'success');
+        const exportCsvMenu = document.getElementById('exportCsvMenu');
+        const closeExportMenu = document.getElementById('closeExportMenu');
+        const btnConfirmExport = document.getElementById('btnConfirmExport');
+
+        if (btnExportCsv && exportCsvMenu) {
+          btnExportCsv.addEventListener('click', (e) => {
+            e.stopPropagation();
+            exportCsvMenu.style.display = exportCsvMenu.style.display === 'none' ? 'block' : 'none';
+          });
+        }
+        if (closeExportMenu && exportCsvMenu) {
+          closeExportMenu.addEventListener('click', () => {
+            exportCsvMenu.style.display = 'none';
+          });
+        }
+        document.addEventListener('click', (e) => {
+          if (exportCsvMenu && !exportCsvMenu.contains(e.target) && e.target !== btnExportCsv) {
+            exportCsvMenu.style.display = 'none';
+          }
+        });
+
+        if (btnConfirmExport) {
+          btnConfirmExport.addEventListener('click', () => {
+            const dur = document.getElementById('exportDurationSelect').value || '2h';
+            const stockChoice = document.getElementById('exportStockSelect').value || 'ALL';
+            const dataType = document.getElementById('exportTypeSelect').value || 'trades';
+            const activeSym = state.activeSymbol || state.symbol || 'NVDA-USD';
+            const symParam = stockChoice === 'ALL' ? 'ALL' : activeSym;
+
+            const url = `/api/market/export-csv?symbol=${encodeURIComponent(symParam)}&duration=${encodeURIComponent(dur)}&data_type=${encodeURIComponent(dataType)}`;
+            window.location.href = url;
+            showToast(`Exporting ${dur.toUpperCase()} ${symParam} (${dataType.toUpperCase()})...`, 'success');
+            if (exportCsvMenu) exportCsvMenu.style.display = 'none';
           });
         }
 
@@ -3131,9 +3423,12 @@
           });
         }
 
-        // Symbol Switcher Pills
-        document.querySelectorAll('#symbolNav .symbol-pill').forEach(pill => {
-          pill.addEventListener('click', async () => {
+        // Symbol Switcher Pills (Delegated handler for static and dynamic pills)
+        const symbolNav = document.getElementById('symbolNav');
+        if (symbolNav) {
+          symbolNav.addEventListener('click', async (e) => {
+            const pill = e.target.closest('.symbol-pill');
+            if (!pill) return;
             const sym = pill.dataset.sym;
             state.userSelectedSymbol = true;
             state.symbol = sym;
@@ -3150,11 +3445,11 @@
                 body: JSON.stringify({ symbol: sym }),
               });
               fetchSnapshot();
-            } catch (e) {
-              console.error('Error switching symbol:', e);
+            } catch (err) {
+              console.error('Error switching symbol:', err);
             }
           });
-        });
+        }
 
         // Bot Simulation Toggle
         if (botToggleBtn) {
