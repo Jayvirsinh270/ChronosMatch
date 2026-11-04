@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 ChronosMatch: Avellaneda-Stoikov Quantitative Market Maker.
 
@@ -14,8 +15,10 @@ from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
 
 from chronos_match.protocol import to_fixed_price, from_fixed_price, OrderSide
 
-if TYPE_CHECKING:
+try:
     from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
+except (ImportError, Exception):
+    MLMarketImpactEngine = Any  # type: ignore
 
 
 @dataclass
