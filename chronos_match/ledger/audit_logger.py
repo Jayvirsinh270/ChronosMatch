@@ -21,7 +21,11 @@ class AuditLedger:
 
     def __init__(self, db_path: str = "chronos_audit.db", read_only: bool = False):
         import tempfile
-        if os.environ.get("VERCEL") and not os.path.isabs(db_path) and db_path != ":memory:":
+        is_serverless = bool(
+            os.environ.get("VERCEL") or os.environ.get("IS_SERVERLESS") or
+            os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.path.exists("/var/task")
+        )
+        if is_serverless and not os.path.isabs(db_path) and db_path != ":memory:":
             db_path = os.path.join(tempfile.gettempdir(), os.path.basename(db_path))
         self.db_path = db_path
         self.read_only = read_only
@@ -34,7 +38,7 @@ class AuditLedger:
                 check_same_thread=False,
                 timeout=30.0
             )
-        except sqlite3.OperationalError:
+        except (sqlite3.OperationalError, OSError, PermissionError):
             self.db_path = os.path.join(tempfile.gettempdir(), os.path.basename(self.db_path)) if self.db_path != ":memory:" else ":memory:"
             self.conn = sqlite3.connect(
                 self.db_path,

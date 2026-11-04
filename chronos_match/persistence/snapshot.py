@@ -26,7 +26,15 @@ class SnapshotManager:
 
     def __init__(self, snapshot_dir: str = "chronos_snapshots"):
         self.snapshot_dir = snapshot_dir
-        os.makedirs(self.snapshot_dir, exist_ok=True)
+        try:
+            os.makedirs(self.snapshot_dir, exist_ok=True)
+        except (OSError, PermissionError):
+            import tempfile
+            self.snapshot_dir = os.path.join(tempfile.gettempdir(), "chronos_snapshots")
+            try:
+                os.makedirs(self.snapshot_dir, exist_ok=True)
+            except Exception:
+                pass
 
     def create_snapshot(
         self,

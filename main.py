@@ -18,9 +18,6 @@ import time
 # Expose FastAPI application instance for Vercel / ASGI cloud runners
 from chronos_match.web.server import app
 
-from chronos_match.daemon import ChronosDaemon
-from chronos_match.ledger.audit_logger import AuditLedger
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -69,6 +66,8 @@ def print_banner():
 
 
 def main():
+    from chronos_match.daemon import ChronosDaemon
+    from chronos_match.ledger.audit_logger import AuditLedger
     args = parse_args()
     print_banner()
 

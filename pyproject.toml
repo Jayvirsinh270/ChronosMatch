@@ -16,4 +16,4 @@ dependencies = [
 ]
 
 [tool.vercel]
-entrypoint = "main:app"
+entrypoint = "app:app"

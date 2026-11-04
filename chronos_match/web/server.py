@@ -153,6 +153,25 @@ class MarketShockRequest(BaseModel):
     price_delta: float = 0.50
 
 
+
+def is_serverless_env() -> bool:
+    """Robust detection of serverless read-only container environments (Vercel, AWS Lambda)."""
+    if os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV") or os.environ.get("IS_SERVERLESS"):
+        return True
+    if os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT") or os.environ.get("AWS_EXECUTION_ENV"):
+        return True
+    if os.path.exists("/var/task"):
+        return True
+    try:
+        test_file = os.path.join(os.getcwd(), ".writable_test")
+        with open(test_file, "w") as f:
+            f.write("1")
+        os.remove(test_file)
+        return False
+    except (OSError, PermissionError):
+        return True
+
+
 class WebTradingServer:
     def __init__(
         self,
@@ -161,7 +180,7 @@ class WebTradingServer:
         snapshot_dir: str = "chronos_snapshots",
         enable_wal: bool = False,
     ):
-        if os.environ.get("VERCEL"):
+        if is_serverless_env():
             import tempfile
             tmp = tempfile.gettempdir()
             if not os.path.isabs(db_path) and db_path != ":memory:":
@@ -745,7 +764,7 @@ def get_index_html_path() -> Path:
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     """Auto-start background living market simulation loop on server startup."""
-    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    is_serverless = is_serverless_env()
     server.is_running = True
     # In serverless environments, do not spawn infinite loops that block request completion
     if not is_serverless and server.bot_active:
@@ -804,7 +823,7 @@ async def serve_index():
 @app.get("/api/snapshot")
 async def api_snapshot(symbol: Optional[str] = None):
     """Fetch current market snapshot for active or specified symbol."""
-    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    is_serverless = is_serverless_env()
     if is_serverless and server.bot_active:
         # Step market tick on-demand on each frontend snapshot poll in serverless environments
         try:
@@ -880,7 +899,7 @@ async def api_bot_speed(req: BotSpeedRequest):
 async def api_toggle_bot():
     """Toggle background liquidity simulation across instruments."""
     server.bot_active = not server.bot_active
-    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    is_serverless = is_serverless_env()
     if not is_serverless and server.bot_active:
         if server._bot_task is None or server._bot_task.done():
             server._bot_task = asyncio.create_task(_bot_simulation_loop())
@@ -1467,7 +1486,7 @@ def api_inject_market_shock(req: MarketShockRequest):
 async def websocket_endpoint(ws: WebSocket):
     """High-frequency WebSocket broadcasting live snapshots for the active symbol at ~16 FPS."""
     await ws.accept()
-    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    is_serverless = is_serverless_env()
     if not is_serverless and server.bot_active and (server._bot_task is None or server._bot_task.done()):
         server._bot_task = asyncio.create_task(_bot_simulation_loop())
     server.connected_clients.append(ws)
