@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 ChronosMatch: Financial Information eXchange (FIX 4.2) Protocol Engine.
 
@@ -8,7 +9,7 @@ high-throughput parsing, and message generation for institutional exchanges.
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 
 SOH = b"\x01"  # Standard Start of Header / delimiter

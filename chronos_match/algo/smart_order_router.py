@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 ChronosMatch: Institutional Smart Order Router (SOR) Execution Engine.
 
@@ -14,7 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import math
 import time
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 
 from chronos_match.market.sor_network import MultiVenueNetwork, ExchangeVenue, VenueFill
 from chronos_match.market.nbbo import NBBOEngine, NBBORecord
