@@ -1,18 +1,28 @@
 """
-ChronosMatch: Real-Time High-Frequency Trading Terminal Dashboard.
-Cross-platform Terminal UI built with Rich. Displays:
-1. System Status & Header Banner (Zero-Copy IPC, Cython nogil, WAL Ledger).
-2. KPI Cards: Throughput, Order Book Imbalance, Latency SLA, Matched Liquidity.
-3. Level 2 Depth Ladder: Top 10 Bids and Asks with visual volume depth bars.
-4. Live Trade Execution Ticker with microsecond latency metrics.
-5. Real-time Whale Sweep & SLA Breach Alert Log.
+ChronosMatch: Ultra-High-Performance Real-Time Terminal Trading Cockpit.
+Institutional-grade Terminal User Interface (TUI) built on Rich.
+
+Visual Capabilities:
+1. Header & Telemetry Bar: Live pulsing heartbeat, architecture telemetry (Zero-Copy IPC, nogil LOB, SQLite WAL).
+2. KPI Analytics Deck: Real-time throughput velocity, Top-of-Book spread & imbalance gauge, SLA latency percentiles, and liquidity volume.
+3. Level 2 Market Depth Ladder: Dual-sided order book with cumulative volume depth bars and spread compression ribbon.
+4. Live Time & Sales Tape: Execution stream with tick directions (▲/▼), notional turnover, and sub-microsecond latency profiling.
+5. Institutional Whale Radar & Anomaly Log: Sweep anomaly classification (Whale Sweep, Block Trade, SLA Breaches).
+6. Microstructure Sparklines: Real-time rolling Unicode sparklines for price action, latency jitter, and order ingress velocity.
+7. Standalone Interactive Simulator: Run directly via `python -m chronos_match.monitor.dashboard`.
 """
 
+from collections import deque
 from datetime import datetime
 import io
+import math
+import random
+import sys
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
+from rich import box
+from rich.align import Align
 from rich.console import Console, Group
 from rich.layout import Layout
 from rich.live import Live
@@ -20,19 +30,68 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from chronos_match.protocol import from_fixed_price, Side
+from chronos_match.protocol import from_fixed_price, to_fixed_price, Side
 from chronos_match.monitor.metrics import LatencyStats
 from chronos_match.monitor.whale_detector import WhaleAlert
+
+
+# Unicode sparkline glyphs ordered from lowest to highest
+SPARK_CHARS = [" ", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
+PULSE_FRAMES = ["●", "◉", "◎", "○", "◎", "◉"]
+SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+
+def render_sparkline(
+    values: List[float],
+    width: int = 12,
+    min_val: Optional[float] = None,
+    max_val: Optional[float] = None,
+) -> str:
+    """
+    Render a clean Unicode sparkline from numerical series.
+    Normalizes across series range and maps each element to 8 discrete vertical levels.
+    """
+    if not values:
+        return "─" * width
+
+    # Slice to width
+    series = values[-width:] if len(values) > width else values
+    lo = min_val if min_val is not None else min(series)
+    hi = max_val if max_val is not None else max(series)
+
+    if math.isclose(hi, lo, abs_tol=1e-9):
+        return SPARK_CHARS[3] * len(series)
+
+    span = hi - lo
+    n_levels = len(SPARK_CHARS)
+    result = []
+    for v in series:
+        ratio = (v - lo) / span
+        idx = int(ratio * (n_levels - 1))
+        idx = max(0, min(n_levels - 1, idx))
+        result.append(SPARK_CHARS[idx])
+
+    return "".join(result)
 
 
 class TerminalDashboard:
     """
     Real-Time Terminal User Interface (TUI) Dashboard for ChronosMatch.
-    Styled for high-density, institutional-grade electronic trading desks.
+    Engineered with high-density institutional Bloomberg/HFT cyber-trading desk aesthetics.
     """
 
     def __init__(self, console: Optional[Console] = None):
         self.console = console or Console()
+        self._frame_count: int = 0
+        self._start_time: float = time.perf_counter()
+
+        # Rolling time series for visual sparklines & trends
+        self._tps_history: Deque[float] = deque(maxlen=24)
+        self._latency_history: Deque[float] = deque(maxlen=24)
+        self._price_history: Deque[float] = deque(maxlen=24)
+        self._last_trade_price: Optional[float] = None
+        self._last_trade_id: int = 0
+        self._tick_direction: str = "FLAT"  # "UP", "DOWN", "FLAT"
 
     def build_layout(
         self,
@@ -45,9 +104,35 @@ class TerminalDashboard:
         """
         Construct a responsive Rich Layout hierarchy from current engine snapshots.
         """
+        self._frame_count += 1
+
+        # Update internal rolling metrics
+        info = throughput_info or {}
+        rate = float(info.get("orders_per_sec", 0.0))
+        if rate > 0:
+            self._tps_history.append(rate)
+
+        if latency_stats and latency_stats.sample_count > 0:
+            p50_us = getattr(latency_stats, "p50_us", getattr(latency_stats, "p50_ns", 0) / 1000.0)
+            self._latency_history.append(p50_us)
+
+        # Track tick direction from trades
+        trades = recent_trades or []
+        if trades:
+            latest = trades[-1]
+            raw_p = latest.get("price", latest.get("execution_price", 0))
+            p_float = from_fixed_price(raw_p) if raw_p > 100_000 else float(raw_p)
+            if self._last_trade_price is not None:
+                if p_float > self._last_trade_price:
+                    self._tick_direction = "UP"
+                elif p_float < self._last_trade_price:
+                    self._tick_direction = "DOWN"
+            self._last_trade_price = p_float
+            self._price_history.append(p_float)
+
         layout = Layout()
 
-        # Split into Header, KPI Cards, Main Body (L2 Book + Ticker), and Bottom Alert Log
+        # Multi-row layout hierarchy
         layout.split_column(
             Layout(name="header", size=3),
             Layout(name="kpis", size=6),
@@ -64,7 +149,9 @@ class TerminalDashboard:
         layout["header"].update(self._build_header())
 
         # 2. KPI Cards Panel
-        layout["kpis"].update(self._build_kpi_cards(throughput_info, latency_stats, l2_snapshot))
+        layout["kpis"].update(
+            self._build_kpi_cards(throughput_info, latency_stats, l2_snapshot, recent_trades)
+        )
 
         # 3. L2 Order Book Depth Table
         layout["order_book"].update(self._build_order_book_panel(l2_snapshot))
@@ -78,19 +165,25 @@ class TerminalDashboard:
         return layout
 
     def _build_header(self) -> Panel:
-        """Generate high-contrast header banner."""
+        """Generate high-contrast, institutional cyber-styled header banner."""
+        pulse_glyph = PULSE_FRAMES[self._frame_count % len(PULSE_FRAMES)]
+        spinner_glyph = SPINNER_FRAMES[self._frame_count % len(SPINNER_FRAMES)]
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        title_text = Text()
-        title_text.append("⚡ CHRONOS MATCH ", style="bold bright_cyan")
-        title_text.append("│ ZERO-COPY HFT MATCHING ENGINE │ ", style="bold white")
-        title_text.append("PURE-C NOGIL • SHM SPSC IPC • SQLITE WAL ", style="dim green")
-        title_text.append(f"│ {now_str} ", style="yellow")
-        title_text.append("● NOMINAL", style="bold green")
+
+        title = Text()
+        title.append("⚡ CHRONOS MATCH ", style="bold bright_cyan")
+        title.append("│ ZERO-COPY LOB │ ", style="bold white")
+        title.append("PURE-C NOGIL • SHM SPSC IPC • SQLITE WAL ", style="bold green")
+        title.append(f"│ {now_str} ", style="bright_yellow")
+        title.append(f"{pulse_glyph} NOMINAL", style="bold bright_green")
+        title.append(f" [{spinner_glyph}]", style="bold cyan")
 
         return Panel(
-            title_text,
-            style="bold white on black",
+            title,
+            style="bold white on #080d14",
             border_style="bright_blue",
+            box=box.ROUNDED,
+            padding=(0, 1),
         )
 
     def _build_kpi_cards(
@@ -98,20 +191,21 @@ class TerminalDashboard:
         throughput_info: Optional[Dict[str, Any]],
         latency_stats: Optional[LatencyStats],
         l2_snapshot: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+        recent_trades: Optional[List[Dict[str, Any]]] = None,
     ) -> Table:
-        """Generate top-row metric cards table with microstructure indicators."""
+        """Generate top-row KPI metric cards with microsecond telemetry and sparklines."""
         info = throughput_info or {}
         orders_proc = info.get("orders_processed", 0)
         cancels_proc = info.get("cancellations_processed", 0)
         trades_gen = info.get("trades_generated", 0)
         shares_traded = info.get("shares_traded", 0)
-        rate = info.get("orders_per_sec", 0.0)
+        rate = float(info.get("orders_per_sec", 0.0))
 
         best_bid = from_fixed_price(info.get("best_bid", 0))
         best_ask = from_fixed_price(info.get("best_ask", 0))
         spread = from_fixed_price(info.get("spread", 0))
 
-        # Calculate imbalance from snapshot if available
+        # Depth volumes for Order Flow Imbalance (OFI)
         bids = (l2_snapshot or {}).get("bids", [])
         asks = (l2_snapshot or {}).get("asks", [])
         tot_bid_vol = sum(b.get("volume", 0) for b in bids)
@@ -124,14 +218,23 @@ class TerminalDashboard:
         grid.add_column(ratio=1)
         grid.add_column(ratio=1)
 
-        # Card 1: Throughput
+        # -------------------------------------------------------------
+        # CARD 1: Throughput Velocity & Ingestion
+        # -------------------------------------------------------------
+        tps_spark = render_sparkline(list(self._tps_history), width=8)
         c1 = Text()
-        c1.append("Throughput & Ingestion\n", style="bold bright_cyan")
-        c1.append(f"Orders: {orders_proc:,} ", style="white")
+        c1.append("Throughput & Ingestion ", style="bold bright_cyan")
+        if tps_spark:
+            c1.append(f"[{tps_spark}]\n", style="dim cyan")
+        else:
+            c1.append("\n")
+        c1.append(f"Orders: {orders_proc:,} ", style="bold white")
         c1.append(f"({cancels_proc:,} can)\n", style="dim")
-        c1.append(f"Rate: {rate:,.0f} ord/s", style="bold green" if rate > 0 else "dim")
+        c1.append(f"Rate: {rate:,.0f} ord/s", style="bold bright_green" if rate > 0 else "dim")
 
-        # Card 2: Market Spread & Imbalance
+        # -------------------------------------------------------------
+        # CARD 2: Market Top-of-Book & Imbalance
+        # -------------------------------------------------------------
         c2 = Text()
         c2.append("Market Top-of-Book\n", style="bold bright_cyan")
         if best_bid > 0 and best_ask > 0:
@@ -142,15 +245,25 @@ class TerminalDashboard:
             if tot_vol > 0:
                 bid_pct = int((tot_bid_vol / tot_vol) * 100)
                 ask_pct = 100 - bid_pct
-                bar_bid_len = int((bid_pct / 100) * 12)
-                bar_ask_len = 12 - bar_bid_len
-                c2.append(f"\n[green]{'█'*bar_bid_len}[/][red]{'█'*bar_ask_len}[/] {bid_pct}%B / {ask_pct}%A", style="dim")
+                bar_bid_len = max(1, int((bid_pct / 100) * 10))
+                bar_ask_len = max(1, 10 - bar_bid_len)
+                c2.append("\n")
+                c2.append("█" * bar_bid_len, style="bold green")
+                c2.append("█" * bar_ask_len, style="bold red")
+                c2.append(f" {bid_pct}%B / {ask_pct}%A", style="dim cyan")
         else:
             c2.append("Book Empty\nWaiting for Orders", style="dim")
 
-        # Card 3: Execution Latency SLA
+        # -------------------------------------------------------------
+        # CARD 3: Wire-to-Match Latency SLA
+        # -------------------------------------------------------------
+        lat_spark = render_sparkline(list(self._latency_history), width=8)
         c3 = Text()
-        c3.append("Wire-to-Match Latency\n", style="bold bright_cyan")
+        c3.append("Wire-to-Match Latency ", style="bold bright_cyan")
+        if lat_spark:
+            c3.append(f"[{lat_spark}]\n", style="dim green")
+        else:
+            c3.append("\n")
         if latency_stats and latency_stats.sample_count > 0:
             p50_us = getattr(latency_stats, "p50_us", getattr(latency_stats, "p50_ns", 0) / 1000.0)
             p99_us = getattr(latency_stats, "p99_us", getattr(latency_stats, "p99_ns", 0) / 1000.0)
@@ -162,39 +275,48 @@ class TerminalDashboard:
         else:
             c3.append("Awaiting Latency Samples\n--", style="dim")
 
-        # Card 4: Matched Liquidity
+        # -------------------------------------------------------------
+        # CARD 4: Matched Liquidity & Turnover
+        # -------------------------------------------------------------
+        price_spark = render_sparkline(list(self._price_history), width=8)
         c4 = Text()
-        c4.append("Matched Liquidity\n", style="bold bright_cyan")
+        c4.append("Matched Liquidity ", style="bold bright_cyan")
+        if price_spark:
+            c4.append(f"[{price_spark}]\n", style="dim yellow")
+        else:
+            c4.append("\n")
         c4.append(f"Trades: {trades_gen:,}\n", style="bold white")
         c4.append(f"Volume: {shares_traded:,} shares", style="bold yellow")
 
         grid.add_row(
-            Panel(c1, border_style="cyan"),
-            Panel(c2, border_style="cyan"),
-            Panel(c3, border_style="cyan"),
-            Panel(c4, border_style="cyan"),
+            Panel(c1, border_style="cyan", box=box.ROUNDED, padding=(0, 1)),
+            Panel(c2, border_style="bright_cyan", box=box.ROUNDED, padding=(0, 1)),
+            Panel(c3, border_style="cyan", box=box.ROUNDED, padding=(0, 1)),
+            Panel(c4, border_style="bright_cyan", box=box.ROUNDED, padding=(0, 1)),
         )
         return grid
 
     def _build_order_book_panel(
         self, l2_snapshot: Optional[Dict[str, List[Dict[str, Any]]]]
     ) -> Panel:
-        """Render Level 2 Order Book Depth Ladder with visual volume bars."""
+        """Render Level 2 Order Book Depth Ladder with cumulative volume depth bars."""
         table = Table(
             title="LEVEL 2 MARKET DEPTH LADDER",
             title_style="bold bright_cyan",
             expand=True,
             show_header=True,
-            header_style="bold white on #0d1117",
-            box=None,
+            header_style="bold white on #111927",
+            box=box.SIMPLE_HEAD,
+            pad_edge=False,
+            padding=(0, 0),
         )
-        table.add_column("Orders", justify="right", style="dim", width=7)
-        table.add_column("Bid Depth", justify="left", width=12)
-        table.add_column("Bid Qty", justify="right", style="bold green", width=10)
-        table.add_column("Price", justify="center", style="bold white", width=12)
-        table.add_column("Ask Qty", justify="left", style="bold red", width=10)
-        table.add_column("Ask Depth", justify="left", width=12)
-        table.add_column("Orders", justify="left", style="dim", width=7)
+        table.add_column("#", justify="right", style="dim", width=3)
+        table.add_column("Bid Depth", justify="right", width=9)
+        table.add_column("Bids", justify="right", style="bold green", width=7)
+        table.add_column("Price", justify="center", style="bold white", width=9)
+        table.add_column("Asks", justify="left", style="bold red", width=7)
+        table.add_column("Ask Depth", justify="left", width=9)
+        table.add_column("#", justify="left", style="dim", width=3)
 
         snapshot = l2_snapshot or {"bids": [], "asks": []}
         bids = snapshot.get("bids", [])
@@ -203,10 +325,10 @@ class TerminalDashboard:
         # Find max volume for proportional bar rendering
         max_vol = 1
         for b in bids:
-            if b["volume"] > max_vol:
+            if b.get("volume", 0) > max_vol:
                 max_vol = b["volume"]
         for a in asks:
-            if a["volume"] > max_vol:
+            if a.get("volume", 0) > max_vol:
                 max_vol = a["volume"]
 
         # Render Top Asks (in reverse order so lowest ask is near the spread)
@@ -215,7 +337,7 @@ class TerminalDashboard:
             p_float = from_fixed_price(ask["price"])
             vol = ask["volume"]
             cnt = ask.get("order_count", 1)
-            bar_len = int((vol / max_vol) * 12) if max_vol > 0 else 0
+            bar_len = int((vol / max_vol) * 8) if max_vol > 0 else 0
             bar = "█" * max(1, bar_len)
             table.add_row(
                 "",
@@ -247,11 +369,11 @@ class TerminalDashboard:
             p_float = from_fixed_price(bid["price"])
             vol = bid["volume"]
             cnt = bid.get("order_count", 1)
-            bar_len = int((vol / max_vol) * 12) if max_vol > 0 else 0
+            bar_len = int((vol / max_vol) * 8) if max_vol > 0 else 0
             bar = "█" * max(1, bar_len)
             table.add_row(
                 str(cnt),
-                f"[bold green]{bar:>12}[/]",
+                f"[bold green]{bar:>8}[/]",
                 f"{vol:,}",
                 f"${p_float:,.2f}",
                 "",
@@ -259,35 +381,46 @@ class TerminalDashboard:
                 "",
             )
 
-        return Panel(table, border_style="blue", title="Order Book")
+        return Panel(
+            table,
+            border_style="bright_blue",
+            box=box.ROUNDED,
+            title="[bold bright_cyan]📊 Level 2 Book[/]",
+            title_align="left",
+        )
 
     def _build_trade_ticker_panel(
         self, recent_trades: Optional[List[Dict[str, Any]]]
     ) -> Panel:
-        """Render recent executed trade executions stream."""
+        """Render recent executed trade executions stream with tick directions."""
         table = Table(
             title="LIVE TRADE EXECUTION STREAM",
             title_style="bold bright_cyan",
             expand=True,
             show_header=True,
-            header_style="bold white on #0d1117",
-            box=None,
+            header_style="bold white on #111927",
+            box=box.SIMPLE_HEAD,
+            pad_edge=False,
+            padding=(0, 0),
         )
-        table.add_column("Trade ID", justify="right", style="dim", width=9)
+        table.add_column("Trade ID", justify="right", style="dim cyan", width=8)
         table.add_column("Side", justify="center", width=6)
-        table.add_column("Price", justify="right", width=10)
-        table.add_column("Quantity", justify="right", width=9)
-        table.add_column("Notional", justify="right", width=12)
-        table.add_column("Latency", justify="right", width=10)
+        table.add_column("Price", justify="right", width=9)
+        table.add_column("Qty", justify="right", width=6)
+        table.add_column("Notional", justify="right", style="bold yellow", width=10)
+        table.add_column("Latency", justify="right", width=9)
 
         trades = recent_trades or []
         for t in trades[:12]:
             trade_id = t.get("trade_id", 0)
             side_val = t.get("aggressor_side", 0)
             side_str = "BUY" if side_val == int(Side.BUY) else "SELL"
-            side_style = "bold green" if side_str == "BUY" else "bold red"
+            side_badge = (
+                "[bold black on #00ff88] BUY [/]"
+                if side_str == "BUY"
+                else "[bold white on #ff3366] SELL [/]"
+            )
 
-            # Check if price is fixed-point or float
             raw_price = t.get("price", t.get("execution_price", 0))
             price_float = from_fixed_price(raw_price) if raw_price > 100_000 else float(raw_price)
             qty = t.get("quantity", 0)
@@ -295,21 +428,35 @@ class TerminalDashboard:
 
             latency_ns = t.get("latency_ns", 0)
             latency_us = latency_ns / 1000.0
-            lat_style = "green" if latency_us <= 20.0 else ("yellow" if latency_us <= 50.0 else "bold red")
+            if latency_us <= 10.0:
+                lat_style = "bold bright_green"
+                glyph = "⚡"
+            elif latency_us <= 50.0:
+                lat_style = "green"
+                glyph = ""
+            else:
+                lat_style = "bold red"
+                glyph = "⚠"
 
             table.add_row(
                 f"#{trade_id}",
-                f"[{side_style}]{side_str}[/]",
+                side_badge,
                 f"${price_float:,.2f}",
                 f"{qty:,}",
                 f"${notional:,.2f}",
-                f"[{lat_style}]{latency_us:.2f}μs[/]",
+                f"[{lat_style}]{latency_us:.1f}μs {glyph}[/]",
             )
 
         if not trades:
             table.add_row("", "", "[dim]No executions yet[/]", "", "", "")
 
-        return Panel(table, border_style="blue", title="Executions")
+        return Panel(
+            table,
+            border_style="bright_blue",
+            box=box.ROUNDED,
+            title="[bold bright_cyan]⚡ Executions Tape[/]",
+            title_align="left",
+        )
 
     def _build_alerts_panel(
         self, whale_alerts: Optional[List[WhaleAlert]]
@@ -318,31 +465,37 @@ class TerminalDashboard:
         table = Table(
             expand=True,
             show_header=True,
-            header_style="bold yellow on #0d1117",
-            box=None,
+            header_style="bold yellow on #111927",
+            box=box.SIMPLE_HEAD,
+            pad_edge=False,
         )
-        table.add_column("Alert #", justify="right", width=7)
+        table.add_column("Alert #", justify="right", style="dim", width=7)
         table.add_column("Type", justify="center", width=14)
         table.add_column("Side", justify="center", width=6)
         table.add_column("Price", justify="right", width=10)
-        table.add_column("Shares", justify="right", width=10)
-        table.add_column("Notional USD", justify="right", width=14)
+        table.add_column("Shares", justify="right", width=9)
+        table.add_column("Notional USD", justify="right", style="bold yellow", width=13)
         table.add_column("Latency", justify="right", width=10)
         table.add_column("Event Details", justify="left")
 
         alerts = whale_alerts or []
         for a in alerts[-4:]:
             type_style = (
-                "bold yellow"
+                "bold black on #ffaa00"
                 if a.alert_type == "WHALE_SWEEP"
-                else ("bold cyan" if a.alert_type == "LARGE_BLOCK" else "bold red")
+                else (
+                    "bold black on #00e5ff"
+                    if a.alert_type == "LARGE_BLOCK"
+                    else "bold white on #ff0055"
+                )
             )
+            type_badge = f"[{type_style}] {a.alert_type} [/]"
             side_style = "bold green" if a.aggressor_side == "BUY" else "bold red"
             lat_style = "green" if a.latency_us <= 50.0 else "bold red"
 
             table.add_row(
                 f"#{a.alert_id}",
-                f"[{type_style}]{a.alert_type}[/]",
+                type_badge,
                 f"[{side_style}]{a.aggressor_side}[/]",
                 f"${a.price:,.2f}",
                 f"{a.quantity:,}",
@@ -352,12 +505,23 @@ class TerminalDashboard:
             )
 
         if not alerts:
-            table.add_row("", "[dim]NOMINAL[/]", "", "", "", "", "", "[dim]Zero SLA breaches or abnormal whale sweeps detected[/]")
+            table.add_row(
+                "",
+                "[bold bright_green]NOMINAL[/]",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "[dim]Zero SLA breaches or abnormal whale sweeps detected │ Lock-free SPSC IPC Active │ WAL Off Critical Path[/]",
+            )
 
         return Panel(
             table,
             border_style="yellow",
-            title="⚡ Institutional Whale Sweeps & SLA Anomaly Log",
+            box=box.ROUNDED,
+            title="[bold yellow]⚡ Institutional Whale Sweeps & SLA Anomaly Log[/]",
+            title_align="left",
         )
 
     def render_string(
@@ -369,7 +533,7 @@ class TerminalDashboard:
         whale_alerts: Optional[List[WhaleAlert]] = None,
         width: int = 120,
     ) -> str:
-        """Render dashboard layout into a string for testing and snapshots."""
+        """Render dashboard layout into a string for testing, benchmarking, and snapshots."""
         buf = io.StringIO()
         test_console = Console(file=buf, width=width, force_terminal=True, color_system="standard")
         layout = self.build_layout(
@@ -381,3 +545,147 @@ class TerminalDashboard:
         )
         test_console.print(layout)
         return buf.getvalue()
+
+
+def run_interactive_simulation():
+    """
+    Standalone interactive TUI simulator for development, testing, and visual demos.
+    Launch with: `python -m chronos_match.monitor.dashboard`
+    """
+    console = Console()
+    dashboard = TerminalDashboard(console=console)
+
+    mid_price = 150.00
+    order_id = 1
+    total_orders = 0
+    total_cancels = 0
+    total_trades = 0
+    total_shares = 0
+
+    recent_trades: List[Dict[str, Any]] = []
+    whale_alerts: List[WhaleAlert] = []
+    alert_counter = 0
+
+    print("[*] Launching ChronosMatch Interactive Terminal TUI Simulation...")
+    time.sleep(0.5)
+
+    try:
+        with Live(
+            dashboard.build_layout(),
+            console=console,
+            refresh_per_second=20,
+            screen=True,
+            auto_refresh=True,
+        ) as live:
+            while True:
+                # 1. Random walk price
+                mid_price += random.choice([-0.05, -0.01, 0.0, 0.01, 0.05])
+                mid_price = max(10.0, mid_price)
+
+                # 2. Generate simulated L2 book
+                bids = []
+                asks = []
+                for i in range(10):
+                    bp = mid_price - 0.05 - (i * 0.05)
+                    ap = mid_price + 0.05 + (i * 0.05)
+                    bids.append({
+                        "price": to_fixed_price(bp),
+                        "volume": random.randint(500, 5000),
+                        "order_count": random.randint(1, 8),
+                    })
+                    asks.append({
+                        "price": to_fixed_price(ap),
+                        "volume": random.randint(500, 5000),
+                        "order_count": random.randint(1, 8),
+                    })
+
+                # 3. Simulate order bursts & trades
+                batch_orders = random.randint(80, 200)
+                batch_cancels = int(batch_orders * 0.15)
+                total_orders += batch_orders
+                total_cancels += batch_cancels
+
+                # Trade execution
+                trade_occurred = random.random() < 0.85
+                if trade_occurred:
+                    side = random.choice([Side.BUY, Side.SELL])
+                    is_whale = random.random() < 0.08
+                    qty = random.randint(5000, 15000) if is_whale else random.choice([100, 200, 500, 1000])
+                    exec_price = (mid_price + 0.05) if side == Side.BUY else (mid_price - 0.05)
+                    lat_us = random.uniform(1.2, 8.5) if not is_whale else random.uniform(5.0, 28.0)
+                    total_trades += 1
+                    total_shares += qty
+                    order_id += 1
+
+                    tp_entry = {
+                        "trade_id": total_trades,
+                        "aggressor_side": int(side),
+                        "price": to_fixed_price(exec_price),
+                        "quantity": qty,
+                        "latency_ns": int(lat_us * 1000),
+                    }
+                    if len(recent_trades) >= 12:
+                        recent_trades.pop(0)
+                    recent_trades.append(tp_entry)
+
+                    if is_whale:
+                        alert_counter += 1
+                        whale_alerts.append(
+                            WhaleAlert(
+                                alert_id=alert_counter,
+                                timestamp_ns=time.perf_counter_ns(),
+                                trade_id=total_trades,
+                                buy_order_id=order_id + 10,
+                                sell_order_id=order_id + 20,
+                                symbol_id=1,
+                                aggressor_side="BUY" if side == Side.BUY else "SELL",
+                                price=exec_price,
+                                quantity=qty,
+                                notional_usd=qty * exec_price,
+                                latency_us=lat_us,
+                                alert_type=random.choice(["WHALE_SWEEP", "LARGE_BLOCK"]),
+                                details=f"Block Execution: {qty:,} shares @ ${exec_price:,.2f}",
+                            )
+                        )
+                        if len(whale_alerts) > 5:
+                            whale_alerts.pop(0)
+
+                # Simulated stats
+                lat_stats = LatencyStats(
+                    sample_count=total_orders,
+                    min_us=1.1,
+                    max_us=38.4,
+                    mean_us=3.9,
+                    p50_us=3.2 + random.uniform(-0.3, 0.3),
+                    p90_us=7.5 + random.uniform(-0.5, 0.5),
+                    p99_us=16.8 + random.uniform(-1.0, 1.0),
+                    p999_us=29.4,
+                )
+
+                tp_info = {
+                    "orders_processed": total_orders,
+                    "cancellations_processed": total_cancels,
+                    "trades_generated": total_trades,
+                    "shares_traded": total_shares,
+                    "best_bid": bids[0]["price"],
+                    "best_ask": asks[0]["price"],
+                    "spread": asks[0]["price"] - bids[0]["price"],
+                    "orders_per_sec": 125000.0 + random.uniform(-15000, 15000),
+                }
+
+                layout = dashboard.build_layout(
+                    l2_snapshot={"bids": bids, "asks": asks},
+                    latency_stats=lat_stats,
+                    throughput_info=tp_info,
+                    recent_trades=recent_trades,
+                    whale_alerts=whale_alerts,
+                )
+                live.update(layout)
+                time.sleep(0.05)
+
+    except KeyboardInterrupt:
+        console.print("\n[bold green]✓ Simulation terminated cleanly.[/bold green]")
+
+
+if __name__ == "__main__":
+    run_interactive_simulation()

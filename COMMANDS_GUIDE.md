@@ -113,6 +113,23 @@ python main.py --orders 200000 --rate 50000 --capacity 131072 --db my_audit.db
 
 ---
 
+### 2.5 Standalone Interactive TUI Simulator (`--demo`)
+```powershell
+python main.py --demo
+# or equivalently:
+python -m chronos_match.monitor.dashboard
+```
+* **What it does**: Launches the newly upgraded institutional-grade Rich Terminal UI directly in 20 FPS simulation mode without spawning multi-process IPC daemons.
+* **What you see on screen**:
+  * **Pulsing Header**: Architecture telemetry, live time with millisecond precision, and dynamic heartbeat indicator.
+  * **Microstructure Sparklines**: Real-time Unicode rolling sparklines for trade prices (` ▂▃▅▆▇█`), throughput velocity, and wire-to-match latency jitter.
+  * **Level 2 Market Depth Ladder**: Tight dual-sided book showing bids/asks with proportional visual depth bars and mid-market spread ribbons.
+  * **Live Time & Sales Tape**: Executions ticker with tick indicators (▲/▼), notional turnover, and sub-microsecond latency SLA profiling.
+  * **Institutional Whale Radar**: Real-time multi-level sweep and large block trade anomaly classification.
+* **How to stop it**: Press `Ctrl + C`. Cleanly returns to your shell prompt.
+
+---
+
 ## 3. 🌐 Interactive Web Trading Cockpit (`web_app.py`)
 
 If you want to **select a preferred company's stock, place manual Buy/Sell orders, analyze charts, and run trading bots**, use `web_app.py`.

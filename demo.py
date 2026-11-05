@@ -16,6 +16,7 @@ import sys
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from rich import box
 
 from chronos_match.protocol import (
     OrderPacket,
@@ -60,7 +61,7 @@ def run_showcase():
         }
 
         # Print scene banner
-        console.rule(f"[bold yellow]{scenario_title}[/bold yellow]")
+        console.rule(f"[bold bright_yellow]⚡ {scenario_title}[/bold bright_yellow]")
         frame = dashboard.render_string(
             l2_snapshot=l2,
             latency_stats=stats,
@@ -69,7 +70,7 @@ def run_showcase():
             whale_alerts=whale_detector.get_recent_alerts(limit=4),
             width=130,
         )
-        print(frame)
+        console.print(frame)
 
     # =========================================================================
     # SCENARIO 1: Standard Liquidity Provisioning
@@ -78,7 +79,8 @@ def run_showcase():
         "[bold cyan]SCENARIO 1: Two-Sided Liquidity Provisioning[/bold cyan]\n"
         "Market makers post tight limit orders on both sides of the book ($150.00 - $150.50).\n"
         "Orders are inserted into cache-aligned intrusive FIFO queues in pure C.",
-        border_style="cyan"
+        border_style="bright_cyan",
+        box=box.ROUNDED,
     ))
     time.sleep(1.0)
 
@@ -114,7 +116,8 @@ def run_showcase():
         "A hedge fund sends an aggressive market order for 8,000 shares @ $150.25.\n"
         "The matching engine sweeps across 4 ask levels in a single nogil transaction.\n"
         "The Whale Detector flags the multi-level sweep and notional volume in real time.",
-        border_style="yellow"
+        border_style="bright_yellow",
+        box=box.ROUNDED,
     ))
     time.sleep(1.0)
 
@@ -162,7 +165,8 @@ def run_showcase():
         "[bold red]SCENARIO 3: High-Frequency Cancellation Storm[/bold red]\n"
         "In response to the whale sweep, high-frequency algorithms cancel resting bids.\n"
         "Executed using Knuth flat hash map with backward-shift deletion in O(1) time.",
-        border_style="red"
+        border_style="bright_red",
+        box=box.ROUNDED,
     ))
     time.sleep(1.0)
 
@@ -181,10 +185,11 @@ def run_showcase():
     # SCENARIO 4: Flash Volatility & High-Throughput Burst
     # =========================================================================
     console.print(Panel(
-        "[bold green]SCENARIO 4: Flash Liquidity Surge (5,000 Order Rapid Blast)[/bold green]\n"
+        "[bold magenta]SCENARIO 4: Flash Liquidity Surge (5,000 Order Rapid Blast)[/bold magenta]\n"
         "Simulating high-volume exchange trading matching thousands of shares in microseconds.\n"
         "Tests sub-50 microsecond execution latency stability under peak load.",
-        border_style="green"
+        border_style="bright_magenta",
+        box=box.ROUNDED,
     ))
     time.sleep(1.0)
 
@@ -233,7 +238,8 @@ def run_showcase():
         "• Execution Latency: Sub-50 μs SLA Target Met Across All Regimes\n"
         "• Persistence: Asynchronous SQLite WAL (> 400k trades/s)\n"
         "• Real-time Monitoring: Live L2 Depth Ladder & Institutional Whale Surveillance",
-        border_style="bright_green"
+        border_style="bright_green",
+        box=box.DOUBLE,
     ))
 
 

@@ -164,3 +164,56 @@ def test_dashboard_integration_with_fast_order_book():
     assert "100.00" in rendered
     assert "100.50" in rendered
     assert "SPREAD: $0.50" in rendered or "$0.50" in rendered
+
+
+def test_render_sparkline_utility():
+    """Verify Unicode sparkline generator bounds and mapping."""
+    from chronos_match.monitor.dashboard import render_sparkline
+
+    # Empty series
+    assert render_sparkline([], width=5) == "─────"
+
+    # Constant series
+    res_flat = render_sparkline([10.0, 10.0, 10.0], width=3)
+    assert len(res_flat) == 3
+
+    # Escalating series
+    res_up = render_sparkline([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+    assert len(res_up) == 8
+    assert res_up[0] == " "
+    assert res_up[-1] == "█"
+
+
+def test_dashboard_tick_direction_and_rolling_history():
+    """Verify tick direction updating and rolling buffers."""
+    dashboard = TerminalDashboard()
+    assert dashboard._tick_direction == "FLAT"
+
+    # First trade at 150.00
+    t1 = [{"trade_id": 1, "aggressor_side": int(Side.BUY), "price": to_fixed_price(150.00), "quantity": 100, "latency_ns": 2000}]
+    dashboard.build_layout(recent_trades=t1)
+    assert dashboard._last_trade_price == 150.00
+    assert dashboard._tick_direction == "FLAT"
+
+    # Next trade at 150.10 (UP)
+    t2 = t1 + [{"trade_id": 2, "aggressor_side": int(Side.BUY), "price": to_fixed_price(150.10), "quantity": 100, "latency_ns": 2100}]
+    dashboard.build_layout(recent_trades=t2)
+    assert dashboard._last_trade_price == 150.10
+    assert dashboard._tick_direction == "UP"
+
+    # Next trade at 150.05 (DOWN)
+    t3 = t2 + [{"trade_id": 3, "aggressor_side": int(Side.SELL), "price": to_fixed_price(150.05), "quantity": 100, "latency_ns": 1900}]
+    dashboard.build_layout(recent_trades=t3)
+    assert dashboard._last_trade_price == 150.05
+    assert dashboard._tick_direction == "DOWN"
+
+
+def test_dashboard_responsive_widths():
+    """Verify dashboard renders cleanly at standard terminal dimensions (120, 140, 160)."""
+    dashboard = TerminalDashboard()
+    for w in [110, 120, 140, 160]:
+        out = dashboard.render_string(width=w)
+        assert "CHRONOS MATCH" in out
+        assert "NOMINAL" in out
+        assert len(out) > 0
+

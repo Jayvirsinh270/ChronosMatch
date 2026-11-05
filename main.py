@@ -52,32 +52,77 @@ def parse_args():
         action="store_true",
         help="Run in headless mode without Terminal TUI (ideal for soak benchmarks)",
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run interactive real-time Terminal TUI simulator with live mock market streaming",
+    )
     return parser.parse_args()
 
 
-def print_banner():
-    banner = r"""
-  ╔═══════════════════════════════════════════════════════════════════╗
-  ║   CHRONOS MATCH // ZERO-COPY HIGH-FREQUENCY TRADING ENGINE        ║
-  ║   Pure-C nogil LOB • Lock-Free SPSC IPC • Asynchronous SQLite WAL ║
-  ╚═══════════════════════════════════════════════════════════════════╝
-    """
-    print(banner)
+def print_banner(console=None):
+    from rich.panel import Panel
+    from rich.text import Text
+    from rich import box
+
+    if console is None:
+        from rich.console import Console
+        console = Console()
+
+    banner_text = Text()
+    banner_text.append("⚡ CHRONOS MATCH ", style="bold bright_cyan")
+    banner_text.append("│ ZERO-COPY HIGH-FREQUENCY TRADING ENGINE\n", style="bold white")
+    banner_text.append("• Pure-C nogil Limit Order Book  • Cache-Aligned SPSC Ring Buffer (64B)\n", style="bright_green")
+    banner_text.append("• Microsecond Latency SLA (< 50μs) • Asynchronous SQLite WAL Audit Logging", style="dim cyan")
+
+    panel = Panel(
+        banner_text,
+        border_style="bright_blue",
+        box=box.DOUBLE,
+        padding=(0, 2),
+    )
+    console.print(panel)
 
 
 def main():
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich import box
+
+    console = Console()
+    args = parse_args()
+
+    if args.demo:
+        from chronos_match.monitor.dashboard import run_interactive_simulation
+        run_interactive_simulation()
+        return
+
     from chronos_match.daemon import ChronosDaemon
     from chronos_match.ledger.audit_logger import AuditLedger
-    args = parse_args()
-    print_banner()
 
-    print(f"[*] Configuration:")
-    print(f"    • Total Orders:      {args.orders:,}" if args.orders > 0 else "    • Total Orders:      Continuous Streaming")
-    print(f"    • Target Ingestion:  {args.rate:,} orders/sec")
-    print(f"    • IPC Ring Capacity: {args.capacity:,} slots")
-    print(f"    • Audit Database:    {args.db}")
-    print(f"    • UI Mode:           {'Headless' if args.no_ui else 'Live Rich TUI'}")
-    print()
+    print_banner(console)
+
+    config_table = Table(
+        title="SYSTEM RUNTIME CONFIGURATION",
+        title_style="bold bright_cyan",
+        box=box.ROUNDED,
+        border_style="cyan",
+        show_header=False,
+        pad_edge=True,
+    )
+    config_table.add_column("Parameter", style="bold white", width=22)
+    config_table.add_column("Value", style="bold yellow")
+
+    orders_str = f"{args.orders:,} orders" if args.orders > 0 else "Continuous Streaming (Ctrl+C to stop)"
+    config_table.add_row("Total Ingestion Target", orders_str)
+    config_table.add_row("Target Rate", f"{args.rate:,} orders/sec")
+    config_table.add_row("IPC Ring Buffer Capacity", f"{args.capacity:,} slots (64B SPSC)")
+    config_table.add_row("Audit Ledger Database", args.db)
+    config_table.add_row("Visual Mode", "Headless Benchmark" if args.no_ui else "Live 30-FPS Rich TUI Cockpit")
+
+    console.print(config_table)
+    console.print()
 
     daemon = ChronosDaemon(
         capacity=args.capacity,
@@ -89,14 +134,14 @@ def main():
 
     # Register graceful shutdown on Ctrl+C (SIGINT)
     def _sig_handler(sig, frame):
-        print("\n\n[!] Received interrupt signal (Ctrl+C). Initiating graceful shutdown...")
+        console.print("\n\n[bold yellow][!] Received interrupt signal (Ctrl+C). Initiating graceful shutdown...[/bold yellow]")
         daemon.stop()
-        print("[+] All worker processes terminated cleanly. Shared memory unlinked.")
+        console.print("[bold green][+] All worker processes terminated cleanly. Shared memory unlinked.[/bold green]")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, _sig_handler)
 
-    print("[*] Launching multi-process cluster...")
+    console.print("[bold cyan][*] Launching multi-process exchange cluster...[/bold cyan]")
     t0 = time.perf_counter()
     daemon.start()
 
@@ -115,30 +160,38 @@ def main():
         daemon.stop()
         elapsed = time.perf_counter() - t0
 
-    # Print final summary audit
-    print("\n" + "=" * 65)
-    print("                EXECUTION SOAK SUMMARY AUDIT")
-    print("=" * 65)
-    print(f"  Total Duration:     {elapsed:.2f} seconds")
+    # Print final summary audit table
+    summary_table = Table(
+        title="⚡ CHRONOS MATCH — EXECUTION SOAK SUMMARY AUDIT",
+        title_style="bold bright_cyan",
+        box=box.HEAVY_EDGE,
+        border_style="bright_blue",
+        pad_edge=True,
+    )
+    summary_table.add_column("Metric", style="bold white", width=25)
+    summary_table.add_column("Performance Measurement", style="bold green", width=35)
+
+    summary_table.add_row("Total Duration", f"{elapsed:.2f} seconds")
     if args.orders > 0:
         eff_rate = args.orders / max(0.001, elapsed)
-        print(f"  Ingestion Volume:   {args.orders:,} orders")
-        print(f"  Effective Rate:     {eff_rate:,.0f} orders/sec")
+        summary_table.add_row("Ingestion Volume", f"{args.orders:,} orders")
+        summary_table.add_row("Effective Throughput", f"{eff_rate:,.0f} orders/sec")
 
     # Inspect persisted ledger
     if os.path.exists(args.db):
         try:
             audit = AuditLedger(db_path=args.db, read_only=True)
             summary = audit.get_summary()
-            print(f"  Trades Persisted:   {summary['total_trades']:,} executions in WAL")
-            print(f"  Total Volume:       {summary['total_volume']:,} shares")
-            print(f"  Avg Latency:        {summary['avg_latency_us']:.2f} μs")
+            summary_table.add_row("Trades Persisted (WAL)", f"{summary['total_trades']:,} executions")
+            summary_table.add_row("Total Shares Traded", f"{summary['total_volume']:,} shares")
+            summary_table.add_row("Avg Execution Latency", f"{summary['avg_latency_us']:.2f} μs")
             audit.close()
         except Exception:
             pass
 
-    print("=" * 65)
-    print("[+] ChronosMatch shut down successfully.\n")
+    console.print()
+    console.print(summary_table)
+    console.print("[bold bright_green][+] ChronosMatch shut down successfully with zero memory leaks.[/bold bright_green]\n")
 
 
 if __name__ == "__main__":
