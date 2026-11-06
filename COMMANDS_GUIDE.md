@@ -56,6 +56,23 @@ Remove-Item -Recurse -Force build, *.pyd, chronos_match\engine\*.pyd, chronos_ma
 
 ---
 
+### 1.4 Master Systems Verification & Certification Audit (`verify_system.py`)
+```powershell
+# Fast verification (25,000 orders)
+python verify_system.py --fast
+
+# Full soak verification (100,000 orders)
+python verify_system.py
+```
+* **What it does**:
+  1. Audits compiled native MSVC C/Cython `.pyd` extensions (`order_book_cy`, `arena_cy`, `price_level_cy`).
+  2. Executes unit tests across all 5 architectural phases.
+  3. Runs single-thread matching soak benchmark computing wire-to-match latency percentiles ($p50, p90, p99, p99.9$).
+  4. Generates the official **ChronosMatch Systems Engineering Certificate**.
+* **Expected Result**: Single-thread throughput > 450,000 ord/s, $p99 < 50\mu s$ SLA met.
+
+---
+
 ## 2. 🖥️ Terminal TUI & High-Frequency Ingestion (`main.py`)
 
 `main.py` is the **multi-process exchange stress-test engine**. It spins up 4 independent OS processes:

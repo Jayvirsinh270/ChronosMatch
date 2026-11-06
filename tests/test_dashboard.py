@@ -25,6 +25,18 @@ def test_dashboard_build_layout_structure():
     assert layout["alerts"] is not None
     assert layout["order_book"] is not None
     assert layout["trade_ticker"] is not None
+    assert layout["footer"] is not None
+
+
+def test_dashboard_footer_and_hotkey_banner():
+    """Verify footer hotkey instructions and live alert messages."""
+    dashboard = TerminalDashboard()
+    layout = dashboard.build_layout(hotkey_banner="⚡ TEST ALERT BANNER")
+    rendered = dashboard.render_string()
+    assert "HOTKEYS" in rendered
+    assert "[B]" in rendered
+    assert "[S]" in rendered
+    assert "[C]" in rendered
 
 
 def test_dashboard_render_string_empty_state():

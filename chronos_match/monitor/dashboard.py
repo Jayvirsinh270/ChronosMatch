@@ -100,6 +100,7 @@ class TerminalDashboard:
         throughput_info: Optional[Dict[str, Any]] = None,
         recent_trades: Optional[List[Dict[str, Any]]] = None,
         whale_alerts: Optional[List[WhaleAlert]] = None,
+        hotkey_banner: Optional[str] = None,
     ) -> Layout:
         """
         Construct a responsive Rich Layout hierarchy from current engine snapshots.
@@ -132,12 +133,13 @@ class TerminalDashboard:
 
         layout = Layout()
 
-        # Multi-row layout hierarchy
+        # Multi-row layout hierarchy with footer hotkeys bar
         layout.split_column(
             Layout(name="header", size=3),
             Layout(name="kpis", size=6),
             Layout(name="main_body", ratio=2),
             Layout(name="alerts", size=8),
+            Layout(name="footer", size=3),
         )
 
         layout["main_body"].split_row(
@@ -162,7 +164,40 @@ class TerminalDashboard:
         # 5. Whale & SLA Breach Alerts Panel
         layout["alerts"].update(self._build_alerts_panel(whale_alerts))
 
+        # 6. Interactive Hotkey Footer
+        layout["footer"].update(self._build_footer(hotkey_banner))
+
         return layout
+
+    def _build_footer(self, hotkey_banner: Optional[str] = None) -> Panel:
+        """Render interactive command hotkeys footer bar."""
+        text = Text()
+        text.append(" HOTKEYS: ", style="bold bright_black on #1a1f2c")
+        text.append(" [B] ", style="bold black on #00ffaa")
+        text.append("Whale Buy  ", style="bold white")
+        text.append("[S] ", style="bold white on #ff3366")
+        text.append("Whale Sell  ", style="bold white")
+        text.append("[C] ", style="bold black on #ffaa00")
+        text.append("Cancel Storm  ", style="bold white")
+        text.append("[R] ", style="bold black on #00e5ff")
+        text.append("Rate Cycle  ", style="bold white")
+        text.append("[Space] ", style="bold white on #6c5ce7")
+        text.append("Pause/Resume  ", style="bold white")
+        text.append("[Q] ", style="bold white on #d63031")
+        text.append("Quit", style="bold white")
+
+        if hotkey_banner:
+            text.append(f" │ {hotkey_banner}", style="bold bright_yellow")
+        else:
+            text.append(" │ Live Interactive Stream Active", style="dim green")
+
+        return Panel(
+            text,
+            style="bold white on #080d14",
+            border_style="bright_blue",
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
 
     def _build_header(self) -> Panel:
         """Generate high-contrast, institutional cyber-styled header banner."""
@@ -547,10 +582,31 @@ class TerminalDashboard:
         return buf.getvalue()
 
 
+def _get_nonblocking_key() -> Optional[str]:
+    """Poll non-blocking single character keyboard input across platforms."""
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+            if msvcrt.kbhit():
+                ch = msvcrt.getch()
+                if ch in (b"\x00", b"\xe0"):
+                    msvcrt.getch()
+                    return None
+                return ch.decode("utf-8", errors="ignore").lower()
+        else:
+            import select
+            r, _, _ = select.select([sys.stdin], [], [], 0)
+            if r:
+                return sys.stdin.read(1).lower()
+    except Exception:
+        pass
+    return None
+
+
 def run_interactive_simulation():
     """
-    Standalone interactive TUI simulator for development, testing, and visual demos.
-    Launch with: `python -m chronos_match.monitor.dashboard`
+    Standalone interactive TUI simulator with live hotkey controls for defense demonstrations.
+    Launch with: `python -m chronos_match.monitor.dashboard` or `python main.py --demo`
     """
     console = Console()
     dashboard = TerminalDashboard(console=console)
@@ -566,6 +622,12 @@ def run_interactive_simulation():
     whale_alerts: List[WhaleAlert] = []
     alert_counter = 0
 
+    is_paused = False
+    rate_levels = [25_000, 50_000, 100_000, 250_000]
+    rate_idx = 2
+    hotkey_status: Optional[str] = "Press [B]=Whale Buy, [S]=Whale Sell, [C]=Cancel Storm, [Space]=Pause"
+    hotkey_status_expiry = time.perf_counter() + 5.0
+
     print("[*] Launching ChronosMatch Interactive Terminal TUI Simulation...")
     time.sleep(0.5)
 
@@ -578,109 +640,164 @@ def run_interactive_simulation():
             auto_refresh=True,
         ) as live:
             while True:
-                # 1. Random walk price
-                mid_price += random.choice([-0.05, -0.01, 0.0, 0.01, 0.05])
-                mid_price = max(10.0, mid_price)
+                # 1. Process non-blocking keyboard input
+                key = _get_nonblocking_key()
+                force_whale_side: Optional[Side] = None
 
-                # 2. Generate simulated L2 book
-                bids = []
-                asks = []
-                for i in range(10):
-                    bp = mid_price - 0.05 - (i * 0.05)
-                    ap = mid_price + 0.05 + (i * 0.05)
-                    bids.append({
-                        "price": to_fixed_price(bp),
-                        "volume": random.randint(500, 5000),
-                        "order_count": random.randint(1, 8),
-                    })
-                    asks.append({
-                        "price": to_fixed_price(ap),
-                        "volume": random.randint(500, 5000),
-                        "order_count": random.randint(1, 8),
-                    })
+                if key == "q":
+                    break
+                elif key == " ":
+                    is_paused = not is_paused
+                    hotkey_status = "[PAUSED - PRESS SPACE TO RESUME]" if is_paused else "RESUMED LIVE STREAMING"
+                    hotkey_status_expiry = time.perf_counter() + 999.0 if is_paused else time.perf_counter() + 2.0
+                elif key == "b":
+                    force_whale_side = Side.BUY
+                    hotkey_status = "⚡ INJECTED AGGRESSIVE WHALE BUY SWEEP (10,000 SHARES)"
+                    hotkey_status_expiry = time.perf_counter() + 3.0
+                elif key == "s":
+                    force_whale_side = Side.SELL
+                    hotkey_status = "⚡ INJECTED AGGRESSIVE WHALE SELL SWEEP (10,000 SHARES)"
+                    hotkey_status_expiry = time.perf_counter() + 3.0
+                elif key == "c":
+                    total_cancels += 1000
+                    total_orders += 1000
+                    hotkey_status = "⚡ CANCELLATION STORM: 1,000 ORDERS UNLINKED IN O(1) TIME"
+                    hotkey_status_expiry = time.perf_counter() + 3.0
+                elif key == "r":
+                    rate_idx = (rate_idx + 1) % len(rate_levels)
+                    hotkey_status = f"⚡ FLOW INGESTION RATE CYCLED TO: {rate_levels[rate_idx]:,} ORD/S"
+                    hotkey_status_expiry = time.perf_counter() + 3.0
+                elif key == "h":
+                    hotkey_status = "HELP: [B]=Whale Buy | [S]=Whale Sell | [C]=Cancel | [R]=Rate | [Space]=Pause | [Q]=Quit"
+                    hotkey_status_expiry = time.perf_counter() + 4.0
 
-                # 3. Simulate order bursts & trades
-                batch_orders = random.randint(80, 200)
-                batch_cancels = int(batch_orders * 0.15)
-                total_orders += batch_orders
-                total_cancels += batch_cancels
+                now = time.perf_counter()
+                active_banner = hotkey_status if (now < hotkey_status_expiry or is_paused) else None
 
-                # Trade execution
-                trade_occurred = random.random() < 0.85
-                if trade_occurred:
-                    side = random.choice([Side.BUY, Side.SELL])
-                    is_whale = random.random() < 0.08
-                    qty = random.randint(5000, 15000) if is_whale else random.choice([100, 200, 500, 1000])
-                    exec_price = (mid_price + 0.05) if side == Side.BUY else (mid_price - 0.05)
-                    lat_us = random.uniform(1.2, 8.5) if not is_whale else random.uniform(5.0, 28.0)
-                    total_trades += 1
-                    total_shares += qty
-                    order_id += 1
+                if not is_paused or force_whale_side is not None:
+                    # 2. Random walk price
+                    if force_whale_side == Side.BUY:
+                        mid_price += 0.15
+                    elif force_whale_side == Side.SELL:
+                        mid_price -= 0.15
+                    else:
+                        mid_price += random.choice([-0.05, -0.01, 0.0, 0.01, 0.05])
+                    mid_price = max(10.0, mid_price)
 
-                    tp_entry = {
-                        "trade_id": total_trades,
-                        "aggressor_side": int(side),
-                        "price": to_fixed_price(exec_price),
-                        "quantity": qty,
-                        "latency_ns": int(lat_us * 1000),
-                    }
-                    if len(recent_trades) >= 12:
-                        recent_trades.pop(0)
-                    recent_trades.append(tp_entry)
+                    # 3. Generate simulated L2 book
+                    bids = []
+                    asks = []
+                    for i in range(10):
+                        bp = mid_price - 0.05 - (i * 0.05)
+                        ap = mid_price + 0.05 + (i * 0.05)
+                        bids.append({
+                            "price": to_fixed_price(bp),
+                            "volume": random.randint(500, 5000),
+                            "order_count": random.randint(1, 8),
+                        })
+                        asks.append({
+                            "price": to_fixed_price(ap),
+                            "volume": random.randint(500, 5000),
+                            "order_count": random.randint(1, 8),
+                        })
 
-                    if is_whale:
-                        alert_counter += 1
-                        whale_alerts.append(
-                            WhaleAlert(
-                                alert_id=alert_counter,
-                                timestamp_ns=time.perf_counter_ns(),
-                                trade_id=total_trades,
-                                buy_order_id=order_id + 10,
-                                sell_order_id=order_id + 20,
-                                symbol_id=1,
-                                aggressor_side="BUY" if side == Side.BUY else "SELL",
-                                price=exec_price,
-                                quantity=qty,
-                                notional_usd=qty * exec_price,
-                                latency_us=lat_us,
-                                alert_type=random.choice(["WHALE_SWEEP", "LARGE_BLOCK"]),
-                                details=f"Block Execution: {qty:,} shares @ ${exec_price:,.2f}",
+                    # 4. Simulate order bursts & trades
+                    target_rate = rate_levels[rate_idx]
+                    batch_orders = int(target_rate / 20)  # Orders per frame (20 FPS)
+                    batch_cancels = int(batch_orders * 0.15)
+                    total_orders += batch_orders
+                    total_cancels += batch_cancels
+
+                    # Trade execution
+                    trade_occurred = (force_whale_side is not None) or (random.random() < 0.85)
+                    if trade_occurred:
+                        side = force_whale_side if force_whale_side is not None else random.choice([Side.BUY, Side.SELL])
+                        is_whale = (force_whale_side is not None) or (random.random() < 0.08)
+                        qty = 10_000 if is_whale else random.choice([100, 200, 500, 1000])
+                        exec_price = (mid_price + 0.05) if side == Side.BUY else (mid_price - 0.05)
+                        lat_us = random.uniform(1.2, 4.8) if not is_whale else random.uniform(4.5, 18.0)
+                        total_trades += 1
+                        total_shares += qty
+                        order_id += 1
+
+                        tp_entry = {
+                            "trade_id": total_trades,
+                            "aggressor_side": int(side),
+                            "price": to_fixed_price(exec_price),
+                            "quantity": qty,
+                            "latency_ns": int(lat_us * 1000),
+                        }
+                        if len(recent_trades) >= 12:
+                            recent_trades.pop(0)
+                        recent_trades.append(tp_entry)
+
+                        if is_whale:
+                            alert_counter += 1
+                            whale_alerts.append(
+                                WhaleAlert(
+                                    alert_id=alert_counter,
+                                    timestamp_ns=time.perf_counter_ns(),
+                                    trade_id=total_trades,
+                                    buy_order_id=order_id + 10,
+                                    sell_order_id=order_id + 20,
+                                    symbol_id=1,
+                                    aggressor_side="BUY" if side == Side.BUY else "SELL",
+                                    price=exec_price,
+                                    quantity=qty,
+                                    notional_usd=qty * exec_price,
+                                    latency_us=lat_us,
+                                    alert_type="WHALE_SWEEP" if force_whale_side is not None else random.choice(["WHALE_SWEEP", "LARGE_BLOCK"]),
+                                    details=f"Block Execution: {qty:,} shares @ ${exec_price:,.2f}",
+                                )
                             )
-                        )
-                        if len(whale_alerts) > 5:
-                            whale_alerts.pop(0)
+                            if len(whale_alerts) > 5:
+                                whale_alerts.pop(0)
 
-                # Simulated stats
-                lat_stats = LatencyStats(
-                    sample_count=total_orders,
-                    min_us=1.1,
-                    max_us=38.4,
-                    mean_us=3.9,
-                    p50_us=3.2 + random.uniform(-0.3, 0.3),
-                    p90_us=7.5 + random.uniform(-0.5, 0.5),
-                    p99_us=16.8 + random.uniform(-1.0, 1.0),
-                    p999_us=29.4,
-                )
+                    # Simulated stats
+                    lat_stats = LatencyStats(
+                        sample_count=total_orders,
+                        min_us=1.1,
+                        max_us=38.4,
+                        mean_us=3.8,
+                        p50_us=3.2 + random.uniform(-0.2, 0.2),
+                        p90_us=7.2 + random.uniform(-0.4, 0.4),
+                        p99_us=16.5 + random.uniform(-0.8, 0.8),
+                        p999_us=28.9,
+                    )
 
-                tp_info = {
-                    "orders_processed": total_orders,
-                    "cancellations_processed": total_cancels,
-                    "trades_generated": total_trades,
-                    "shares_traded": total_shares,
-                    "best_bid": bids[0]["price"],
-                    "best_ask": asks[0]["price"],
-                    "spread": asks[0]["price"] - bids[0]["price"],
-                    "orders_per_sec": 125000.0 + random.uniform(-15000, 15000),
-                }
+                    tp_info = {
+                        "orders_processed": total_orders,
+                        "cancellations_processed": total_cancels,
+                        "trades_generated": total_trades,
+                        "shares_traded": total_shares,
+                        "best_bid": bids[0]["price"],
+                        "best_ask": asks[0]["price"],
+                        "spread": asks[0]["price"] - bids[0]["price"],
+                        "orders_per_sec": float(target_rate) + random.uniform(-5000, 5000),
+                    }
 
-                layout = dashboard.build_layout(
-                    l2_snapshot={"bids": bids, "asks": asks},
-                    latency_stats=lat_stats,
-                    throughput_info=tp_info,
-                    recent_trades=recent_trades,
-                    whale_alerts=whale_alerts,
-                )
-                live.update(layout)
+                    layout = dashboard.build_layout(
+                        l2_snapshot={"bids": bids, "asks": asks},
+                        latency_stats=lat_stats,
+                        throughput_info=tp_info,
+                        recent_trades=recent_trades,
+                        whale_alerts=whale_alerts,
+                        hotkey_banner=active_banner,
+                    )
+                    live.update(layout)
+
+                elif is_paused:
+                    # Update layout with paused banner without advancing market simulation
+                    layout = dashboard.build_layout(
+                        l2_snapshot={"bids": bids, "asks": asks},
+                        latency_stats=lat_stats,
+                        throughput_info=tp_info,
+                        recent_trades=recent_trades,
+                        whale_alerts=whale_alerts,
+                        hotkey_banner=active_banner,
+                    )
+                    live.update(layout)
+
                 time.sleep(0.05)
 
     except KeyboardInterrupt:
