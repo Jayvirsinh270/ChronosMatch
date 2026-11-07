@@ -3410,6 +3410,11 @@
                   ? `Executed ${data.total_filled} units @ $${data.price.toFixed(2)}`
                   : `Limit Order #${data.order_id} placed on the book`;
                 showToast(fillMsg, 'success');
+                if (data.total_filled >= 2000) {
+                  setTimeout(() => {
+                    showToast(`🐋 WHALE IMPACT: ${data.total_filled.toLocaleString()} shares absorbed! Order Flow shifted.`, 'info');
+                  }, 600);
+                }
                 fetchSnapshot();
               } else {
                 showToast(`Order Rejected: ${(data && data.reject_reason) || 'Policy check failed'}`, 'error');
