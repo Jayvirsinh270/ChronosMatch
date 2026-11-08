@@ -27,10 +27,11 @@ echo   [4] Modern Web Browser Trading Cockpit (web_app.py)
 echo   [5] Multi-Process 50k Order Soak Benchmark (main.py)
 echo   [6] Open Cython Zero-GIL Compiler Annotation Reports in Browser
 echo   [7] Run Full Automated Test Suite (pytest)
-echo   [8] Exit
+echo   [8] Quantitative Strategy Backtester & Bloomberg Tear Sheet (backtest.py)
+echo   [9] Exit
 echo.
 echo ===============================================================================
-set /p opt="Select an option [1-8]: "
+set /p opt="Select an option [1-9]: "
 
 if "%opt%"=="1" goto RUN_TUI
 if "%opt%"=="2" goto RUN_VERIFY
@@ -39,9 +40,10 @@ if "%opt%"=="4" goto RUN_WEB
 if "%opt%"=="5" goto RUN_SOAK
 if "%opt%"=="6" goto RUN_REPORTS
 if "%opt%"=="7" goto RUN_TESTS
-if "%opt%"=="8" goto EXIT
+if "%opt%"=="8" goto RUN_BACKTEST
+if "%opt%"=="9" goto EXIT
 
-echo [!] Invalid selection, please choose 1-8.
+echo [!] Invalid selection, please choose 1-9.
 timeout /t 2 >nul
 goto MENU
 
@@ -112,6 +114,15 @@ cls
 echo [*] Running Automated Test Suite across all core modules...
 echo.
 pytest -v tests/test_dashboard.py tests/test_metrics.py tests/test_whale_detector.py tests/test_ring_buffer.py tests/test_cancellation.py
+echo.
+pause
+goto MENU
+
+:RUN_BACKTEST
+cls
+echo [*] Executing Quantitative Backtest Engine & Bloomberg PORT Tear Sheet...
+echo.
+python backtest.py --symbol NVDA --strategy dual_ema --monte-carlo
 echo.
 pause
 goto MENU

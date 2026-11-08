@@ -83,7 +83,7 @@ def test_firehose_stream_to_ring_buffer_async():
                 if order is not None:
                     consumed.append(order)
                 else:
-                    await asyncio.sleep(0.0001)
+                    await asyncio.sleep(0)
 
         async def producer():
             written, elapsed = await firehose.stream_to_ring_buffer(rb, total_orders, batch_size=250)

@@ -30,14 +30,15 @@ function Show-Menu {
     Write-Host "  [5] Multi-Process 50k Order Soak Benchmark (main.py)" -ForegroundColor White
     Write-Host "  [6] Open Cython Zero-GIL Compiler Annotation Reports in Browser" -ForegroundColor Blue
     Write-Host "  [7] Run Full Automated Test Suite (pytest)" -ForegroundColor DarkCyan
-    Write-Host "  [8] Exit" -ForegroundColor Red
+    Write-Host "  [8] Quantitative Strategy Backtester & Bloomberg Tear Sheet (backtest.py)" -ForegroundColor Magenta
+    Write-Host "  [9] Exit" -ForegroundColor Red
     Write-Host ""
     Write-Host "===============================================================================" -ForegroundColor Cyan
 }
 
 while ($true) {
     Show-Menu
-    $choice = Read-Host "Select an option [1-8]"
+    $choice = Read-Host "Select an option [1-9]"
 
     switch ($choice) {
         "1" {
@@ -96,11 +97,18 @@ while ($true) {
             Pause
         }
         "8" {
+            Clear-Host
+            Write-Host "[*] Executing Quantitative Backtest Engine & Bloomberg PORT Tear Sheet..." -ForegroundColor Magenta
+            python backtest.py --symbol NVDA --strategy dual_ema --monte-carlo
+            Write-Host ""
+            Pause
+        }
+        "9" {
             Write-Host "`n[+] ChronosMatch launcher closed." -ForegroundColor Green
             exit 0
         }
         default {
-            Write-Host "[!] Invalid selection, please choose 1-8." -ForegroundColor Red
+            Write-Host "[!] Invalid selection, please choose 1-9." -ForegroundColor Red
             Start-Sleep -Seconds 1
         }
     }

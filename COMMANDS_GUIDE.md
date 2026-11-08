@@ -355,6 +355,25 @@ python scripts/train_ml_model.py
   * Exports optimized weights to `data/ml_weights.json` and `chronos_match/market/ml_weights.json`.
 * **Expected Result**: Prints confusion matrices and validation metrics directly to the terminal.
 
+### 6.3 Quantitative Strategy Backtester & Bloomberg Tear Sheet CLI (`backtest.py`)
+```powershell
+# Run Dual EMA Trend Breakout Strategy on NVIDIA with 1,000-path Monte Carlo stress test
+python backtest.py --symbol NVDA --strategy dual_ema --monte-carlo
+
+# Run Bollinger Bands Mean Reversion Strategy on Apple with CSV trade log export
+python backtest.py --symbol AAPL --strategy bollinger_reversion --export-csv trades_aapl.csv
+
+# Run Bayesian Order Flow Momentum Strategy on Bitcoin
+python backtest.py --symbol BTC-USD --strategy bayesian_flow --capital 250000
+```
+* **What it does**:
+  * Simulates algorithmic quantitative alpha strategies across real OHLCV historical bars.
+  * Models realistic institutional transaction costs: exchange fee commissions (bps) and execution market impact slippage (bps).
+  * Computes Bloomberg PORT / PyFolio-grade risk statistics: Sharpe ratio, Sortino ratio, Calmar ratio, Jensen's Alpha, Beta, Maximum Drawdown (MDD), and Parametric & Historical Value at Risk (VaR 95%, VaR 99%, CVaR / Expected Shortfall).
+  * Renders an authentic institutional terminal Unicode equity curve and risk scorecard.
+  * Performs a forward 1,000-path Monte Carlo simulation forecasting tail ruin probability.
+* **Available Strategies**: `dual_ema`, `bollinger_reversion`, `bayesian_flow`, `twap_benchmark`.
+
 ---
 
 ## 7. 🧪 Comprehensive Verification & Test Suite (`pytest`)
