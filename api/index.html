@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ChronosMatch | Next-Gen Market Trading Terminal</title>
+  <title>FluxCore | Next-Gen Market Trading Terminal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1134,7 +1134,7 @@
 <body>
 
   <!-- Top Global Header -->
-  <!-- CHRONOS MATCH -->
+  <!-- FLUXCORE -->
   <header>
     <div class="header-left">
       <a href="/" class="brand">
@@ -1143,8 +1143,8 @@
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
           </svg>
         </div>
-        <span>ChronosMatch</span>
-        <span style="display:none">CHRONOS MATCH</span>
+        <span>FluxCore</span>
+        <span style="display:none">FLUXCORE</span>
       </a>
       <div class="live-badge">
         <span class="live-dot"></span>
@@ -1655,7 +1655,7 @@
       const state = {
         symbol: 'SOL-USD',
         userSelectedSymbol: false,
-        theme: localStorage.getItem('chronos_theme') || 'light',
+        theme: localStorage.getItem('flux_theme') || 'light',
         activeTab: 'orders',
         timeframe: '1m',
         chartType: 'candles',
@@ -1735,7 +1735,7 @@
       function applyTheme(theme) {
         state.theme = theme;
         document.documentElement.setAttribute('data-theme', theme);
-        try { localStorage.setItem('chronos_theme', theme); } catch (e) {}
+        try { localStorage.setItem('flux_theme', theme); } catch (e) {}
         if (themeToggleBtn) {
           const sunSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
           const moonSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
@@ -2911,7 +2911,7 @@
           const ws = new WebSocket(wsUrl);
 
           ws.onopen = () => {
-            console.log('[ChronosMatch] WebSocket connected to', wsUrl);
+            console.log('[FluxCore] WebSocket connected to', wsUrl);
           };
 
           ws.onmessage = (event) => {
@@ -2934,7 +2934,7 @@
             ws.close();
           };
         } catch (err) {
-          console.warn('[ChronosMatch] WebSocket connection skipped, using REST polling.');
+          console.warn('[FluxCore] WebSocket connection skipped, using REST polling.');
         }
       }
 

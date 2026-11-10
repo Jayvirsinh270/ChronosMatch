@@ -1,4 +1,4 @@
-# ChronosMatch Developer Guide & Standards
+# FluxCore Developer Guide & Standards
 **Engineering Guidelines for High-Frequency Low-Latency Systems**
 
 ---
@@ -20,7 +20,7 @@ To compile `.pyx` modules into native `.pyd` (Windows) or `.so` (Linux) shared l
 python setup.py build_ext --inplace
 
 # Clean build artifacts
-Remove-Item -Recurse -Force build, *.pyd, chronos_match/*.pyd -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force build, *.pyd, fluxcore/*.pyd -ErrorAction SilentlyContinue
 ```
 
 ### 3. Running Unit & Integration Tests
@@ -34,7 +34,7 @@ pytest -v -s tests/
 
 ## 📐 Low-Latency Engineering Coding Standards
 
-To ensure ChronosMatch maintains its **sub-50 microsecond** execution target, all contributions must adhere to the following strict engineering rules:
+To ensure FluxCore maintains its **sub-50 microsecond** execution target, all contributions must adhere to the following strict engineering rules:
 
 ### Rule 1: No Dynamic Memory Allocation (`malloc`/`new`) in the Hot Path
 * Calling `malloc()`, `calloc()`, or creating Python objects inside the matching loop is strictly prohibited.
@@ -51,7 +51,7 @@ To ensure ChronosMatch maintains its **sub-50 microsecond** execution target, al
 * Cython functions must accept and return C-types or C-pointers, not `PyObject*`.
 * Verify with the Cython annotation tool:
   ```powershell
-  cython -a chronos_match/engine/order_book_cy.pyx
+  cython -a fluxcore/engine/order_book_cy.pyx
   ```
   Ensure **no yellow lines** (Python C-API calls) exist inside the inner loops.
 

@@ -1,5 +1,5 @@
 """
-ChronosMatch: Interactive Web Trading Terminal Launcher.
+FluxCore: Interactive Web Trading Terminal Launcher.
 Opens a sleek, dark-mode real-time graphical trading interface in your default browser.
 
 Usage:
@@ -51,7 +51,7 @@ if sys.platform == "win32":
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="ChronosMatch Web Trading Terminal")
+    parser = argparse.ArgumentParser(description="FluxCore Web Trading Terminal")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host interface (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port to listen on (default: 8000)")
     parser.add_argument("--symbol", type=str, default="BTC-USD", help="Initial active stock ticker (default: BTC-USD)")
@@ -61,7 +61,7 @@ def parse_args():
 
 def print_banner(url: str, symbol: str):
     print("\n" + "=" * 65)
-    print("  ⚡ CHRONOS MATCH — REAL-MARKET AUTONOMOUS TRADING TERMINAL")
+    print("  ⚡ FLUXCORE — REAL-MARKET AUTONOMOUS TRADING TERMINAL")
     print(f"  Lightweight ML Pattern Engine • Real Market Data • Active: {symbol}")
     print("=" * 65)
     print(f"  [+] Web Terminal running at:  {url}")
@@ -73,7 +73,7 @@ def main():
     url = f"http://{args.host}:{args.port}"
     print_banner(url, args.symbol)
 
-    from chronos_match.web.server import server as trading_server
+    from fluxcore.web.server import server as trading_server
     trading_server.active_symbol = args.symbol
 
     def _shutdown(sig=None, frame=None):
@@ -94,7 +94,7 @@ def main():
 
     try:
         config = uvicorn.Config(
-            "chronos_match.web.server:app",
+            "fluxcore.web.server:app",
             host=args.host,
             port=args.port,
             log_level="warning",

@@ -12,10 +12,10 @@ import io
 import time
 import pytest
 
-from chronos_match.market.router import MultiBookRouter
-from chronos_match.market.replayer import HistoricalMarketReplayer
-from chronos_match.protocol import OrderSide, to_fixed_price, from_fixed_price
-from chronos_match.web.server import api_export_market_csv, api_export_features_csv
+from fluxcore.market.router import MultiBookRouter
+from fluxcore.market.replayer import HistoricalMarketReplayer
+from fluxcore.protocol import OrderSide, to_fixed_price, from_fixed_price
+from fluxcore.web.server import api_export_market_csv, api_export_features_csv
 
 
 def test_user_repetitive_trades_never_stuck():

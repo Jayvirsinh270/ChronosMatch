@@ -9,11 +9,11 @@ Verifies:
 """
 
 import pytest
-from chronos_match.market.router import MultiBookRouter, SymbolInfo
-from chronos_match.market.replayer import HistoricalMarketReplayer
-from chronos_match.risk.risk_engine import PreTradeRiskEngine
-from chronos_match.web.server import WebTradingServer
-from chronos_match.protocol import OrderSide, to_fixed_price, from_fixed_price
+from fluxcore.market.router import MultiBookRouter, SymbolInfo
+from fluxcore.market.replayer import HistoricalMarketReplayer
+from fluxcore.risk.risk_engine import PreTradeRiskEngine
+from fluxcore.web.server import WebTradingServer
+from fluxcore.protocol import OrderSide, to_fixed_price, from_fixed_price
 
 
 def test_user_trade_market_impact_and_candle_update():

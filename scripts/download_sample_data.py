@@ -1,5 +1,5 @@
 """
-ChronosMatch: Sample High-Frequency Intraday Data Downloader.
+FluxCore: Sample High-Frequency Intraday Data Downloader.
 Downloads free public 1-minute historical kline datasets from Binance Vision
 directly into data/intraday/ without requiring any API key or external dependencies.
 """
@@ -41,7 +41,7 @@ def download_sample_klines(symbol: str = "BTCUSDT", date_str: str = "2024-01-01"
 
 def main():
     print("=" * 60)
-    print("ChronosMatch: 1-Minute Intraday Data Ingestion Downloader")
+    print("FluxCore: 1-Minute Intraday Data Ingestion Downloader")
     print("=" * 60)
     for sym in SYMBOLS:
         for dt in SAMPLE_DATES:

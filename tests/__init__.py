@@ -1,1 +1,1 @@
-"""ChronosMatch Test Suite Package"""
+"""FluxCore Test Suite Package"""

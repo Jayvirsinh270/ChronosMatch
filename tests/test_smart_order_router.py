@@ -1,30 +1,30 @@
 """
-Unit and integration test suite for ChronosMatch Multi-Exchange Smart Order Router (SOR),
+Unit and integration test suite for FluxCore Multi-Exchange Smart Order Router (SOR),
 Consolidated NBBO Engine, and High-Frequency Cross-Venue Latency Arbitrage.
 """
 
 import pytest
 
-from chronos_match.market.sor_network import (
+from fluxcore.market.sor_network import (
     MultiVenueNetwork,
     ExchangeVenue,
     VenueConfig,
     VenueFill,
 )
-from chronos_match.market.nbbo import (
+from fluxcore.market.nbbo import (
     NBBOEngine,
     NBBORecord,
 )
-from chronos_match.algo.smart_order_router import (
+from fluxcore.algo.smart_order_router import (
     SmartOrderRouter,
     RoutingPolicy,
     SORRoutingResult,
 )
-from chronos_match.algo.latency_arbitrage import (
+from fluxcore.algo.latency_arbitrage import (
     LatencyArbitrageEngine,
     ArbitrageOpportunity,
 )
-from chronos_match.web.server import (
+from fluxcore.web.server import (
     SORRouteRequest,
     MarketShockRequest,
     api_get_sor_venues,

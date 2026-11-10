@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Adaptive Deep Reinforcement Learning (RL) Optimal Execution.
+FluxCore: Test Suite for Adaptive Deep Reinforcement Learning (RL) Optimal Execution.
 
 Validates:
 1. Pure Python FastDenseLayer and DeepQNetwork forward/backward passes & inference latency (<25 µs).
@@ -15,7 +15,7 @@ import math
 import time
 import pytest
 
-from chronos_match.algo.rl_execution_agent import (
+from fluxcore.algo.rl_execution_agent import (
     FastDenseLayer,
     DeepQNetwork,
     ExperienceReplayBuffer,
@@ -24,10 +24,10 @@ from chronos_match.algo.rl_execution_agent import (
     ParentOrderState,
     ChildExecutionFill,
 )
-from chronos_match.algo import AlgoTradingManager
-from chronos_match.market.router import MultiBookRouter, SymbolInfo
-from chronos_match.market.replayer import HistoricalMarketReplayer
-from chronos_match.web.server import (
+from fluxcore.algo import AlgoTradingManager
+from fluxcore.market.router import MultiBookRouter, SymbolInfo
+from fluxcore.market.replayer import HistoricalMarketReplayer
+from fluxcore.web.server import (
     app,
     server,
     RLOrderRequest,
@@ -35,7 +35,7 @@ from chronos_match.web.server import (
     api_rl_telemetry,
     api_rl_cancel_order,
 )
-from chronos_match.protocol import to_fixed_price, from_fixed_price, OrderSide
+from fluxcore.protocol import to_fixed_price, from_fixed_price, OrderSide
 
 # Disable continuous background simulation loop in unit test suite
 server.bot_active = False

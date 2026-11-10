@@ -1,5 +1,5 @@
 """
-Vercel Serverless Entrypoint for ChronosMatch FastAPI Application.
+Vercel Serverless Entrypoint for FluxCore FastAPI Application.
 Routes all incoming HTTP requests and API endpoints to the FastAPI application.
 """
 
@@ -13,7 +13,7 @@ if ROOT_DIR not in sys.path:
 
 # Identify Vercel serverless environment
 os.environ["VERCEL"] = "1"
-os.environ.setdefault("CHRONOS_DB_PATH", "/tmp/chronos_market.db")
+os.environ.setdefault("FLUX_DB_PATH", "/tmp/fluxcore_market.db")
 
 # Import the FastAPI application instance
-from chronos_match.web.server import app
+from fluxcore.web.server import app

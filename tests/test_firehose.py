@@ -1,5 +1,5 @@
 """
-Unit tests and throughput benchmarks for ChronosMatch Market Firehose.
+Unit tests and throughput benchmarks for FluxCore Market Firehose.
 Verifies stochastic distribution ratios, asyncio streaming, and 100k+ orders/sec throughput.
 """
 
@@ -8,10 +8,10 @@ import time
 import pytest
 from pathlib import Path
 
-from chronos_match.protocol import OrderType, OrderSide
-from chronos_match.market.distribution import OrderDistributionGenerator
-from chronos_match.market.firehose import AsyncMarketFirehose
-from chronos_match.ring_buffer import RingBuffer
+from fluxcore.protocol import OrderType, OrderSide
+from fluxcore.market.distribution import OrderDistributionGenerator
+from fluxcore.market.firehose import AsyncMarketFirehose
+from fluxcore.ring_buffer import RingBuffer
 
 TEST_DIR = Path("d:/infotech_internship_project/.test_shm")
 

@@ -1,7 +1,7 @@
 [project]
-name = "chronos-match"
+name = "fluxcore"
 version = "0.1.0"
-description = "ChronosMatch: High-Frequency Trading Matching Engine & Web Terminal"
+description = "FluxCore: High-Frequency Trading Matching Engine & Web Terminal"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

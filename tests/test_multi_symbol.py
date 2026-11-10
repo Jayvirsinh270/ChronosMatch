@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Phase 3 — Multi-Symbol & Multi-Asset Matching Router.
+FluxCore: Test Suite for Phase 3 — Multi-Symbol & Multi-Asset Matching Router.
 
 Tests cover:
   - Symbol Registry & Metadata Resolution (by int ID and ticker string)
@@ -13,14 +13,14 @@ Tests cover:
 import pytest
 import time
 
-from chronos_match.market.router import (
+from fluxcore.market.router import (
     SymbolInfo,
     SingleSymbolVenue,
     MultiBookRouter,
 )
-from chronos_match.protocol import to_fixed_price, from_fixed_price, OrderSide
-from chronos_match.risk.risk_engine import PreTradeRiskEngine, RiskLimits
-from chronos_match.web.server import WebTradingServer
+from fluxcore.protocol import to_fixed_price, from_fixed_price, OrderSide
+from fluxcore.risk.risk_engine import PreTradeRiskEngine, RiskLimits
+from fluxcore.web.server import WebTradingServer
 
 
 # ─────────────────────────────────────────────

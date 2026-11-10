@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    ChronosMatch Master Interactive PowerShell Launcher
+    FluxCore Master Interactive PowerShell Launcher
 #>
 
 Set-StrictMode -Version Latest
@@ -19,7 +19,7 @@ if (Test-Path ".venv\Scripts\Activate.ps1") {
 function Show-Menu {
     Clear-Host
     Write-Host "===============================================================================" -ForegroundColor Cyan
-    Write-Host "    CHRONOS MATCH  //  HIGH-FREQUENCY TRADING MASTER CONTROL CONSOLE" -ForegroundColor White
+    Write-Host "    FLUXCORE  //  HIGH-FREQUENCY TRADING MASTER CONTROL CONSOLE" -ForegroundColor White
     Write-Host "    Zero-Copy SPSC IPC  *  Pure-C nogil LOB  *  Asynchronous SQLite WAL" -ForegroundColor Green
     Write-Host "===============================================================================" -ForegroundColor Cyan
     Write-Host ""
@@ -80,11 +80,11 @@ while ($true) {
         "6" {
             Clear-Host
             Write-Host "[*] Opening Cython Zero-Yellow Annotation Reports in your default browser..." -ForegroundColor Cyan
-            if (Test-Path "chronos_match\engine\order_book_cy.html") {
-                Start-Process "chronos_match\engine\order_book_cy.html"
+            if (Test-Path "fluxcore\engine\order_book_cy.html") {
+                Start-Process "fluxcore\engine\order_book_cy.html"
             } else {
-                cython -3 -a chronos_match\engine\order_book_cy.pyx
-                Start-Process "chronos_match\engine\order_book_cy.html"
+                cython -3 -a fluxcore\engine\order_book_cy.pyx
+                Start-Process "fluxcore\engine\order_book_cy.html"
             }
             Write-Host "[+] Opened Cython C-code report." -ForegroundColor Green
             Pause
@@ -104,7 +104,7 @@ while ($true) {
             Pause
         }
         "9" {
-            Write-Host "`n[+] ChronosMatch launcher closed." -ForegroundColor Green
+            Write-Host "`n[+] FluxCore launcher closed." -ForegroundColor Green
             exit 0
         }
         default {

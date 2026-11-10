@@ -1,4 +1,4 @@
-# ChronosMatch Technical Architecture Whitepaper
+# FluxCore Technical Architecture Whitepaper
 **A Systems Engineering Blueprint for Low-Latency, Zero-Copy Trading Infrastructure**
 
 ---
@@ -13,8 +13,8 @@ Python is the predominant language in quantitative finance for data science and 
 2. **Inter-Process Serialization Costs**: Transmitting data across process boundaries via standard IPC (pipes, sockets, queues) relies on JSON or Pickle serialization, introducing megabytes of memory copying and CPU overhead.
 3. **Global Interpreter Lock (GIL)**: Prevents true parallelism on multi-core systems, causing lock contention during high-throughput order bursts.
 
-### The ChronosMatch Solution:
-ChronosMatch resolves these limitations through a hybrid architecture:
+### The FluxCore Solution:
+FluxCore resolves these limitations through a hybrid architecture:
 * **Operating-System Level Zero-Copy IPC**: Raw binary shared memory (`mmap`) mapped directly into process virtual memory spaces.
 * **Cache-Aligned SPSC Ring Buffer**: Eliminates lock contention and CPU false sharing.
 * **Bare-Metal Cython Engine**: Compiles to native C machine code, executes inside `nogil` blocks, and uses pre-allocated memory arenas to achieve zero-allocation matching in under **50 microseconds**.
@@ -34,7 +34,7 @@ Cache Line 2 (64 Bytes)   -> [ Consumer Tail (uint64) | 56 Bytes Padding ]
 Cache Line 3 (64 Bytes)   -> [ Capacity (uint32) | Mask (uint32) | SlotSize (uint32) | Active (uint32) | 48 Bytes Padding ]
 ```
 
-ChronosMatch strictly isolates the producer write cursor (`head`) and consumer read cursor (`tail`) into dedicated 64-byte lines:
+FluxCore strictly isolates the producer write cursor (`head`) and consumer read cursor (`tail`) into dedicated 64-byte lines:
 
 ```c
 typedef struct {
@@ -112,7 +112,7 @@ Orders are executed according to two invariant rules:
 ### 3.2 Fixed-Point Integer Arithmetic
 Floating-point arithmetic (IEEE-754) is strictly prohibited in institutional matching engines due to rounding errors ($0.1 + 0.2 \neq 0.3$).
 
-ChronosMatch enforces **64-bit signed integer fixed-point pricing**:
+FluxCore enforces **64-bit signed integer fixed-point pricing**:
 $$\text{Internal Price} = \text{round}(\text{Real Price} \times 10{,}000)$$
 * $\$150.25 \rightarrow 1{,}502{,}500$
 * $\$0.01 \text{ (1 cent)} \rightarrow 100$ ticks
@@ -121,7 +121,7 @@ All price comparisons, spreads, and execution calculations are exact integer ope
 ### 3.3 Zero-Allocation Memory Arenas
 Calling `malloc` or `free` during order execution causes memory fragmentation and unpredictable kernel allocator pauses.
 
-ChronosMatch pre-allocates an internal memory pool of Order Nodes at startup:
+FluxCore pre-allocates an internal memory pool of Order Nodes at startup:
 * **Order Node Pool**: Contiguous array of $1{,}000{,}000$ order nodes.
 * **$O(1)$ Recycling**: Free nodes are maintained in an intrusive free list. Allocation and deallocation are pointer swaps taking $< 5\text{ ns}$.
 * **$O(1)$ Cancellations**: A direct hash/pointer map indexes `order_id` to its corresponding node, allowing instantaneous node removal from its doubly-linked price level without searching the book.

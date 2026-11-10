@@ -1,12 +1,12 @@
 """
-Unit tests and microbenchmarks for ChronosMatch O(1) Order Cancellation.
+Unit tests and microbenchmarks for FluxCore O(1) Order Cancellation.
 Verifies direct hash map indexing, arbitrary unlinking, filled-order immunity, and sub-microsecond cancellation latency.
 """
 
 import time
 import pytest
-from chronos_match.protocol import to_fixed_price
-from chronos_match.engine.order_book_cy import FastOrderBook
+from fluxcore.protocol import to_fixed_price
+from fluxcore.engine.order_book_cy import FastOrderBook
 
 def test_cancel_resting_bid_order():
     """Verify successful cancellation of a resting limit buy order."""

@@ -1,5 +1,5 @@
 """
-ChronosMatch: Internship Defense & Live Executive Showcase Script.
+FluxCore: Internship Defense & Live Executive Showcase Script.
 Demonstrates 4 real-world high-frequency market scenarios with live terminal visualization:
   1. Standard Liquidity Provisioning (Market Maker resting limit orders).
   2. Institutional Whale Sweeps (Multi-level aggressive liquidity consumption).
@@ -18,7 +18,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich import box
 
-from chronos_match.protocol import (
+from fluxcore.protocol import (
     OrderPacket,
     TradePacket,
     OrderSide,
@@ -26,10 +26,10 @@ from chronos_match.protocol import (
     to_fixed_price,
     from_fixed_price,
 )
-from chronos_match.engine.order_book_cy import FastOrderBook
-from chronos_match.monitor.metrics import LatencyProfiler
-from chronos_match.monitor.whale_detector import WhaleDetector
-from chronos_match.monitor.dashboard import TerminalDashboard
+from fluxcore.engine.order_book_cy import FastOrderBook
+from fluxcore.monitor.metrics import LatencyProfiler
+from fluxcore.monitor.whale_detector import WhaleDetector
+from fluxcore.monitor.dashboard import TerminalDashboard
 
 
 def run_showcase():
@@ -233,7 +233,7 @@ def run_showcase():
     render_current_frame(f"SCENARIO 4 COMPLETE: 5,000 Orders Processed in {burst_sec*1000:.1f}ms ({burst_count/burst_sec:,.0f} ord/s)")
 
     console.print(Panel(
-        "[bold green]✓ CHRONOS MATCH SHOWCASE COMPLETE[/bold green]\n"
+        "[bold green]✓ FLUXCORE SHOWCASE COMPLETE[/bold green]\n"
         "• Pure-C nogil Limit Order Book: 100% Deterministic & Cache-Aligned\n"
         "• Execution Latency: Sub-50 μs SLA Target Met Across All Regimes\n"
         "• Persistence: Asynchronous SQLite WAL (> 400k trades/s)\n"

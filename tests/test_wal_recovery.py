@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Phase 4 (Write-Ahead Log & Deterministic Crash Recovery).
+FluxCore: Test Suite for Phase 4 (Write-Ahead Log & Deterministic Crash Recovery).
 
 Validates:
 1. Binary WAL serialization, monotonic sequencing, and CRC32 payload checksum integrity.
@@ -17,21 +17,21 @@ import tempfile
 import time
 import pytest
 
-from chronos_match.market.router import MultiBookRouter, SymbolInfo
-from chronos_match.risk.risk_engine import PreTradeRiskEngine
-from chronos_match.protocol import OrderSide, to_fixed_price, from_fixed_price
-from chronos_match.engine.order_policies import TimeInForce, SelfTradeAction
-from chronos_match.persistence.wal import (
+from fluxcore.market.router import MultiBookRouter, SymbolInfo
+from fluxcore.risk.risk_engine import PreTradeRiskEngine
+from fluxcore.protocol import OrderSide, to_fixed_price, from_fixed_price
+from fluxcore.engine.order_policies import TimeInForce, SelfTradeAction
+from fluxcore.persistence.wal import (
     WriteAheadLog,
     WALRecord,
     WALEventType,
 )
-from chronos_match.persistence.snapshot import SnapshotManager
-from chronos_match.persistence.recovery import (
+from fluxcore.persistence.snapshot import SnapshotManager
+from fluxcore.persistence.recovery import (
     DeterministicRecoveryEngine,
     RecoverySummary,
 )
-from chronos_match.web.server import WebTradingServer
+from fluxcore.web.server import WebTradingServer
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-# ChronosMatch Test Execution & Verification Register
+# FluxCore Test Execution & Verification Register
 
 This file logs every test suite execution, performance benchmark, environment details, and pass/fail metrics across all development sprints.
 
@@ -8,21 +8,21 @@ This file logs every test suite execution, performance benchmark, environment de
 
 | Test ID | Timestamp (IST) | Target Module | Scope | Status | Throughput / Metric |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **TEST-001** | 2026-10-18 20:33:23 | `chronos_match/ring_buffer.py` | SPSC IPC, FIFO, Wraparound, Multi-Process | 🟢 **PASSED** (5/5) | **560,616 orders/sec** |
-| **TEST-002** | 2026-10-18 21:00:42 | `chronos_match/engine/arena.c` | Memory Arena, O(1) Alloc/Free, nogil Benchmark | 🟢 **PASSED** (6/6) | **3.42 ns/op (292M ops/s)** |
-| **TEST-003** | 2026-10-18 21:13:40 | `chronos_match/engine/price_level.h` | PriceLevel FIFO Queue, Arbitrary Unlink, nogil | 🟢 **PASSED** (4/4) | **3.33 ns/cycle (300M ops/s)** |
-| **TEST-004** | 2026-10-18 21:19:44 | `chronos_match/engine/order_book.c` | Price-Time Priority, Whale Sweep, nogil Match | 🟢 **PASSED** (7/7) | **0.011 μs/order (92M orders/s)** |
-| **TEST-005** | 2026-10-18 21:27:33 | `chronos_match/engine/order_map.c` | O(1) Cancellation, Backward-Shift Hash, nogil | 🟢 **PASSED** (6/6) | **22.70 ns/cancel (44M cancels/s)** |
-| **TEST-006** | 2026-10-18 21:36:20 | `chronos_match/market/firehose.py` | Stochastic Flow, Async Streaming, 100k Burst | 🟢 **PASSED** (4/4) | **459,230 orders/sec** |
-| **TEST-007** | 2026-10-18 21:49:58 | `chronos_match/monitor/metrics.py` | Nanosecond Percentiles, Binned Histogram | 🟢 **PASSED** (5/5) | **106.87 ns/sample (9.3M samples/s)** |
-| **TEST-008** | 2026-10-18 21:59:44 | `chronos_match/market/bridge.py` | End-to-End Pipeline, Wire-to-Match SLA Audit | 🟢 **PASSED** (2/2) | **p99: 19.8 μs (< 50 μs SLA) \| 127k/s** |
+| **TEST-001** | 2026-10-18 20:33:23 | `fluxcore/ring_buffer.py` | SPSC IPC, FIFO, Wraparound, Multi-Process | 🟢 **PASSED** (5/5) | **560,616 orders/sec** |
+| **TEST-002** | 2026-10-18 21:00:42 | `fluxcore/engine/arena.c` | Memory Arena, O(1) Alloc/Free, nogil Benchmark | 🟢 **PASSED** (6/6) | **3.42 ns/op (292M ops/s)** |
+| **TEST-003** | 2026-10-18 21:13:40 | `fluxcore/engine/price_level.h` | PriceLevel FIFO Queue, Arbitrary Unlink, nogil | 🟢 **PASSED** (4/4) | **3.33 ns/cycle (300M ops/s)** |
+| **TEST-004** | 2026-10-18 21:19:44 | `fluxcore/engine/order_book.c` | Price-Time Priority, Whale Sweep, nogil Match | 🟢 **PASSED** (7/7) | **0.011 μs/order (92M orders/s)** |
+| **TEST-005** | 2026-10-18 21:27:33 | `fluxcore/engine/order_map.c` | O(1) Cancellation, Backward-Shift Hash, nogil | 🟢 **PASSED** (6/6) | **22.70 ns/cancel (44M cancels/s)** |
+| **TEST-006** | 2026-10-18 21:36:20 | `fluxcore/market/firehose.py` | Stochastic Flow, Async Streaming, 100k Burst | 🟢 **PASSED** (4/4) | **459,230 orders/sec** |
+| **TEST-007** | 2026-10-18 21:49:58 | `fluxcore/monitor/metrics.py` | Nanosecond Percentiles, Binned Histogram | 🟢 **PASSED** (5/5) | **106.87 ns/sample (9.3M samples/s)** |
+| **TEST-008** | 2026-10-18 21:59:44 | `fluxcore/market/bridge.py` | End-to-End Pipeline, Wire-to-Match SLA Audit | 🟢 **PASSED** (2/2) | **p99: 19.8 μs (< 50 μs SLA) \| 127k/s** |
 
 ---
 
 ## Detailed Test Logs
 
 ### [TEST-001] - 2026-10-18 19:20:15 IST
-* **Target Module**: Shared Memory SPSC Ring Buffer (`chronos_match/ring_buffer.py`)
+* **Target Module**: Shared Memory SPSC Ring Buffer (`fluxcore/ring_buffer.py`)
 * **Test File**: [`tests/test_ring_buffer.py`](tests/test_ring_buffer.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | MSVC v14.51 x64
 * **Command Executed**:
@@ -53,7 +53,7 @@ This file logs every test suite execution, performance benchmark, environment de
      * **Throughput: 492,609 orders/second**
 
 ### [TEST-002] - 2026-10-18 21:00:42 IST
-* **Target Module**: Pre-allocated Memory Arena (`chronos_match/engine/arena.c`, `arena_cy.pyx`)
+* **Target Module**: Pre-allocated Memory Arena (`fluxcore/engine/arena.c`, `arena_cy.pyx`)
 * **Test File**: [`tests/test_arena.py`](tests/test_arena.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | MSVC v14.51 x64 (/O2 Release)
 * **Command Executed**:
@@ -87,7 +87,7 @@ This file logs every test suite execution, performance benchmark, environment de
      * Throughput: **292,167,003 operations/second**
 
 ### [TEST-003] - 2026-10-18 21:13:40 IST
-* **Target Module**: Price Level FIFO Queue (`chronos_match/engine/price_level.h`, `price_level_cy.pyx`)
+* **Target Module**: Price Level FIFO Queue (`fluxcore/engine/price_level.h`, `price_level_cy.pyx`)
 * **Test File**: [`tests/test_price_level.py`](tests/test_price_level.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | MSVC v14.51 x64 (/O2 Release)
 * **Command Executed**:
@@ -115,7 +115,7 @@ This file logs every test suite execution, performance benchmark, environment de
      * Throughput: **300,652,416 cycles/second**
 
 ### [TEST-004] - 2026-10-18 21:19:44 IST
-* **Target Module**: Limit Order Book Matching Core (`chronos_match/engine/order_book.c`, `order_book_cy.pyx`)
+* **Target Module**: Limit Order Book Matching Core (`fluxcore/engine/order_book.c`, `order_book_cy.pyx`)
 * **Test File**: [`tests/test_order_book.py`](tests/test_order_book.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | MSVC v14.51 x64 (/O2 Release)
 * **Command Executed**:
@@ -152,7 +152,7 @@ This file logs every test suite execution, performance benchmark, environment de
      * Throughput: **92,174,394 orders/second**
 
 ### [TEST-005] - 2026-10-18 21:27:33 IST
-* **Target Module**: O(1) Cancellation Direct Map (`chronos_match/engine/order_map.c`, `order_book_cy.pyx`)
+* **Target Module**: O(1) Cancellation Direct Map (`fluxcore/engine/order_map.c`, `order_book_cy.pyx`)
 * **Test File**: [`tests/test_cancellation.py`](tests/test_cancellation.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | MSVC v14.51 x64 (/O2 Release)
 * **Command Executed**:
@@ -186,7 +186,7 @@ This file logs every test suite execution, performance benchmark, environment de
      * Throughput: **53,662,463 cancels/second**
 
 ### [TEST-006] - 2026-10-18 21:36:20 IST
-* **Target Module**: Market Firehose & Stochastic Flow (`chronos_match/market/distribution.py`, `firehose.py`)
+* **Target Module**: Market Firehose & Stochastic Flow (`fluxcore/market/distribution.py`, `firehose.py`)
 * **Test File**: [`tests/test_firehose.py`](tests/test_firehose.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | Asyncio Event Loop
 * **Command Executed**:
@@ -214,7 +214,7 @@ This file logs every test suite execution, performance benchmark, environment de
      * Throughput: **460,472 orders/second** (4.6x the 100k/s requirement)
 
 ### [TEST-007] - 2026-10-18 21:49:58 IST
-* **Target Module**: Nanosecond Latency Profiler & Percentile Analytics (`chronos_match/monitor/metrics.py`)
+* **Target Module**: Nanosecond Latency Profiler & Percentile Analytics (`fluxcore/monitor/metrics.py`)
 * **Test File**: [`tests/test_metrics.py`](tests/test_metrics.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | Array-backed Circular Window
 * **Command Executed**:
@@ -245,7 +245,7 @@ This file logs every test suite execution, performance benchmark, environment de
      * Throughput: **9,135,966 samples/second**
 
 ### [TEST-008] - 2026-10-18 21:59:44 IST
-* **Target Module**: End-to-End Pipeline & SLA Audit (`chronos_match/market/bridge.py`)
+* **Target Module**: End-to-End Pipeline & SLA Audit (`fluxcore/market/bridge.py`)
 * **Test File**: [`tests/test_pipeline.py`](tests/test_pipeline.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | Shared RAM IPC (.ring) + Cython nogil
 * **Command Executed**:
@@ -273,7 +273,7 @@ This file logs every test suite execution, performance benchmark, environment de
      * **p99.9 Tail Latency: 80.500 μs**
 
 ### [TEST-009] - 2026-10-19 08:58:05 IST
-* **Target Module**: Asynchronous SQLite WAL Audit Ledger (`chronos_match/ledger/audit_logger.py`)
+* **Target Module**: Asynchronous SQLite WAL Audit Ledger (`fluxcore/ledger/audit_logger.py`)
 * **Test File**: [`tests/test_ledger.py`](tests/test_ledger.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | SQLite 3.45 WAL Mode
 * **Command Executed**:
@@ -309,7 +309,7 @@ This file logs every test suite execution, performance benchmark, environment de
 ---
 
 ### [TEST-010] - 2026-10-19 08:59:21 IST
-* **Target Module**: Institutional Whale Sweep & SLA Breach Detector (`chronos_match/monitor/whale_detector.py`)
+* **Target Module**: Institutional Whale Sweep & SLA Breach Detector (`fluxcore/monitor/whale_detector.py`)
 * **Test File**: [`tests/test_whale_detector.py`](tests/test_whale_detector.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0
 * **Command Executed**:
@@ -338,7 +338,7 @@ This file logs every test suite execution, performance benchmark, environment de
 ---
 
 ### [TEST-011] - 2026-10-19 09:00:39 IST
-* **Target Module**: Real-Time Terminal Dashboard Rich TUI (`chronos_match/monitor/dashboard.py`)
+* **Target Module**: Real-Time Terminal Dashboard Rich TUI (`fluxcore/monitor/dashboard.py`)
 * **Test File**: [`tests/test_dashboard.py`](tests/test_dashboard.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | Rich 13.x
 * **Command Executed**:
@@ -362,7 +362,7 @@ This file logs every test suite execution, performance benchmark, environment de
    * **Result**: 🟢 PASSED.
 
 ### [TEST-012] - 2026-10-19 21:36:27 IST
-* **Target Module**: Multi-Process Soak & Chaos Resilience (`chronos_match/daemon.py`, `tests/test_stress.py`)
+* **Target Module**: Multi-Process Soak & Chaos Resilience (`fluxcore/daemon.py`, `tests/test_stress.py`)
 * **Test File**: [`tests/test_stress.py`](tests/test_stress.py)
 * **Environment**: Windows 11 AMD64 | Python 3.15.0 | Shared Memory IPC + Multi-Process
 * **Command Executed**:

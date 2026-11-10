@@ -1,7 +1,7 @@
 """
 Unit & Integration Tests for Lightweight ML Market Pattern Model & Data Storage.
 Tests regime classification, Bayesian transition dynamics, live candle synthesis,
-and SQLite persistence in ChronosMatch.
+and SQLite persistence in FluxCore.
 """
 
 import os
@@ -9,10 +9,10 @@ import tempfile
 import time
 import pytest
 
-from chronos_match.market.ml_pattern_model import LightMarketPatternModel, MarketRegime
-from chronos_match.market.storage import MarketDataStore
-from chronos_match.market.router import MultiBookRouter, SymbolInfo
-from chronos_match.market.replayer import HistoricalMarketReplayer
+from fluxcore.market.ml_pattern_model import LightMarketPatternModel, MarketRegime
+from fluxcore.market.storage import MarketDataStore
+from fluxcore.market.router import MultiBookRouter, SymbolInfo
+from fluxcore.market.replayer import HistoricalMarketReplayer
 
 
 def test_ml_pattern_model_initialization():
@@ -169,7 +169,7 @@ def test_replayer_ml_pattern_integration():
 
 def test_ml_pretrained_weights_integration():
     """Verify that LightMarketPatternModel integrates pre-trained weights from real dataset."""
-    from chronos_match.market.ml_pattern_model import _load_pretrained_weights
+    from fluxcore.market.ml_pattern_model import _load_pretrained_weights
 
     weights = _load_pretrained_weights()
     assert weights is not None, "Pre-trained weights file should be loaded"
@@ -268,7 +268,7 @@ def test_candlestick_pattern_and_feature_store_persistence():
 
 def test_api_get_ml_metrics():
     """Verify that /api/market/ml-metrics returns institutional evaluation metrics."""
-    from chronos_match.web.server import api_get_ml_metrics
+    from fluxcore.web.server import api_get_ml_metrics
 
     data = api_get_ml_metrics()
     assert "version" in data
@@ -282,7 +282,7 @@ def test_api_get_ml_metrics():
 
 def test_institutional_wave_and_fractal_candlestick_dynamics():
     """Verify that wave engine generates multi-wave structures and eliminates linear staircases."""
-    from chronos_match.market.data_loader import generate_institutional_wave_candles, MarketDataLoader
+    from fluxcore.market.data_loader import generate_institutional_wave_candles, MarketDataLoader
 
     # 1. Verify synthetic wave generator produces balanced bars with real ATR
     bars = generate_institutional_wave_candles(base_price=3500.0, num_bars=50, symbol="ETH-USD")
@@ -336,7 +336,7 @@ def test_gnb_posterior_probabilities_and_realistic_candlesticks():
     assert all(0.0 <= p <= 1.0 for p in probs.values())
 
     # Test server snapshot serialization
-    from chronos_match.web.server import WebTradingServer
+    from fluxcore.web.server import WebTradingServer
     server = WebTradingServer(db_path=":memory:")
     snap = server.get_snapshot()
 

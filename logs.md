@@ -1,6 +1,6 @@
-# ChronosMatch Engineering Feature Logs
+# FluxCore Engineering Feature Logs
 
-This file maintains an immutable, chronological record of every feature, component, and architectural addition to the **ChronosMatch** project.
+This file maintains an immutable, chronological record of every feature, component, and architectural addition to the **FluxCore** project.
 
 ---
 
@@ -21,7 +21,7 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 19:17:36 IST] - Protocol Layer & Fixed-Point Arithmetic
 * **Module**: Binary Serialization & Fixed-Point Arithmetic
 * **Files Created/Modified**:
-  * [`chronos_match/protocol.py`](chronos_match/protocol.py)
+  * [`fluxcore/protocol.py`](fluxcore/protocol.py)
 * **Description**:
   * Implemented binary serialization layer mirroring `chronos_types.h` 1:1 using Python's standard `struct` module.
   * Enforced integer fixed-point pricing (`PRICE_SCALE = 10,000`) with helper functions `to_fixed_price()` and `from_fixed_price()`, eliminating IEEE-754 floating-point inaccuracies.
@@ -33,7 +33,7 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 19:18:00 IST] - Zero-Copy Memory-Mapped SPSC Ring Buffer
 * **Module**: Shared Memory Inter-Process Communication (IPC)
 * **Files Created/Modified**:
-  * [`chronos_match/ring_buffer.py`](chronos_match/ring_buffer.py)
+  * [`fluxcore/ring_buffer.py`](fluxcore/ring_buffer.py)
 * **Description**:
   * Built a lock-free Single-Producer Single-Consumer (SPSC) ring buffer backed by system shared memory (`mmap`).
   * Implemented atomic `head` and `tail` cursor properties mapped to the cache-line isolated header slots.
@@ -47,7 +47,7 @@ This file maintains an immutable, chronological record of every feature, compone
 * **Module**: Build System & C-Extension Compilation
 * **Files Created/Modified**:
   * [`setup.py`](setup.py)
-  * [`chronos_match/test_cy.pyx`](chronos_match/test_cy.pyx)
+  * [`fluxcore/test_cy.pyx`](fluxcore/test_cy.pyx)
 * **Description**:
   * Integrated Microsoft Visual C++ Build Tools (`cl.exe` v14.51 x64) and Windows 10/11 SDK.
   * Configured Cython build script with compiler directives (`language_level=3`, `boundscheck=False`, `wraparound=False`).
@@ -84,7 +84,7 @@ This file maintains an immutable, chronological record of every feature, compone
 * **Files Created/Modified**:
   * [`PHASES.md`](PHASES.md)
 * **Description**:
-  * Decomposed the entire ChronosMatch engineering roadmap into 5 discrete, modular phases:
+  * Decomposed the entire FluxCore engineering roadmap into 5 discrete, modular phases:
     1. Phase 1: Zero-Copy Shared-Memory IPC Bus (Completed).
     2. Phase 2: Cython Bare-Metal Limit Order Book (In Progress).
     3. Phase 3: High-Throughput Market Firehose & Latency Profiler.
@@ -108,10 +108,10 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 21:01:00 IST] - Sub-Phase 2.1: Pre-allocated Memory Arena & OrderNode
 * **Module**: Matching Engine Memory Core (Hot Path)
 * **Files Created/Modified**:
-  * [`chronos_match/engine/order_node.h`](chronos_match/engine/order_node.h)
-  * [`chronos_match/engine/arena.h`](chronos_match/engine/arena.h)
-  * [`chronos_match/engine/arena.c`](chronos_match/engine/arena.c)
-  * [`chronos_match/engine/arena_cy.pyx`](chronos_match/engine/arena_cy.pyx)
+  * [`fluxcore/engine/order_node.h`](fluxcore/engine/order_node.h)
+  * [`fluxcore/engine/arena.h`](fluxcore/engine/arena.h)
+  * [`fluxcore/engine/arena.c`](fluxcore/engine/arena.c)
+  * [`fluxcore/engine/arena_cy.pyx`](fluxcore/engine/arena_cy.pyx)
   * [`setup.py`](setup.py)
   * [`tests/test_arena.py`](tests/test_arena.py)
 * **Description**:
@@ -126,8 +126,8 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 21:14:00 IST] - Sub-Phase 2.2: Price Level Doubly-Linked FIFO Queue
 * **Module**: Limit Order Book Matching Core (Time Priority)
 * **Files Created/Modified**:
-  * [`chronos_match/engine/price_level.h`](chronos_match/engine/price_level.h)
-  * [`chronos_match/engine/price_level_cy.pyx`](chronos_match/engine/price_level_cy.pyx)
+  * [`fluxcore/engine/price_level.h`](fluxcore/engine/price_level.h)
+  * [`fluxcore/engine/price_level_cy.pyx`](fluxcore/engine/price_level_cy.pyx)
   * [`setup.py`](setup.py)
   * [`tests/test_price_level.py`](tests/test_price_level.py)
 * **Description**:
@@ -142,9 +142,9 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 21:20:00 IST] - Sub-Phase 2.3: Limit Order Book Matching Core (Price-Time Priority)
 * **Module**: Core Limit Order Book (Hot Path Execution)
 * **Files Created/Modified**:
-  * [`chronos_match/engine/order_book.h`](chronos_match/engine/order_book.h)
-  * [`chronos_match/engine/order_book.c`](chronos_match/engine/order_book.c)
-  * [`chronos_match/engine/order_book_cy.pyx`](chronos_match/engine/order_book_cy.pyx)
+  * [`fluxcore/engine/order_book.h`](fluxcore/engine/order_book.h)
+  * [`fluxcore/engine/order_book.c`](fluxcore/engine/order_book.c)
+  * [`fluxcore/engine/order_book_cy.pyx`](fluxcore/engine/order_book_cy.pyx)
   * [`setup.py`](setup.py)
   * [`tests/test_order_book.py`](tests/test_order_book.py)
 * **Description**:
@@ -159,11 +159,11 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 21:28:00 IST] - Sub-Phase 2.4: Instantaneous O(1) Cancellation & Direct Map
 * **Module**: Order State Management & Cancellation Engine
 * **Files Created/Modified**:
-  * [`chronos_match/engine/order_map.h`](chronos_match/engine/order_map.h)
-  * [`chronos_match/engine/order_map.c`](chronos_match/engine/order_map.c)
-  * [`chronos_match/engine/order_book.h`](chronos_match/engine/order_book.h)
-  * [`chronos_match/engine/order_book.c`](chronos_match/engine/order_book.c)
-  * [`chronos_match/engine/order_book_cy.pyx`](chronos_match/engine/order_book_cy.pyx)
+  * [`fluxcore/engine/order_map.h`](fluxcore/engine/order_map.h)
+  * [`fluxcore/engine/order_map.c`](fluxcore/engine/order_map.c)
+  * [`fluxcore/engine/order_book.h`](fluxcore/engine/order_book.h)
+  * [`fluxcore/engine/order_book.c`](fluxcore/engine/order_book.c)
+  * [`fluxcore/engine/order_book_cy.pyx`](fluxcore/engine/order_book_cy.pyx)
   * [`setup.py`](setup.py)
   * [`tests/test_cancellation.py`](tests/test_cancellation.py)
 * **Description**:
@@ -178,9 +178,9 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 21:36:00 IST] - Sub-Phase 3.1: High-Throughput Asyncio Market Firehose
 * **Module**: Market Simulation & Order Ingestion
 * **Files Created/Modified**:
-  * [`chronos_match/market/__init__.py`](chronos_match/market/__init__.py)
-  * [`chronos_match/market/distribution.py`](chronos_match/market/distribution.py)
-  * [`chronos_match/market/firehose.py`](chronos_match/market/firehose.py)
+  * [`fluxcore/market/__init__.py`](fluxcore/market/__init__.py)
+  * [`fluxcore/market/distribution.py`](fluxcore/market/distribution.py)
+  * [`fluxcore/market/firehose.py`](fluxcore/market/firehose.py)
   * [`tests/test_firehose.py`](tests/test_firehose.py)
 * **Description**:
   * Implemented stochastic financial order distribution generator modeling real-world exchange order flow (60% Limit orders, 25% Cancellations, 15% Aggressive sweeps / whale orders).
@@ -192,8 +192,8 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 21:50:00 IST] - Sub-Phase 3.2: Nanosecond Latency Profiler & Percentile Analytics
 * **Module**: Latency Analytics & Real-Time Monitoring
 * **Files Created/Modified**:
-  * [`chronos_match/monitor/__init__.py`](chronos_match/monitor/__init__.py)
-  * [`chronos_match/monitor/metrics.py`](chronos_match/monitor/metrics.py)
+  * [`fluxcore/monitor/__init__.py`](fluxcore/monitor/__init__.py)
+  * [`fluxcore/monitor/metrics.py`](fluxcore/monitor/metrics.py)
   * [`tests/test_metrics.py`](tests/test_metrics.py)
 * **Description**:
   * Built high-resolution circular buffer `LatencyProfiler` using fixed-memory 64-bit arrays.
@@ -206,7 +206,7 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-18 22:00:00 IST] - Sub-Phase 3.3: Wire-to-Engine Integration Bridge & SLA Audit
 * **Module**: Market Ingestion Bridge & End-to-End Pipeline
 * **Files Created/Modified**:
-  * [`chronos_match/market/bridge.py`](chronos_match/market/bridge.py)
+  * [`fluxcore/market/bridge.py`](fluxcore/market/bridge.py)
   * [`tests/test_pipeline.py`](tests/test_pipeline.py)
 * **Description**:
   * Built `EngineWorker` bridging the shared memory input ring buffer directly to the Cython Limit Order Book.
@@ -222,8 +222,8 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-19 08:52:00 IST] - Sub-Phase 4.1: Asynchronous SQLite WAL Audit Ledger
 * **Module**: Persistence & Compliance Audit Logging
 * **Files Created/Modified**:
-  * [`chronos_match/ledger/__init__.py`](chronos_match/ledger/__init__.py)
-  * [`chronos_match/ledger/audit_logger.py`](chronos_match/ledger/audit_logger.py)
+  * [`fluxcore/ledger/__init__.py`](fluxcore/ledger/__init__.py)
+  * [`fluxcore/ledger/audit_logger.py`](fluxcore/ledger/audit_logger.py)
   * [`tests/test_ledger.py`](tests/test_ledger.py)
 * **Description**:
   * Implemented `AuditLedger` backed by SQLite configured for zero-overhead writes using Write-Ahead Logging (`PRAGMA journal_mode=WAL`, `synchronous=NORMAL`, `temp_store=MEMORY`, `cache_size=-64000`, `mmap_size=256MB`).
@@ -236,8 +236,8 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-19 08:53:00 IST] - Sub-Phase 4.2: Visual Whale Alert System & SLA Monitor
 * **Module**: Market Anomaly Detection & SLA Surveillance
 * **Files Created/Modified**:
-  * [`chronos_match/monitor/whale_detector.py`](chronos_match/monitor/whale_detector.py)
-  * [`chronos_match/monitor/__init__.py`](chronos_match/monitor/__init__.py)
+  * [`fluxcore/monitor/whale_detector.py`](fluxcore/monitor/whale_detector.py)
+  * [`fluxcore/monitor/__init__.py`](fluxcore/monitor/__init__.py)
   * [`tests/test_whale_detector.py`](tests/test_whale_detector.py)
 * **Description**:
   * Built `WhaleDetector` providing streaming analytics over trade executions to detect institutional flow.
@@ -251,9 +251,9 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-19 08:55:00 IST] - Sub-Phase 4.3: Cython Fast L2 Market Depth Extraction
 * **Module**: Matching Engine Core (Level 2 Depth)
 * **Files Created/Modified**:
-  * [`chronos_match/engine/order_book.h`](chronos_match/engine/order_book.h)
-  * [`chronos_match/engine/order_book.c`](chronos_match/engine/order_book.c)
-  * [`chronos_match/engine/order_book_cy.pyx`](chronos_match/engine/order_book_cy.pyx)
+  * [`fluxcore/engine/order_book.h`](fluxcore/engine/order_book.h)
+  * [`fluxcore/engine/order_book.c`](fluxcore/engine/order_book.c)
+  * [`fluxcore/engine/order_book_cy.pyx`](fluxcore/engine/order_book_cy.pyx)
 * **Description**:
   * Added stack-allocated `L2Level` struct in C with non-allocating ladder traversal (`order_book_get_l2_bids`, `order_book_get_l2_asks`).
   * Added Cython method `FastOrderBook.get_l2_snapshot(depth=10)` running inside `nogil`.
@@ -264,8 +264,8 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-19 09:00:00 IST] - Sub-Phase 4.4: Real-Time Terminal User Interface (Rich TUI)
 * **Module**: Terminal UI & Live Dashboard
 * **Files Created/Modified**:
-  * [`chronos_match/monitor/dashboard.py`](chronos_match/monitor/dashboard.py)
-  * [`chronos_match/monitor/__init__.py`](chronos_match/monitor/__init__.py)
+  * [`fluxcore/monitor/dashboard.py`](fluxcore/monitor/dashboard.py)
+  * [`fluxcore/monitor/__init__.py`](fluxcore/monitor/__init__.py)
   * [`tests/test_dashboard.py`](tests/test_dashboard.py)
 * **Description**:
   * Implemented cross-platform `TerminalDashboard` using `rich.layout`, `rich.live`, `rich.panel`, and `rich.table`.
@@ -283,14 +283,14 @@ This file maintains an immutable, chronological record of every feature, compone
 ### [2026-10-19 21:33:00 IST] - Sub-Phase 5.1: Master Multi-Process Daemon Architecture
 * **Module**: Process Management & IPC Supervision
 * **Files Created/Modified**:
-  * [`chronos_match/daemon.py`](chronos_match/daemon.py)
+  * [`fluxcore/daemon.py`](fluxcore/daemon.py)
   * [`main.py`](main.py)
 * **Description**:
-  * Implemented `ChronosDaemon` orchestrating 4 independent OS processes:
-    1. `ChronosEngineCore`: Pure-C nogil Limit Order Book matching orders in $< 15\text{ ns}$.
-    2. `ChronosAuditLedger`: Background SQLite WAL persistence worker (> 400k writes/sec).
-    3. `ChronosMarketFirehose`: High-throughput synthetic market order generator.
-    4. `ChronosTerminalUI`: Rich live interactive terminal dashboard with telemetry queue.
+  * Implemented `FluxDaemon` orchestrating 4 independent OS processes:
+    1. `FluxEngineCore`: Pure-C nogil Limit Order Book matching orders in $< 15\text{ ns}$.
+    2. `FluxAuditLedger`: Background SQLite WAL persistence worker (> 400k writes/sec).
+    3. `FluxMarketFirehose`: High-throughput synthetic market order generator.
+    4. `FluxTerminalUI`: Rich live interactive terminal dashboard with telemetry queue.
   * Created CLI entrypoint [`main.py`](main.py) with command-line flags (`--orders`, `--rate`, `--db`, `--no-ui`, `--capacity`).
   * Implemented graceful `SIGINT` (`Ctrl+C`) signal handling ensuring zero data loss and clean unlinking of shared memory `.ring` files.
 

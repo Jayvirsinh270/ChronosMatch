@@ -1,5 +1,5 @@
 """
-Unit and integration tests for ChronosMatch SPSC Ring Buffer.
+Unit and integration tests for FluxCore SPSC Ring Buffer.
 Verifies zero-copy, memory alignment, FIFO integrity, and IPC multi-processing.
 """
 
@@ -9,7 +9,7 @@ import pytest
 import multiprocessing as mp
 from pathlib import Path
 
-from chronos_match.protocol import (
+from fluxcore.protocol import (
     OrderPacket,
     TradePacket,
     OrderSide,
@@ -17,7 +17,7 @@ from chronos_match.protocol import (
     to_fixed_price,
     from_fixed_price,
 )
-from chronos_match.ring_buffer import RingBuffer
+from fluxcore.ring_buffer import RingBuffer
 
 TEST_DIR = Path("d:/infotech_internship_project/.test_shm")
 

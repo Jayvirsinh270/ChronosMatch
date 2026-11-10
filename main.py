@@ -1,5 +1,5 @@
 """
-ChronosMatch: Master Multi-Process Production Entrypoint.
+FluxCore: Master Multi-Process Production Entrypoint.
 Orchestrates high-throughput market firehose, pure-C matching engine,
 asynchronous SQLite WAL audit persistence, and real-time Rich TUI dashboard.
 
@@ -16,12 +16,12 @@ import sys
 import time
 
 # Expose FastAPI application instance for Vercel / ASGI cloud runners
-from chronos_match.web.server import app
+from fluxcore.web.server import app
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="ChronosMatch: Zero-Copy High-Frequency Trading Matching Engine"
+        description="FluxCore: Zero-Copy High-Frequency Trading Matching Engine"
     )
     parser.add_argument(
         "--orders",
@@ -38,8 +38,8 @@ def parse_args():
     parser.add_argument(
         "--db",
         type=str,
-        default="chronos_audit.db",
-        help="SQLite WAL audit ledger database file path (default: chronos_audit.db)",
+        default="fluxcore_audit.db",
+        help="SQLite WAL audit ledger database file path (default: fluxcore_audit.db)",
     )
     parser.add_argument(
         "--capacity",
@@ -70,7 +70,7 @@ def print_banner(console=None):
         console = Console()
 
     banner_text = Text()
-    banner_text.append("⚡ CHRONOS MATCH ", style="bold bright_cyan")
+    banner_text.append("⚡ FLUXCORE ", style="bold bright_cyan")
     banner_text.append("│ ZERO-COPY HIGH-FREQUENCY TRADING ENGINE\n", style="bold white")
     banner_text.append("• Pure-C nogil Limit Order Book  • Cache-Aligned SPSC Ring Buffer (64B)\n", style="bright_green")
     banner_text.append("• Microsecond Latency SLA (< 50μs) • Asynchronous SQLite WAL Audit Logging", style="dim cyan")
@@ -94,12 +94,12 @@ def main():
     args = parse_args()
 
     if args.demo:
-        from chronos_match.monitor.dashboard import run_interactive_simulation
+        from fluxcore.monitor.dashboard import run_interactive_simulation
         run_interactive_simulation()
         return
 
-    from chronos_match.daemon import ChronosDaemon
-    from chronos_match.ledger.audit_logger import AuditLedger
+    from fluxcore.daemon import FluxDaemon
+    from fluxcore.ledger.audit_logger import AuditLedger
 
     print_banner(console)
 
@@ -124,7 +124,7 @@ def main():
     console.print(config_table)
     console.print()
 
-    daemon = ChronosDaemon(
+    daemon = FluxDaemon(
         capacity=args.capacity,
         total_orders=args.orders,
         target_rate=args.rate,
@@ -162,7 +162,7 @@ def main():
 
     # Print final summary audit table
     summary_table = Table(
-        title="⚡ CHRONOS MATCH — EXECUTION SOAK SUMMARY AUDIT",
+        title="⚡ FLUXCORE — EXECUTION SOAK SUMMARY AUDIT",
         title_style="bold bright_cyan",
         box=box.HEAVY_EDGE,
         border_style="bright_blue",
@@ -191,7 +191,7 @@ def main():
 
     console.print()
     console.print(summary_table)
-    console.print("[bold bright_green][+] ChronosMatch shut down successfully with zero memory leaks.[/bold bright_green]\n")
+    console.print("[bold bright_green][+] FluxCore shut down successfully with zero memory leaks.[/bold bright_green]\n")
 
 
 if __name__ == "__main__":

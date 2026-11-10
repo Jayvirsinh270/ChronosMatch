@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ChronosMatch: Institutional Quantitative Strategy Backtester & Bloomberg Tear Sheet CLI.
+FluxCore: Institutional Quantitative Strategy Backtester & Bloomberg Tear Sheet CLI.
 
 Executes quantitative alpha strategies against historical market data with:
 - Realistic execution slippage and exchange fee modeling
@@ -29,9 +29,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from chronos_match.algo.backtester import BacktestEngine, BacktestResult, BacktestTrade
-from chronos_match.algo.risk_metrics import TearSheetMetrics
-from chronos_match.algo.monte_carlo import MonteCarloResult
+from fluxcore.algo.backtester import BacktestEngine, BacktestResult, BacktestTrade
+from fluxcore.algo.risk_metrics import TearSheetMetrics
+from fluxcore.algo.monte_carlo import MonteCarloResult
 
 
 console = Console()
@@ -265,7 +265,7 @@ def export_trades_csv(trades: List[BacktestTrade], filepath: str, result: Backte
     """Exports executed trade records to a clean CSV file."""
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["# ChronosMatch Quantitative Backtest Trade Log"])
+        writer.writerow(["# FluxCore Quantitative Backtest Trade Log"])
         writer.writerow(["# Symbol", result.symbol])
         writer.writerow(["# Strategy", result.strategy_name])
         writer.writerow(["# Total Net PnL", f"{result.total_net_pnl:.2f}"])
@@ -289,7 +289,7 @@ def export_trades_csv(trades: List[BacktestTrade], filepath: str, result: Backte
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ChronosMatch: Institutional Quantitative Strategy Backtester & Bloomberg PORT Tear Sheet",
+        description="FluxCore: Institutional Quantitative Strategy Backtester & Bloomberg PORT Tear Sheet",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Available Quantitative Strategies:
@@ -326,8 +326,8 @@ Examples:
     # Header Banner
     console.print()
     banner = Text()
-    banner.append("CHRONOS", style="bold cyan")
-    banner.append("MATCH", style="bold white")
+    banner.append("FLUX", style="bold cyan")
+    banner.append("CORE", style="bold white")
     banner.append("  |  INSTITUTIONAL QUANTITATIVE BACKTESTER & BLOOMBERG PORT TEAR SHEET\n", style="bold yellow")
     banner.append("Zero-Copy HFT Matching Engine  *  Vectorized Risk Scorecards  *  Monte Carlo Stress Testing", style="dim")
 

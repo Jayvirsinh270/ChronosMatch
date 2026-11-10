@@ -1,4 +1,4 @@
-# 🎓 ChronosMatch — Internship Defense & Technical Review Master Guide
+# 🎓 FluxCore — Internship Defense & Technical Review Master Guide
 
 This guide is your **complete defense playbook** for your internship evaluation, technical presentation, and senior engineering review. It includes:
 1. **The 5-Minute Elevator Pitch & Presentation Script**
@@ -21,7 +21,7 @@ This guide is your **complete defense playbook** for your internship evaluation,
 Use this script during your internship presentation. It is structured to demonstrate **systems thinking, hardware-level optimization, and quantitative rigor**.
 
 ### Slide 1: Introduction & Problem Formulation (0:00 – 1:00)
-> *"Hello everyone. Today I'm presenting **ChronosMatch**, an institutional-grade, zero-copy High-Frequency Trading (HFT) matching engine.  
+> *"Hello everyone. Today I'm presenting **FluxCore**, an institutional-grade, zero-copy High-Frequency Trading (HFT) matching engine.  
 > In electronic financial markets, the Limit Order Book is the deterministic state machine that matches orders under strict Price-Time priority.  
 > Quantitative developers love Python for modeling, but traditionally dismiss it for low-latency matching due to three fundamental bottlenecks:
 > 1. **Garbage Collection (GC) Jitter**: Stop-the-world sweeps that induce latency spikes of 10 to 50 milliseconds.

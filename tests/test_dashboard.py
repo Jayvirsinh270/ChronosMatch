@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Real-Time Terminal Dashboard (Rich TUI).
+FluxCore: Test Suite for Real-Time Terminal Dashboard (Rich TUI).
 Verifies layout structure, Level 2 depth ladder rendering, KPI cards,
 trade execution ticker formatting, and whale alert panels.
 """
@@ -7,11 +7,11 @@ trade execution ticker formatting, and whale alert panels.
 import time
 import pytest
 
-from chronos_match.protocol import to_fixed_price, Side
-from chronos_match.engine.order_book_cy import FastOrderBook
-from chronos_match.monitor.metrics import LatencyProfiler, LatencyStats
-from chronos_match.monitor.whale_detector import WhaleDetector, WhaleAlert
-from chronos_match.monitor.dashboard import TerminalDashboard
+from fluxcore.protocol import to_fixed_price, Side
+from fluxcore.engine.order_book_cy import FastOrderBook
+from fluxcore.monitor.metrics import LatencyProfiler, LatencyStats
+from fluxcore.monitor.whale_detector import WhaleDetector, WhaleAlert
+from fluxcore.monitor.dashboard import TerminalDashboard
 
 
 def test_dashboard_build_layout_structure():
@@ -50,7 +50,7 @@ def test_dashboard_render_string_empty_state():
         whale_alerts=[],
     )
 
-    assert "CHRONOS MATCH" in output
+    assert "FLUXCORE" in output
     assert "LEVEL 2" in output
     assert "LIVE TRADE EXECUTION" in output
     assert "Book Empty" in output or "Empty Book" in output
@@ -138,7 +138,7 @@ def test_dashboard_render_string_with_active_data():
         width=140,
     )
 
-    assert "CHRONOS MATCH" in output
+    assert "FLUXCORE" in output
     assert "150.25" in output
     assert "150.30" in output
     assert "SPREAD: $0.05" in output or "$0.05" in output
@@ -180,7 +180,7 @@ def test_dashboard_integration_with_fast_order_book():
 
 def test_render_sparkline_utility():
     """Verify Unicode sparkline generator bounds and mapping."""
-    from chronos_match.monitor.dashboard import render_sparkline
+    from fluxcore.monitor.dashboard import render_sparkline
 
     # Empty series
     assert render_sparkline([], width=5) == "─────"
@@ -225,7 +225,7 @@ def test_dashboard_responsive_widths():
     dashboard = TerminalDashboard()
     for w in [110, 120, 140, 160]:
         out = dashboard.render_string(width=w)
-        assert "CHRONOS MATCH" in out
+        assert "FLUXCORE" in out
         assert "NOMINAL" in out
         assert len(out) > 0
 

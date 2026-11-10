@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Phase 2 — Pre-Trade Risk Engine & Safety Gatekeeper.
+FluxCore: Test Suite for Phase 2 — Pre-Trade Risk Engine & Safety Gatekeeper.
 
 Tests cover:
   - Fat-Finger Price Collar Guard (NBBO midpoint deviation)
@@ -13,14 +13,14 @@ Tests cover:
 import time
 import pytest
 
-from chronos_match.risk.risk_engine import (
+from fluxcore.risk.risk_engine import (
     RiskLimits,
     RiskDecision,
     TokenBucketRateLimiter,
     AccountBalance,
     PreTradeRiskEngine,
 )
-from chronos_match.web.server import WebTradingServer
+from fluxcore.web.server import WebTradingServer
 
 
 # ─────────────────────────────────────────────

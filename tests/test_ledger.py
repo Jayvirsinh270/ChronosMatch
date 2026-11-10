@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Asynchronous SQLite WAL Audit Ledger.
+FluxCore: Test Suite for Asynchronous SQLite WAL Audit Ledger.
 Verifies crash-safe WAL pragmas, high-throughput batch persistence,
 thread-safe background worker draining, and query precision.
 """
@@ -9,9 +9,9 @@ import tempfile
 import time
 import pytest
 
-from chronos_match.protocol import TradePacket, to_fixed_price, Side
-from chronos_match.ring_buffer import RingBuffer
-from chronos_match.ledger.audit_logger import AuditLedger, AuditLedgerWorker
+from fluxcore.protocol import TradePacket, to_fixed_price, Side
+from fluxcore.ring_buffer import RingBuffer
+from fluxcore.ledger.audit_logger import AuditLedger, AuditLedgerWorker
 
 
 @pytest.fixture

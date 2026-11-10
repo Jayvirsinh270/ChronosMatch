@@ -1,4 +1,4 @@
-# ChronosMatch: 20-Day Master Project Roadmap
+# FluxCore: 20-Day Master Project Roadmap
 **Lead Project Owner**: Quantitative Engineering Intern  
 **Project Manager**: Antigravity PM Agent  
 **Lifecycle**: 20 Days | Sprint Cadence: 5 Days (4 Phases)
@@ -26,7 +26,7 @@
   - [x] Author `include/chronos_types.h` with 64-byte cache alignment.
   - [x] Implement false-sharing padding in `RingBufferHeader` (192 bytes total).
 - [x] **Day 3: Memory-Mapped SPSC Ring Buffer**
-  - [x] Implement lock-free Single-Producer Single-Consumer queue in `chronos_match/ring_buffer.py`.
+  - [x] Implement lock-free Single-Producer Single-Consumer queue in `fluxcore/ring_buffer.py`.
   - [x] Implement bitwise fast modulo (`index & mask`).
 - [x] **Day 4: Multi-Process Protocol & Python Serialization**
   - [x] Implement fixed-point arithmetic (`PRICE_SCALE = 10_000`) in `protocol.py`.
@@ -59,7 +59,7 @@
 
 ### Phase 3: Market Simulator & Latency Profiling (Days 11–15)
 - [ ] **Day 11: High-Throughput Asyncio Market Firehose**
-  - [ ] Build `chronos_market/firehose.py` capable of 100,000+ orders/sec.
+  - [ ] Build `fluxcore_market/firehose.py` capable of 100,000+ orders/sec.
   - [ ] Realistic order distribution: 60% Limit, 25% Cancels, 15% Aggressive Market.
 - [ ] **Day 12: Wire-to-Engine Integration**
   - [ ] Connect Market Firehose directly to Shared Memory Ring Buffer.

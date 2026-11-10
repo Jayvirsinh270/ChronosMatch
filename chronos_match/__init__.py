@@ -1,3 +1,9 @@
-"""ChronosMatch: Zero-Copy High-Frequency Trading Engine"""
+"""
+ChronosMatch is now FluxCore.
+This backward-compatibility shim redirects all legacy `chronos_match` imports to `fluxcore`.
+"""
+import sys
+import fluxcore
 
-__version__ = "0.1.0"
+# Forward submodule imports dynamically
+sys.modules["chronos_match"] = fluxcore

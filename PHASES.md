@@ -1,4 +1,4 @@
-# ChronosMatch Software Engineering Lifecycle: Work Breakdown by Phases
+# FluxCore Software Engineering Lifecycle: Work Breakdown by Phases
 
 **Lead Project Owner**: Quantitative Engineering Intern  
 **Project Manager**: Antigravity PM Agent  
@@ -8,7 +8,7 @@
 
 ## 📌 Executive Phase Overview
 
-ChronosMatch is decomposed into **5 distinct software engineering phases**. Each phase is fully decoupled, single-responsibility, and verified with dedicated test suites in `tests/` before proceeding to the next.
+FluxCore is decomposed into **5 distinct software engineering phases**. Each phase is fully decoupled, single-responsibility, and verified with dedicated test suites in `tests/` before proceeding to the next.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -61,10 +61,10 @@ ChronosMatch is decomposed into **5 distinct software engineering phases**. Each
    * Fixed 64-byte `OrderPacket` matching CPU cache lines.
    * Fixed 64-byte `TradePacket` for matched trade events.
    * 192-byte `RingBufferHeader` with dedicated 56-byte cache-line isolations between `head` and `tail` cursors to eliminate CPU false sharing.
-2. **Binary Protocol Layer (`chronos_match/protocol.py`)**:
+2. **Binary Protocol Layer (`fluxcore/protocol.py`)**:
    * Fixed-point price arithmetic (`PRICE_SCALE = 10,000`, $100.25 \rightarrow 1,002,500$).
    * Zero-allocation `pack_into` and zero-copy `unpack_from`.
-3. **SPSC Shared Memory Ring Buffer (`chronos_match/ring_buffer.py`)**:
+3. **SPSC Shared Memory Ring Buffer (`fluxcore/ring_buffer.py`)**:
    * Operating system memory mapping (`mmap`) backed by `.ring` shared RAM files.
    * Lock-free atomic sequence cursors.
    * Fast bitwise modulo arithmetic (`cursor & mask`).
@@ -80,17 +80,17 @@ ChronosMatch is decomposed into **5 distinct software engineering phases**. Each
 
 ### Sub-Phase Breakdown:
 * **Phase 2.1: Memory Arena & Order Node Pool**
-  * *Target Files*: `chronos_match/engine/arena.pxd`, `chronos_match/engine/arena.pyx`
+  * *Target Files*: `fluxcore/engine/arena.pxd`, `fluxcore/engine/arena.pyx`
   * *Deliverable*: Pre-allocated pool of $1{,}000{,}000$ order nodes. Intrusive free-list recycler allowing $O(1)$ allocation/deallocation in $< 5\text{ ns}$ without `malloc()` or `free()`.
 * **Phase 2.2: Price Level Doubly-Linked FIFO Queue**
-  * *Target Files*: `chronos_match/engine/price_level.pxd`, `chronos_match/engine/price_level.pyx`
+  * *Target Files*: `fluxcore/engine/price_level.pxd`, `fluxcore/engine/price_level.pyx`
   * *Deliverable*: Intrusive doubly-linked list of orders at identical prices. $O(1)$ append at tail (new order arrival) and $O(1)$ extraction at head (fills).
 * **Phase 2.3: Core Matching Engine (Price-Time Priority)**
-  * *Target Files*: `chronos_match/engine/order_book.pxd`, `chronos_match/engine/order_book.pyx`
+  * *Target Files*: `fluxcore/engine/order_book.pxd`, `fluxcore/engine/order_book.pyx`
   * *Deliverable*: Complete matching loop in Cython with `cdef ... nogil`.
   * *Features*: Full fills, partial fills, price ladder insertion, cross-trade resolution, and outbound trade packet generation.
 * **Phase 2.4: $O(1)$ Order Cancellation & Market Order Sweeps**
-  * *Target Files*: `chronos_match/engine/order_book.pyx`
+  * *Target Files*: `fluxcore/engine/order_book.pyx`
   * *Deliverable*: Direct hash/pointer table indexing `order_id` to its memory node for instantaneous cancellation. Aggressive market order sweeping across multiple price levels.
 * **Phase 2.5: Pytest Verification Suite**
   * *Target Files*: `tests/test_order_book.py`
@@ -104,17 +104,17 @@ ChronosMatch is decomposed into **5 distinct software engineering phases**. Each
 
 ### Sub-Phase Breakdown:
 * **Phase 3.1: Asyncio Market Firehose**
-  * *Target Files*: `chronos_match/market/firehose.py`, `chronos_match/market/distribution.py`
+  * *Target Files*: `fluxcore/market/firehose.py`, `fluxcore/market/distribution.py`
   * *Deliverable*: Async producer generating 100,000+ orders/sec with Poisson arrival rates. Configurable distributions: 60% Limit orders, 25% Cancellations, 15% Market orders.
 * **Phase 3.2: Direct IPC Wire Bridge**
-  * *Target Files*: `chronos_match/market/bridge.py`
+  * *Target Files*: `fluxcore/market/bridge.py`
   * *Deliverable*: Writes generated binary order packets directly into the shared memory input ring buffer, handling producer backpressure smoothly.
 * **Phase 3.3: Nanosecond Profiling Engine**
-  * *Target Files*: `chronos_match/monitor/metrics.py`
+  * *Target Files*: `fluxcore/monitor/metrics.py`
   * *Deliverable*: Hardware timer integration (`perf_counter_ns`). Calculates end-to-end wire-to-match delta:
     $$\Delta t = t_{\text{match}} - t_{\text{ingress}}$$
 * **Phase 3.4: Statistical Percentile Analytics**
-  * *Target Files*: `chronos_match/monitor/statistics.py`
+  * *Target Files*: `fluxcore/monitor/statistics.py`
   * *Deliverable*: Rolling window collector computing min, p50, p90, p99, and p99.9 tail latencies.
 * **Phase 3.5: Cython GIL & Hot-Path Audit**
   * *Target Files*: `build/order_book.html`
@@ -128,16 +128,16 @@ ChronosMatch is decomposed into **5 distinct software engineering phases**. Each
 
 ### Sub-Phase Breakdown:
 * **Phase 4.1: Outbound Trade Ring Buffer & Architecture**
-  * *Target Files*: `chronos_match/ring_buffer.py`, `chronos_match/protocol.py`, `chronos_match/market/bridge.py`
+  * *Target Files*: `fluxcore/ring_buffer.py`, `fluxcore/protocol.py`, `fluxcore/market/bridge.py`
   * *Deliverable*: SPSC shared-memory ring buffer dedicated to publishing matched execution events (`TradePacket`).
 * **Phase 4.2: Asynchronous SQLite WAL Audit Logger**
-  * *Target Files*: `chronos_match/ledger/audit_logger.py`
+  * *Target Files*: `fluxcore/ledger/audit_logger.py`
   * *Deliverable*: Isolated background worker reading trade packets from the outbound buffer and persisting in atomic batches (5k–10k/tx) to SQLite configured with `PRAGMA journal_mode=WAL` (> 400,000 writes/sec).
 * **Phase 4.3: Visual Whale Alert System & SLA Monitor**
-  * *Target Files*: `chronos_match/monitor/whale_detector.py`
+  * *Target Files*: `fluxcore/monitor/whale_detector.py`
   * *Deliverable*: Real-time stream detector identifying multi-level market sweeps, institutional block orders ($250k+ / 5,000+ shares), and tail latency SLA breaches (> 50 μs).
 * **Phase 4.4: Real-Time Terminal User Interface (Rich TUI)**
-  * *Target Files*: `chronos_match/monitor/dashboard.py`
+  * *Target Files*: `fluxcore/monitor/dashboard.py`
   * *Deliverable*: Cross-platform terminal dashboard rendering Level 2 Depth ladder (top 10 bids/asks with visual volume bars), real-time spread, last trade ticker, and latency distribution gauges.
 
 ---
@@ -148,7 +148,7 @@ ChronosMatch is decomposed into **5 distinct software engineering phases**. Each
 
 ### Sub-Phase Breakdown:
 * **Phase 5.1: Master Multi-Process Daemon Manager**
-  * *Target Files*: `main.py`, `chronos_match/daemon.py`
+  * *Target Files*: `main.py`, `fluxcore/daemon.py`
   * *Deliverable*: Centralized CLI entrypoint initializing shared memory, spawning all 4 isolated worker processes (Ingestion, Matching, Ledger, UI), monitoring telemetry queues, and handling graceful shutdown (`SIGINT` / `Ctrl+C`).
 * **Phase 5.2: Sustained Production Soak & Stress Tests**
   * *Target Files*: `tests/test_stress.py`

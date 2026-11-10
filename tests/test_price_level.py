@@ -1,13 +1,13 @@
 """
-Unit tests and microbenchmarks for ChronosMatch PriceLevel FIFO Queue.
+Unit tests and microbenchmarks for FluxCore PriceLevel FIFO Queue.
 Verifies Time Priority (FIFO), arbitrary O(1) unlinking, and volume aggregation.
 """
 
 import time
 import pytest
-from chronos_match.protocol import to_fixed_price
-from chronos_match.engine.arena_cy import FastArena
-from chronos_match.engine.price_level_cy import FastPriceLevel
+from fluxcore.protocol import to_fixed_price
+from fluxcore.engine.arena_cy import FastArena
+from fluxcore.engine.price_level_cy import FastPriceLevel
 
 def test_price_level_initialization():
     """Verify PriceLevel clean initial state."""

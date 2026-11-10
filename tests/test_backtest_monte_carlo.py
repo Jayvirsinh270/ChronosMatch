@@ -1,12 +1,12 @@
 """
-Unit and integration test suite for ChronosMatch Institutional Quantitative Backtesting,
+Unit and integration test suite for FluxCore Institutional Quantitative Backtesting,
 Risk Metrics Tear Sheet, and Monte Carlo Engine.
 """
 
 import math
 import pytest
 
-from chronos_match.algo.risk_metrics import (
+from fluxcore.algo.risk_metrics import (
     calculate_returns,
     cagr,
     annualized_volatility,
@@ -21,11 +21,11 @@ from chronos_match.algo.risk_metrics import (
     generate_tear_sheet,
     TearSheetMetrics,
 )
-from chronos_match.algo.monte_carlo import (
+from fluxcore.algo.monte_carlo import (
     MonteCarloEngine,
     MonteCarloResult,
 )
-from chronos_match.algo.backtester import (
+from fluxcore.algo.backtester import (
     BacktestEngine,
     BacktestResult,
     BacktestTrade,
@@ -34,8 +34,8 @@ from chronos_match.algo.backtester import (
     BayesianOrderFlowStrategy,
     RLTWAPExecutionBenchmark,
 )
-from chronos_match.market.data_loader import MarketDataLoader, StockCandle
-from chronos_match.web.server import (
+from fluxcore.market.data_loader import MarketDataLoader, StockCandle
+from fluxcore.web.server import (
     BacktestRunRequest,
     MonteCarloRunRequest,
     api_get_backtest_strategies,

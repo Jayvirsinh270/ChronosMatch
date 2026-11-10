@@ -1,5 +1,5 @@
 """
-ChronosMatch: Production Soak & High-Throughput Stress Test Suite.
+FluxCore: Production Soak & High-Throughput Stress Test Suite.
 Verifies multi-process stability, shared memory integrity,
 sub-50 microsecond steady-state execution, and zero memory corruption under heavy load.
 """
@@ -9,7 +9,7 @@ import tempfile
 import time
 import pytest
 
-from chronos_match.protocol import (
+from fluxcore.protocol import (
     OrderPacket,
     TradePacket,
     OrderSide,
@@ -18,12 +18,12 @@ from chronos_match.protocol import (
     ORDER_SIZE,
     TRADE_SIZE,
 )
-from chronos_match.ring_buffer import RingBuffer
-from chronos_match.engine.order_book_cy import FastOrderBook
-from chronos_match.market.bridge import EngineWorker
-from chronos_match.monitor.metrics import LatencyProfiler
-from chronos_match.ledger.audit_logger import AuditLedger
-from chronos_match.daemon import ChronosDaemon
+from fluxcore.ring_buffer import RingBuffer
+from fluxcore.engine.order_book_cy import FastOrderBook
+from fluxcore.market.bridge import EngineWorker
+from fluxcore.monitor.metrics import LatencyProfiler
+from fluxcore.ledger.audit_logger import AuditLedger
+from fluxcore.daemon import FluxDaemon
 
 
 def test_stress_high_throughput_burst():
@@ -163,7 +163,7 @@ def test_multi_process_daemon_lifecycle():
     temp_dir = tempfile.mkdtemp()
     db_file = os.path.join(temp_dir, "soak_audit.db")
 
-    daemon = ChronosDaemon(
+    daemon = FluxDaemon(
         shm_dir=temp_dir,
         capacity=16384,
         total_orders=10_000,

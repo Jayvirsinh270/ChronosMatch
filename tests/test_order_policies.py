@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Phase 1 — Advanced Order Types.
+FluxCore: Test Suite for Phase 1 — Advanced Order Types.
 
 Tests cover:
   - IOC (Immediate-or-Cancel): partial fills, full fills, empty book.
@@ -12,14 +12,14 @@ Tests cover:
 import pytest
 import time
 
-from chronos_match.protocol import to_fixed_price, OrderSide
-from chronos_match.engine.order_book_cy import FastOrderBook
-from chronos_match.engine.order_policies import (
+from fluxcore.protocol import to_fixed_price, OrderSide
+from fluxcore.engine.order_book_cy import FastOrderBook
+from fluxcore.engine.order_policies import (
     OrderPolicyEngine,
     TimeInForce,
     SelfTradeAction,
 )
-from chronos_match.web.server import WebTradingServer
+from fluxcore.web.server import WebTradingServer
 
 
 # ─────────────────────────────────────────────

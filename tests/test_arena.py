@@ -1,12 +1,12 @@
 """
-Unit tests and microbenchmarks for ChronosMatch OrderArena.
+Unit tests and microbenchmarks for FluxCore OrderArena.
 Verifies O(1) memory pool allocation, deallocation, capacity safety, and sub-nanosecond speeds.
 """
 
 import time
 import pytest
-from chronos_match.protocol import to_fixed_price
-from chronos_match.engine.arena_cy import FastArena
+from fluxcore.protocol import to_fixed_price
+from fluxcore.engine.arena_cy import FastArena
 
 def test_arena_initialization():
     """Verify clean arena pool initialization."""

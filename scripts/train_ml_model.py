@@ -1,5 +1,5 @@
 """
-ChronosMatch: Institutional Quantitative ML Model Trainer.
+FluxCore: Institutional Quantitative ML Model Trainer.
 
 World-Class High-Frequency / Microstructure Regime Classifier.
 Trains an institutional Gaussian Naive Bayes classifier with robust winsorization,
@@ -15,7 +15,7 @@ and evaluates against institutional performance metrics:
 
 Output:
   - data/ml_weights.json
-  - chronos_match/market/ml_weights.json
+  - fluxcore/market/ml_weights.json
 """
 
 import json
@@ -30,7 +30,7 @@ from typing import Dict, List, Optional, Tuple, Any
 # ---------------------------------------------------------------------------
 DATA_ROOT = os.path.join(os.path.dirname(__file__), "..", "data")
 OUTPUT_PATH = os.path.join(DATA_ROOT, "ml_weights.json")
-PKG_OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "..", "chronos_match", "market", "ml_weights.json")
+PKG_OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "..", "fluxcore", "market", "ml_weights.json")
 
 REGIME_CONSOL = "BALANCED_CONSOLIDATION"
 REGIME_BULL = "MOMENTUM_BREAKOUT_BULL"
@@ -779,7 +779,7 @@ def train(max_files: int = 1500, verbose: bool = True) -> Dict:
 
 def main():
     print("=" * 70)
-    print("  ChronosMatch Institutional Machine Learning Pipeline v2.5")
+    print("  FluxCore Institutional Machine Learning Pipeline v2.5")
     print("=" * 70)
     weights = train(max_files=1500, verbose=True)
 

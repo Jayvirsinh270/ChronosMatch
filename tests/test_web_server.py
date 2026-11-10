@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Interactive Web GUI Server.
+FluxCore: Test Suite for Interactive Web GUI Server.
 Verifies WebTradingServer order placement, Level 2 depth snapshotting,
 and matching execution flow.
 """
@@ -9,15 +9,15 @@ from pathlib import Path
 import time
 import pytest
 
-from chronos_match.web.server import WebTradingServer
+from fluxcore.web.server import WebTradingServer
 
 
 def test_web_html_template_exists():
     """Verify that index.html exists and contains core UI components."""
-    html_file = Path(__file__).parent.parent / "chronos_match" / "web" / "index.html"
+    html_file = Path(__file__).parent.parent / "fluxcore" / "web" / "index.html"
     assert html_file.exists()
     content = html_file.read_text(encoding="utf-8")
-    assert "CHRONOS MATCH" in content
+    assert "FLUXCORE" in content
     assert "ORDER ENTRY FORM" in content
     assert "LEVEL 2 MARKET DEPTH LADDER" in content
     assert "LIVE TRADES & WHALES" in content
@@ -100,7 +100,7 @@ def test_web_server_l2_depth_ladder_persistence():
 
 def test_export_csv_durations_and_stocks():
     """Verify CSV export endpoint supports 30m, 1h, 2h duration filters and ALL stocks."""
-    from chronos_match.web.server import api_export_market_csv
+    from fluxcore.web.server import api_export_market_csv
 
     # 1. Export 2h trades for ALL stocks
     resp1 = api_export_market_csv(symbol="ALL", duration="2h", data_type="trades")
@@ -127,9 +127,9 @@ def test_export_csv_durations_and_stocks():
 
 def test_candlestick_persistence_resumes_from_db(tmp_path):
     """Verify that when candles are stored in DB, re-opening server resumes from exact last close."""
-    from chronos_match.market.storage import MarketDataStore
-    from chronos_match.market.router import MultiBookRouter, SymbolInfo
-    from chronos_match.market.replayer import HistoricalMarketReplayer
+    from fluxcore.market.storage import MarketDataStore
+    from fluxcore.market.router import MultiBookRouter, SymbolInfo
+    from fluxcore.market.replayer import HistoricalMarketReplayer
 
     db_path = str(tmp_path / "persist_test.db")
     store = MarketDataStore(db_path=db_path)
@@ -163,7 +163,7 @@ def test_candlestick_persistence_resumes_from_db(tmp_path):
 
 def test_all_stocks_navigation_and_order_routing():
     """Verify that all traded company stocks are in the UI navigation and support order routing."""
-    html_file = Path(__file__).parent.parent / "chronos_match" / "web" / "index.html"
+    html_file = Path(__file__).parent.parent / "fluxcore" / "web" / "index.html"
     assert html_file.exists()
     html_text = html_file.read_text(encoding="utf-8")
 

@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-title ChronosMatch - Master High-Frequency Trading Launcher
+title FluxCore - Master High-Frequency Trading Launcher
 color 0B
 
 :: Ensure current working directory is the repository root
@@ -16,7 +16,7 @@ if exist ".venv\Scripts\activate.bat" (
 :MENU
 cls
 echo ===============================================================================
-echo     CHRONOS MATCH  //  HIGH-FREQUENCY TRADING MASTER CONTROL CONSOLE
+echo     FLUXCORE  //  HIGH-FREQUENCY TRADING MASTER CONTROL CONSOLE
 echo     Zero-Copy SPSC IPC  *  Pure-C nogil LOB  *  Asynchronous SQLite WAL
 echo ===============================================================================
 echo.
@@ -97,12 +97,12 @@ goto MENU
 :RUN_REPORTS
 cls
 echo [*] Opening Cython Zero-Yellow Annotation Reports in your default browser...
-if exist "chronos_match\engine\order_book_cy.html" (
-    start "" "chronos_match\engine\order_book_cy.html"
+if exist "fluxcore\engine\order_book_cy.html" (
+    start "" "fluxcore\engine\order_book_cy.html"
 ) else (
     echo [!] order_book_cy.html not found. Generating now...
-    cython -3 -a chronos_match\engine\order_book_cy.pyx
-    start "" "chronos_match\engine\order_book_cy.html"
+    cython -3 -a fluxcore\engine\order_book_cy.pyx
+    start "" "fluxcore\engine\order_book_cy.html"
 )
 echo [+] Opened Cython C-code report. Notice zero yellow Python calls in the hot loop.
 echo.
@@ -129,5 +129,5 @@ goto MENU
 
 :EXIT
 echo.
-echo [+] ChronosMatch launcher closed.
+echo [+] FluxCore launcher closed.
 exit /b 0

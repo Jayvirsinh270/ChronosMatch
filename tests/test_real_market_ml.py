@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Phase 6 (Real Market Data, ML Impact Engine & Quantitative Algo Suite).
+FluxCore: Test Suite for Phase 6 (Real Market Data, ML Impact Engine & Quantitative Algo Suite).
 
 Validates:
 1. Real historical stock & ETF data discovery, indexing, and candle parsing.
@@ -17,15 +17,15 @@ import os
 import time
 import pytest
 
-from chronos_match.market.data_loader import MarketDataLoader, StockCandle
-from chronos_match.market.ml_impact_engine import MLMarketImpactEngine
-from chronos_match.algo.market_maker import AvellanedaStoikovMarketMaker
-from chronos_match.algo.momentum_bot import MomentumBreakoutBot
-from chronos_match.algo import AlgoTradingManager
-from chronos_match.market.router import MultiBookRouter, SymbolInfo
-from chronos_match.market.replayer import HistoricalMarketReplayer
-from chronos_match.web.server import WebTradingServer
-from chronos_match.protocol import to_fixed_price, from_fixed_price, OrderSide
+from fluxcore.market.data_loader import MarketDataLoader, StockCandle
+from fluxcore.market.ml_impact_engine import MLMarketImpactEngine
+from fluxcore.algo.market_maker import AvellanedaStoikovMarketMaker
+from fluxcore.algo.momentum_bot import MomentumBreakoutBot
+from fluxcore.algo import AlgoTradingManager
+from fluxcore.market.router import MultiBookRouter, SymbolInfo
+from fluxcore.market.replayer import HistoricalMarketReplayer
+from fluxcore.web.server import WebTradingServer
+from fluxcore.protocol import to_fixed_price, from_fixed_price, OrderSide
 
 
 # ─────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-# ChronosMatch ⚡
+# FluxCore ⚡
 ### Zero-Copy High-Frequency Trading (HFT) Matching Engine & Institutional Trading Terminal
 
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.15-blue.svg)](https://www.python.org/)
@@ -10,15 +10,15 @@
 [![Interface](https://img.shields.io/badge/Interface-Rich%20TUI%20%2B%20Web%20Cockpit-purple.svg)](#-how-to-start-tui--web-browser)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**ChronosMatch** is an ultra-low-latency, zero-copy financial matching engine and multi-venue institutional algorithmic trading platform. It overcomes the fundamental bottlenecks of traditional trading systems in Python: **Garbage Collection (GC) pauses**, **IPC serialization overhead (JSON/Pickle)**, and **Global Interpreter Lock (GIL) contention**.
+**FluxCore** is an ultra-low-latency, zero-copy financial matching engine and multi-venue institutional algorithmic trading platform. It overcomes the fundamental bottlenecks of traditional trading systems in Python: **Garbage Collection (GC) pauses**, **IPC serialization overhead (JSON/Pickle)**, and **Global Interpreter Lock (GIL) contention**.
 
-Combining **hardware cache-line aligned shared memory (`mmap`)**, **Single-Producer Single-Consumer (SPSC) lock-free ring buffers**, and a **pure C/Cython Limit Order Book compiled with `nogil`**, ChronosMatch delivers deterministic **sub-50 microsecond execution times**, sustains over **490,000+ orders/sec** process-to-process IPC throughput, and offers both a **Bloomberg-style Rich Terminal TUI** and a modern **Dual-Mode Web Trading Cockpit** (Simple vs. Pro Mode).
+Combining **hardware cache-line aligned shared memory (`mmap`)**, **Single-Producer Single-Consumer (SPSC) lock-free ring buffers**, and a **pure C/Cython Limit Order Book compiled with `nogil`**, FluxCore delivers deterministic **sub-50 microsecond execution times**, sustains over **490,000+ orders/sec** process-to-process IPC throughput, and offers both a **Bloomberg-style Rich Terminal TUI** and a modern **Dual-Mode Web Trading Cockpit** (Simple vs. Pro Mode).
 
 ---
 
 ## 🏛️ System Architecture
 
-ChronosMatch isolates ingestion, order matching, multi-venue routing, persistence, and visual monitoring into dedicated OS processes communicating via bare-metal shared RAM:
+FluxCore isolates ingestion, order matching, multi-venue routing, persistence, and visual monitoring into dedicated OS processes communicating via bare-metal shared RAM:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -69,7 +69,7 @@ ChronosMatch isolates ingestion, order matching, multi-venue routing, persistenc
 
 ## 🖥️ User Interfaces: Terminal TUI & Web Browser
 
-ChronosMatch provides two first-class trading interfaces:
+FluxCore provides two first-class trading interfaces:
 
 ### 1. 🖥️ Bloomberg-Style Terminal TUI (Command Line)
 * **Real-time ASCII Order Book Ladder**: Instant visualization of active Bids and Asks with volume depth bars.
@@ -209,8 +209,8 @@ python demo.py
 ## 📂 Project Repository Structure
 
 ```text
-chronos_match/
-├── chronos_match/                 # Core Python & Cython package
+fluxcore/
+├── fluxcore/                 # Core Python & Cython package
 │   ├── __init__.py                # Package root exports
 │   ├── protocol.py                # Binary 64B packing, fixed-point math, struct alignment
 │   ├── ring_buffer.py             # Lock-free SPSC mmap ring buffer (cache-line padded)
@@ -286,8 +286,8 @@ chronos_match/
 
 ```powershell
 # Clone the repository
-git clone https://github.com/Jayvirsinh270/ChronosMatch.git
-cd ChronosMatch
+git clone https://github.com/Jayvirsinh270/FluxCore.git
+cd FluxCore
 
 # Create and activate virtual environment
 python -m venv .venv
@@ -314,7 +314,7 @@ python setup.py build_ext --inplace
 
 ## 🧪 Verification & Test Suite (173/173 Passing)
 
-ChronosMatch includes an exhaustive 16-suite test matrix covering memory arenas, SPSC ring buffers, order matching, SOR routing, latency arbitrage, ML signals, and REST/WebSocket endpoints:
+FluxCore includes an exhaustive 16-suite test matrix covering memory arenas, SPSC ring buffers, order matching, SOR routing, latency arbitrage, ML signals, and REST/WebSocket endpoints:
 
 ```powershell
 # Run the complete test suite

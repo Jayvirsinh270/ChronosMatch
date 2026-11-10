@@ -1,6 +1,6 @@
-# ⚡ ChronosMatch — Complete CLI & Command Execution Guide
+# ⚡ FluxCore — Complete CLI & Command Execution Guide
 
-This document contains every runnable command in **ChronosMatch**, explaining:
+This document contains every runnable command in **FluxCore**, explaining:
 - **Exact Command Syntax** (PowerShell / Windows / Linux)
 - **What it Does (Under the Hood)**
 - **How to Interpret and Verify the Results**
@@ -41,16 +41,16 @@ source .venv/bin/activate
 ```powershell
 python setup.py build_ext --inplace
 ```
-* **What it does**: Compiles `chronos_match/engine/order_book_cy.pyx` into an optimized native C extension (`.pyd` on Windows, `.so` on Linux) using MSVC with `/O2` release optimizations.
+* **What it does**: Compiles `fluxcore/engine/order_book_cy.pyx` into an optimized native C extension (`.pyd` on Windows, `.so` on Linux) using MSVC with `/O2` release optimizations.
 * **Expected Result**:
   * You will see compiler output from `cl.exe`.
-  * Generates `order_book_cy.cp315-win_amd64.pyd` (or your Python version equivalent) inside `chronos_match/engine/`.
+  * Generates `order_book_cy.cp315-win_amd64.pyd` (or your Python version equivalent) inside `fluxcore/engine/`.
 
 ---
 
 ### 1.3 Clean Build Artifacts (Reset Build)
 ```powershell
-Remove-Item -Recurse -Force build, *.pyd, chronos_match\engine\*.pyd, chronos_match\engine\*.c -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force build, *.pyd, fluxcore\engine\*.pyd, fluxcore\engine\*.c -ErrorAction SilentlyContinue
 ```
 * **What it does**: Deletes old compiled binaries and C code before doing a fresh compilation.
 
@@ -68,7 +68,7 @@ python verify_system.py
   1. Audits compiled native MSVC C/Cython `.pyd` extensions (`order_book_cy`, `arena_cy`, `price_level_cy`).
   2. Executes unit tests across all 5 architectural phases.
   3. Runs single-thread matching soak benchmark computing wire-to-match latency percentiles ($p50, p90, p99, p99.9$).
-  4. Generates the official **ChronosMatch Systems Engineering Certificate**.
+  4. Generates the official **FluxCore Systems Engineering Certificate**.
 * **Expected Result**: Single-thread throughput > 450,000 ord/s, $p99 < 50\mu s$ SLA met.
 
 ---
@@ -134,7 +134,7 @@ python main.py --orders 200000 --rate 50000 --capacity 131072 --db my_audit.db
 ```powershell
 python main.py --demo
 # or equivalently:
-python -m chronos_match.monitor.dashboard
+python -m fluxcore.monitor.dashboard
 ```
 * **What it does**: Launches the newly upgraded institutional-grade Rich Terminal UI directly in 20 FPS simulation mode without spawning multi-process IPC daemons.
 * **What you see on screen**:
@@ -188,7 +188,7 @@ python web_app.py --port 8080 --no-browser
 
 ### 3.4 Features to Show in the Web Cockpit:
 1. **Anti-Compression Dynamic Focus Charting**: When big downward or upward impulse candles occur, preceding candles remain full-size, distinct, and readable without shrinking into flat slivers. Viewport bounds interpolate smoothly using EMA dampening.
-2. **Session Persistence**: All generated and matched candles persist in `chronos_market_history.db`. When you close and restart the server, the chart and order book resume **exactly where you left off**.
+2. **Session Persistence**: All generated and matched candles persist in `fluxcore_market_history.db`. When you close and restart the server, the chart and order book resume **exactly where you left off**.
 3. **Multi-Timeframe Institutional CSV Exporter**: Click `Export CSV ▾` on the chart toolbar to export:
    - **Durations**: `Last 30 Min`, `Last 1 Hour`, `Last 2 Hours (Maximum)`, or `All Session Data`
    - **Scopes**: `All Different Stocks (Combined Tape)` or `Current Active Stock`
@@ -276,13 +276,13 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/order/cancel" -Method Post -Co
 ### 4.5 Export Order Execution Tape & Market Data via API (30m, 1h, 2h, All Stocks)
 ```powershell
 # Download Last 2 Hours of trade executions across ALL stocks
-Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/market/export-csv?symbol=ALL&duration=2h&data_type=trades" -OutFile "ChronosMatch_ALL_STOCKS_2H_Trades.csv"
+Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/market/export-csv?symbol=ALL&duration=2h&data_type=trades" -OutFile "FluxCore_ALL_STOCKS_2H_Trades.csv"
 
 # Download Last 1 Hour of trade executions for Bitcoin (BTC-USD)
-Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/market/export-csv?symbol=BTC-USD&duration=1h&data_type=trades" -OutFile "ChronosMatch_BTC_1H_Trades.csv"
+Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/market/export-csv?symbol=BTC-USD&duration=1h&data_type=trades" -OutFile "FluxCore_BTC_1H_Trades.csv"
 
 # Download Last 30 Minutes of OHLCV Candlesticks for NVIDIA (NVDA-USD)
-Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/market/export-csv?symbol=NVDA-USD&duration=30m&data_type=candles" -OutFile "ChronosMatch_NVDA_30M_Candles.csv"
+Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/market/export-csv?symbol=NVDA-USD&duration=30m&data_type=candles" -OutFile "FluxCore_NVDA_30M_Candles.csv"
 ```
 
 ---
@@ -330,7 +330,7 @@ python demo.py
 
 ## 6. 📈 Data Ingestion & Machine Learning Scripts
 
-ChronosMatch includes institutional quantitative data tooling and an ML training pipeline.
+FluxCore includes institutional quantitative data tooling and an ML training pipeline.
 
 ---
 
@@ -352,7 +352,7 @@ python scripts/train_ml_model.py
   * Performs an 80/20 chronological walk-forward train/test split.
   * Trains a Gaussian Naive Bayes classifier with empirical Bayes variance shrinkage.
   * Evaluates against institutional metrics: Confusion Matrix, Macro F1, Matthews Correlation Coefficient (MCC), and Directional Hit Rate (DHR).
-  * Exports optimized weights to `data/ml_weights.json` and `chronos_match/market/ml_weights.json`.
+  * Exports optimized weights to `data/ml_weights.json` and `fluxcore/market/ml_weights.json`.
 * **Expected Result**: Prints confusion matrices and validation metrics directly to the terminal.
 
 ### 6.3 Quantitative Strategy Backtester & Bloomberg Tear Sheet CLI (`backtest.py`)
@@ -378,7 +378,7 @@ python backtest.py --symbol BTC-USD --strategy bayesian_flow --capital 250000
 
 ## 7. 🧪 Comprehensive Verification & Test Suite (`pytest`)
 
-ChronosMatch comes with **173 automated tests** verifying every module.
+FluxCore comes with **173 automated tests** verifying every module.
 
 ---
 

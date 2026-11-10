@@ -1,5 +1,5 @@
 """
-ChronosMatch: Master Verification & Performance Certification Suite.
+FluxCore: Master Verification & Performance Certification Suite.
 1-Click Automated Evaluation Script for Internship Defense & Executive Audits.
 
 Performs:
@@ -27,20 +27,20 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from chronos_match.protocol import (
+from fluxcore.protocol import (
     OrderSide,
     OrderType,
     to_fixed_price,
     from_fixed_price,
     TradePacket,
 )
-from chronos_match.engine.order_book_cy import FastOrderBook
-from chronos_match.monitor.metrics import LatencyProfiler, LatencyStats
-from chronos_match.monitor.whale_detector import WhaleDetector
+from fluxcore.engine.order_book_cy import FastOrderBook
+from fluxcore.monitor.metrics import LatencyProfiler, LatencyStats
+from fluxcore.monitor.whale_detector import WhaleDetector
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="ChronosMatch 1-Click Verification Suite")
+    parser = argparse.ArgumentParser(description="FluxCore 1-Click Verification Suite")
     parser.add_argument("--fast", action="store_true", help="Run in fast benchmark mode (25,000 orders)")
     return parser.parse_args()
 
@@ -59,7 +59,7 @@ def check_toolchain(console: Console) -> bool:
     table.add_column("Status", justify="center", width=15)
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    engine_dir = os.path.join(base_dir, "chronos_match", "engine")
+    engine_dir = os.path.join(base_dir, "fluxcore", "engine")
 
     components = [
         ("Pure-C Limit Order Book (nogil)", "order_book_cy"),
@@ -253,7 +253,7 @@ def print_certificate(console: Console, bench_data: Dict[str, Any]):
 
     panel = Panel(
         cert_text,
-        title="⚡ CHRONOS MATCH — SYSTEMS ENGINEERING CERTIFICATE",
+        title="⚡ FLUXCORE — SYSTEMS ENGINEERING CERTIFICATE",
         title_align="center",
         border_style="bright_green",
         box=box.DOUBLE,
@@ -267,7 +267,7 @@ def main():
     console = Console()
 
     header_text = Text()
-    header_text.append("⚡ CHRONOS MATCH — MASTER SYSTEMS VERIFICATION SUITE\n", style="bold bright_cyan")
+    header_text.append("⚡ FLUXCORE — MASTER SYSTEMS VERIFICATION SUITE\n", style="bold bright_cyan")
     header_text.append("Autonomous High-Frequency Trading Engine Quality & Benchmark Auditor", style="dim white")
     console.print(Panel(header_text, border_style="bright_blue", box=box.ROUNDED))
 

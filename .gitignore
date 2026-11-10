@@ -26,6 +26,8 @@ dist/
 # Generated C files from Cython (can be regenerated with setup.py)
 chronos_match/test_cy.c
 chronos_match/engine/*_cy.c
+fluxcore/test_cy.c
+fluxcore/engine/*_cy.c
 
 # Large Market Datasets
 data/

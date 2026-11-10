@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Phase 5 (Institutional FIX 4.2 & Binary OUCH Gateway).
+FluxCore: Test Suite for Phase 5 (Institutional FIX 4.2 & Binary OUCH Gateway).
 
 Validates:
 1. FIX 4.2 Message serialization, framing, and 3-digit CheckSum calculation.
@@ -18,10 +18,10 @@ import asyncio
 import time
 import pytest
 
-from chronos_match.market.router import MultiBookRouter, SymbolInfo
-from chronos_match.risk.risk_engine import PreTradeRiskEngine, RiskLimits
-from chronos_match.protocol import to_fixed_price, from_fixed_price, OrderSide
-from chronos_match.gateway.fix_protocol import (
+from fluxcore.market.router import MultiBookRouter, SymbolInfo
+from fluxcore.risk.risk_engine import PreTradeRiskEngine, RiskLimits
+from fluxcore.protocol import to_fixed_price, from_fixed_price, OrderSide
+from fluxcore.gateway.fix_protocol import (
     FixMessage,
     FixTag,
     FixMsgType,
@@ -34,9 +34,9 @@ from chronos_match.gateway.fix_protocol import (
     SOH,
     SOH_CHR,
 )
-from chronos_match.gateway.fix_session import FixSession
-from chronos_match.gateway.fix_server import FixGatewayServer
-from chronos_match.gateway.binary_ouch import (
+from fluxcore.gateway.fix_session import FixSession
+from fluxcore.gateway.fix_server import FixGatewayServer
+from fluxcore.gateway.binary_ouch import (
     BinaryOuchCodec,
     OuchEnterOrder,
     OuchCancelOrder,

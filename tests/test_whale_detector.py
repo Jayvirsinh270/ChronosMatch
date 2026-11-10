@@ -1,5 +1,5 @@
 """
-ChronosMatch: Test Suite for Whale Sweep & SLA Breach Detector.
+FluxCore: Test Suite for Whale Sweep & SLA Breach Detector.
 Verifies institutional block detection, multi-level sweep aggregation,
 and nanosecond SLA latency breach alerting.
 """
@@ -7,8 +7,8 @@ and nanosecond SLA latency breach alerting.
 import time
 import pytest
 
-from chronos_match.protocol import TradePacket, to_fixed_price, Side
-from chronos_match.monitor.whale_detector import WhaleDetector, WhaleAlert
+from fluxcore.protocol import TradePacket, to_fixed_price, Side
+from fluxcore.monitor.whale_detector import WhaleDetector, WhaleAlert
 
 
 def test_whale_detector_normal_trade():

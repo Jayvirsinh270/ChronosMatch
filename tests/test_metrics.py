@@ -1,11 +1,11 @@
 """
-Unit tests and microbenchmarks for ChronosMatch LatencyProfiler.
+Unit tests and microbenchmarks for FluxCore LatencyProfiler.
 Verifies circular window mechanics, statistical accuracy (p50, p90, p99), histogram binning, and recording throughput.
 """
 
 import time
 import pytest
-from chronos_match.monitor.metrics import LatencyProfiler, LatencyStats
+from fluxcore.monitor.metrics import LatencyProfiler, LatencyStats
 
 def test_latency_profiler_init():
     """Verify clean initial state of LatencyProfiler."""

@@ -1,12 +1,12 @@
 """
-Unit tests and microbenchmarks for ChronosMatch Limit Order Book (LOB).
+Unit tests and microbenchmarks for FluxCore Limit Order Book (LOB).
 Verifies Price-Time Priority, exact executions, partial fills, multi-level whale sweeps, and latency.
 """
 
 import time
 import pytest
-from chronos_match.protocol import to_fixed_price, from_fixed_price
-from chronos_match.engine.order_book_cy import FastOrderBook
+from fluxcore.protocol import to_fixed_price, from_fixed_price
+from fluxcore.engine.order_book_cy import FastOrderBook
 
 def test_order_book_initialization():
     """Verify empty OrderBook initial state."""

@@ -4,38 +4,38 @@ import os
 
 include_dirs = [
     os.path.abspath("include"),
-    os.path.abspath("chronos_match"),
-    os.path.abspath("chronos_match/engine"),
+    os.path.abspath("fluxcore"),
+    os.path.abspath("fluxcore/engine"),
 ]
 
 extensions = [
     Extension(
-        name="chronos_match.test_cy",
-        sources=["chronos_match/test_cy.pyx"],
+        name="fluxcore.test_cy",
+        sources=["fluxcore/test_cy.pyx"],
         include_dirs=include_dirs,
     ),
     Extension(
-        name="chronos_match.engine.arena_cy",
+        name="fluxcore.engine.arena_cy",
         sources=[
-            "chronos_match/engine/arena_cy.pyx",
-            "chronos_match/engine/arena.c",
+            "fluxcore/engine/arena_cy.pyx",
+            "fluxcore/engine/arena.c",
         ],
         include_dirs=include_dirs,
         extra_compile_args=["/O2"] if os.name == "nt" else ["-O3"],
     ),
     Extension(
-        name="chronos_match.engine.price_level_cy",
-        sources=["chronos_match/engine/price_level_cy.pyx"],
+        name="fluxcore.engine.price_level_cy",
+        sources=["fluxcore/engine/price_level_cy.pyx"],
         include_dirs=include_dirs,
         extra_compile_args=["/O2"] if os.name == "nt" else ["-O3"],
     ),
     Extension(
-        name="chronos_match.engine.order_book_cy",
+        name="fluxcore.engine.order_book_cy",
         sources=[
-            "chronos_match/engine/order_book_cy.pyx",
-            "chronos_match/engine/order_book.c",
-            "chronos_match/engine/arena.c",
-            "chronos_match/engine/order_map.c",
+            "fluxcore/engine/order_book_cy.pyx",
+            "fluxcore/engine/order_book.c",
+            "fluxcore/engine/arena.c",
+            "fluxcore/engine/order_map.c",
         ],
         include_dirs=include_dirs,
         extra_compile_args=["/O2"] if os.name == "nt" else ["-O3"],
@@ -43,7 +43,8 @@ extensions = [
 ]
 
 setup(
-    name="chronos_match",
+    name="fluxcore",
+    packages=["fluxcore"],
     ext_modules=cythonize(
         extensions,
         compiler_directives={

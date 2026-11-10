@@ -1,5 +1,5 @@
 """
-End-to-End integration tests and SLA latency audits for ChronosMatch.
+End-to-End integration tests and SLA latency audits for FluxCore.
 Verifies the complete pipeline: Market Firehose -> Shared Memory IPC -> Cython Matching Engine -> Outbound Trade Buffer.
 """
 
@@ -7,11 +7,11 @@ import time
 import pytest
 from pathlib import Path
 
-from chronos_match.protocol import to_fixed_price
-from chronos_match.ring_buffer import RingBuffer
-from chronos_match.market.firehose import AsyncMarketFirehose
-from chronos_match.market.bridge import EngineWorker
-from chronos_match.monitor.metrics import LatencyProfiler
+from fluxcore.protocol import to_fixed_price
+from fluxcore.ring_buffer import RingBuffer
+from fluxcore.market.firehose import AsyncMarketFirehose
+from fluxcore.market.bridge import EngineWorker
+from fluxcore.monitor.metrics import LatencyProfiler
 
 TEST_DIR = Path("d:/infotech_internship_project/.test_shm")
 
